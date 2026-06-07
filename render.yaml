@@ -1,0 +1,23 @@
+# Render.com — connect GitHub repo and deploy with one click.
+# Docs: https://render.com/docs/blueprint-spec
+services:
+  - type: web
+    name: crusher-accounting
+    runtime: node
+    plan: free
+    buildCommand: npm run build
+    startCommand: npm start
+    healthCheckPath: /api/health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: JWT_EXPIRES_IN
+        value: 7d
+      - key: SUPER_ADMIN_USERNAME
+        value: MohanGowri
+      - key: CORS_ORIGIN
+        value: "*"
+      - key: JWT_SECRET
+        generateValue: true
+      - key: MONGO_URI
+        sync: false

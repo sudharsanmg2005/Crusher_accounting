@@ -1,0 +1,66 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+html, body, #root {
+  height: 100%;
+  overflow: hidden;
+}
+
+body {
+  @apply bg-slate-50 text-slate-800;
+}
+
+.btn-primary {
+  @apply bg-blue-600 text-white px-4 py-2 rounded-lg text-lg font-semibold hover:bg-blue-700 transition;
+}
+
+.card {
+  @apply bg-white rounded-xl shadow-sm border border-slate-200 p-4;
+}
+
+.btn-secondary {
+  @apply bg-white text-slate-700 border border-slate-300 px-4 py-2 rounded-lg font-semibold hover:bg-slate-50 transition;
+}
+
+/* Consistent table look across pages */
+.data-table {
+  @apply w-full text-left border-collapse;
+}
+
+.data-table th {
+  @apply p-4 font-semibold text-sm text-slate-600 uppercase tracking-wider bg-slate-50 border-b border-slate-200;
+}
+
+.data-table td {
+  @apply p-4 text-sm text-slate-700 border-b border-slate-100;
+}
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes loading-bar {
+  from {
+    width: 0%;
+  }
+  to {
+    width: 100%;
+  }
+}
+
+.animate-fade-in {
+  animation: fade-in 0.8s ease-out forwards;
+}
+
+.animate-loading-bar {
+  animation: loading-bar 2.5s ease-in-out forwards;
+}
+
