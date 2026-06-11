@@ -46,10 +46,10 @@ export const downloadBillPdf = (bill) => {
     startY: y,
     margin: { left: margin, right: margin },
     theme: 'plain',
-    styles: { fontSize: 9.5, cellPadding: 1.5, textColor: [71, 85, 105] }, // slate-600
+    styles: { font: 'helvetica', fontSize: 10, cellPadding: 2, textColor: [71, 85, 105] }, // slate-600
     columnStyles: {
-      0: { cellWidth: 'auto' },
-      1: { cellWidth: 'auto' }
+      0: { cellWidth: 60, halign: 'left' },
+      1: { cellWidth: 60, halign: 'right' }
     }
   });
 
@@ -93,15 +93,15 @@ export const downloadBillPdf = (bill) => {
     startY: y,
     margin: { left: margin, right: margin },
     theme: 'grid',
-    styles: { fontSize: 9, cellPadding: 3, valign: 'middle', textColor: [30, 41, 59] }, // slate-800
-    headStyles: { fillColor: [51, 65, 85], textColor: [255, 255, 255], fontStyle: 'bold' }, // slate-700
+    styles: { font: 'helvetica', fontSize: 10, cellPadding: 3.5, valign: 'middle', textColor: [30, 41, 59] }, // slate-800
+    headStyles: { font: 'helvetica', fillColor: [51, 65, 85], textColor: [255, 255, 255], fontStyle: 'bold', fontSize: 10 }, // slate-700
     columnStyles: {
       0: { halign: 'left', cellWidth: 45 },
       1: { halign: 'center', cellWidth: 25 },
       2: { halign: 'center', cellWidth: 25 },
       3: { halign: 'right', cellWidth: 25 }
     },
-    footStyles: { fillColor: [241, 245, 249], textColor: [15, 23, 42] } // slate-100 / slate-900
+    footStyles: { font: 'helvetica', fillColor: [241, 245, 249], textColor: [15, 23, 42], fontStyle: 'bold', fontSize: 10 } // slate-100 / slate-900
   });
 
   // Footer note
