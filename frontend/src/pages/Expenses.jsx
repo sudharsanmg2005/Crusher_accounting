@@ -3,6 +3,7 @@ import api from '../api';
 import jsPDF from 'jspdf';
 import { autoTable } from 'jspdf-autotable';
 import { useConfirm } from '../components/ConfirmDialog';
+import { EditIcon, TrashIcon } from '../components/Icons';
 
 const toYMD = (d) => {
   const year = d.getFullYear();
@@ -24,10 +25,26 @@ const Expenses = () => {
   const [reportType, setReportType] = useState('monthly'); // monthly | weekly | range | all
   const [dateRange, setDateRange] = useState(initialMonthlyRange);
   const [expenses, setExpenses] = useState([]);
+  const [selectedType, setSelectedType] = useState('All');
   const [loading, setLoading] = useState(true);
+
+  const filteredExpenses = useMemo(() => {
+    if (selectedType === 'All') return expenses;
+    return expenses.filter((e) => e.type === selectedType);
+  }, [expenses, selectedType]);
+
+  const dynamicTypes = useMemo(() => {
+    const types = new Set(['Fuel', 'Maintenance', 'Labour', 'Electricity', 'Rent']);
+    expenses.forEach((e) => {
+      if (e.type) types.add(e.type);
+    });
+    return Array.from(types);
+  }, [expenses]);
+
   const [isModalOpen, setIsModalOpen] = useState(false);
   
   const [formData, setFormData] = useState({ date: new Date().toISOString().split('T')[0], type: '', description: '', amount: '' });
+  const [customType, setCustomType] = useState('');
 
   // Sync dateRange when reportType changes
   useEffect(() => {
@@ -80,7 +97,7 @@ const Expenses = () => {
   };
 
   const downloadPdf = () => {
-    if (expenses.length === 0) return;
+    if (filteredExpenses.length === 0) return;
 
     const doc = new jsPDF();
 
@@ -96,8 +113,8 @@ const Expenses = () => {
     };
 
     // Header - Company Name
-    centerText('KRISHNA BLUE METALS', 12, 14, 'bold');
-    centerText('EXPENSE REPORT', 19, 11, 'bold');
+    const titleText = selectedType === 'All' ? 'EXPENSE REPORT' : `EXPENSE REPORT - ${selectedType.toUpperCase()}`;
+    centerText(titleText, 19, 11, 'bold');
 
     // Date Range Label
     let rangeLabel = 'All Time';
@@ -119,7 +136,7 @@ const Expenses = () => {
     const yStartTable = 36;
 
     const head = [['S.NO', 'DATE', 'EXPENSE TYPE', 'DESCRIPTION', 'AMOUNT']];
-    const body = expenses.map((e, idx) => [
+    const body = filteredExpenses.map((e, idx) => [
       idx + 1,
       new Date(e.date).toLocaleDateString(),
       e.type,
@@ -145,11 +162,11 @@ const Expenses = () => {
 
     // Group expenses by type to show a nice summary
     const byType = {};
-    expenses.forEach((e) => {
+    filteredExpenses.forEach((e) => {
       byType[e.type] = (byType[e.type] || 0) + e.amount;
     });
 
-    const totalAmount = expenses.reduce((sum, e) => sum + e.amount, 0);
+    const totalAmount = filteredExpenses.reduce((sum, e) => sum + e.amount, 0);
 
     const totalsHead = [['EXPENSE SUMMARY', 'AMOUNT']];
     const totalsBody = Object.entries(byType).map(([type, amount]) => [
@@ -198,13 +215,25 @@ const Expenses = () => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     try {
+      const expenseType = formData.type === 'Other' ? customType.trim() : formData.type;
+      if (!expenseType) {
+        alert('Please specify an expense type');
+        return;
+      }
+      const payload = {
+        ...formData,
+        type: expenseType,
+        amount: Number(formData.amount)
+      };
+
       if (formData._id) {
-        await api.put(`/expenses/${formData._id}`, { ...formData, amount: Number(formData.amount) });
+        await api.put(`/expenses/${formData._id}`, payload);
       } else {
-        await api.post('/expenses', { ...formData, amount: Number(formData.amount) });
+        await api.post('/expenses', payload);
       }
       setIsModalOpen(false);
       setFormData({ date: new Date().toISOString().split('T')[0], type: '', description: '', amount: '' });
+      setCustomType('');
       fetchExpenses();
     } catch (error) {
       console.error('Error saving expense', error);
@@ -213,11 +242,14 @@ const Expenses = () => {
   };
 
   const handleEdit = (expense) => {
+    const isPredefined = ['Fuel', 'Maintenance', 'Labour', 'Electricity', 'Rent'].includes(expense.type);
     setFormData({ 
       ...expense, 
       date: expense.date ? new Date(expense.date).toISOString().split('T')[0] : '',
+      type: isPredefined ? expense.type : 'Other',
       amount: expense.amount 
     });
+    setCustomType(isPredefined ? '' : expense.type);
     setIsModalOpen(true);
   };
 
@@ -241,19 +273,19 @@ const Expenses = () => {
 
   return (
     <div className="space-y-6 flex flex-col h-full">
-      <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center shrink-0 space-y-4 lg:space-y-0">
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center shrink-0 gap-4">
         <div>
           <h1 className="text-2xl font-bold text-slate-800">Expenses</h1>
           <p className="text-slate-500 text-sm mt-1">Track operational costs and overheads.</p>
         </div>
 
-        <div className="flex flex-wrap items-end gap-3 bg-white p-3 rounded-xl shadow-sm border border-slate-200 w-full lg:w-auto">
-          <div>
+        <div className="flex flex-wrap items-end gap-3 bg-white p-3 rounded-xl shadow-sm border border-slate-200 w-full md:w-auto">
+          <div className="w-full sm:w-auto">
             <label className="block text-xs font-semibold text-slate-500 mb-1 uppercase tracking-wider">Filter Type</label>
             <select
               value={reportType}
               onChange={(e) => setReportType(e.target.value)}
-              className="border border-slate-300 rounded-lg p-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none bg-white"
+              className="border border-slate-300 rounded-lg p-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none bg-white w-full"
             >
               <option value="all">All Expenses</option>
               <option value="monthly">Monthly</option>
@@ -262,7 +294,23 @@ const Expenses = () => {
             </select>
           </div>
 
-          <div>
+          <div className="w-full sm:w-auto">
+            <label className="block text-xs font-semibold text-slate-500 mb-1 uppercase tracking-wider">Expense Type</label>
+            <select
+              value={selectedType}
+              onChange={(e) => setSelectedType(e.target.value)}
+              className="border border-slate-300 rounded-lg p-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none bg-white w-full"
+            >
+              <option value="All">All Types</option>
+              {dynamicTypes.map((t) => (
+                <option key={t} value={t}>
+                  {t === 'Labour' ? 'Labour / Salary' : t}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div className="w-full sm:w-auto">
             <label className="block text-xs font-semibold text-slate-500 mb-1 uppercase tracking-wider">Start Date</label>
             <input
               type="date"
@@ -271,11 +319,11 @@ const Expenses = () => {
               onChange={onChange}
               disabled={reportType !== 'range'}
               required
-              className="border border-slate-300 rounded-lg p-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none disabled:bg-slate-50"
+              className="border border-slate-300 rounded-lg p-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none disabled:bg-slate-50 w-full"
             />
           </div>
 
-          <div>
+          <div className="w-full sm:w-auto">
             <label className="block text-xs font-semibold text-slate-500 mb-1 uppercase tracking-wider">End Date</label>
             <input
               type="date"
@@ -284,23 +332,27 @@ const Expenses = () => {
               onChange={onChange}
               disabled={reportType !== 'range'}
               required
-              className="border border-slate-300 rounded-lg p-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none disabled:bg-slate-50"
+              className="border border-slate-300 rounded-lg p-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none disabled:bg-slate-50 w-full"
             />
           </div>
 
           <button
             type="button"
             onClick={downloadPdf}
-            disabled={expenses.length === 0 || loading}
-            className="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-blue-700 transition shadow-md disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+            disabled={filteredExpenses.length === 0 || loading}
+            className="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-blue-700 transition shadow-md disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer w-full sm:w-auto justify-center inline-flex items-center"
           >
             Download PDF
           </button>
 
           <button 
             type="button"
-            onClick={() => { setFormData({ date: new Date().toISOString().split('T')[0], type: '', description: '', amount: '' }); setIsModalOpen(true); }}
-            className="bg-green-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-green-700 transition shadow-md whitespace-nowrap cursor-pointer"
+            onClick={() => { 
+              setFormData({ date: new Date().toISOString().split('T')[0], type: '', description: '', amount: '' }); 
+              setCustomType('');
+              setIsModalOpen(true); 
+            }}
+            className="bg-green-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-green-700 transition shadow-md whitespace-nowrap cursor-pointer w-full sm:w-auto justify-center inline-flex items-center"
           >
             + Add Expense
           </button>
@@ -310,7 +362,7 @@ const Expenses = () => {
       <div className="card overflow-hidden p-0 border border-slate-200 flex-1 flex flex-col min-h-0 min-w-0">
         {loading ? (
            <div className="p-8 text-center text-slate-500">Loading expenses...</div>
-        ) : expenses.length === 0 ? (
+        ) : filteredExpenses.length === 0 ? (
            <div className="p-8 text-center text-slate-500 border-t border-slate-100 italic">No expenses recorded yet.</div>
         ) : (
           <div className="overflow-auto flex-1 min-h-0 min-w-0">
@@ -325,15 +377,27 @@ const Expenses = () => {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 whitespace-nowrap md:whitespace-normal">
-                {expenses.map((exp) => (
+                {filteredExpenses.map((exp) => (
                   <tr key={exp._id} className="hover:bg-slate-50 transition">
                     <td className="p-4 text-slate-600 whitespace-nowrap">{new Date(exp.date).toLocaleDateString()}</td>
                     <td className="p-4 font-medium text-slate-800 whitespace-nowrap"><span className="bg-slate-100 px-2 py-1 rounded text-sm border border-slate-200">{exp.type}</span></td>
                     <td className="p-4 text-slate-600 min-w-[200px] break-words">{exp.description || '-'}</td>
                     <td className="p-4 text-slate-800 font-bold whitespace-nowrap">₹{exp.amount.toLocaleString()}</td>
-                    <td className="p-4 text-right space-x-3 whitespace-nowrap">
-                      <button onClick={() => handleEdit(exp)} className="text-blue-600 hover:text-blue-800 font-medium text-sm transition-colors">Edit</button>
-                      <button onClick={() => handleDelete(exp._id)} className="text-red-600 hover:text-red-800 font-medium text-sm transition-colors">Delete</button>
+                    <td className="p-4 text-right space-x-2 whitespace-nowrap">
+                      <button 
+                        onClick={() => handleEdit(exp)} 
+                        className="text-blue-600 hover:text-blue-800 hover:bg-blue-50 p-2 rounded-lg transition-colors inline-flex items-center" 
+                        title="Edit Expense"
+                      >
+                        <EditIcon className="h-5 w-5" />
+                      </button>
+                      <button 
+                        onClick={() => handleDelete(exp._id)} 
+                        className="text-red-600 hover:text-red-800 hover:bg-red-50 p-2 rounded-lg transition-colors inline-flex items-center" 
+                        title="Delete Expense"
+                      >
+                        <TrashIcon className="h-5 w-5" />
+                      </button>
                     </td>
                   </tr>
                 ))}
@@ -367,14 +431,25 @@ const Expenses = () => {
                   className="w-full border border-slate-300 rounded-lg p-2.5 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition bg-white"
                 >
                   <option value="" disabled>Select a type</option>
-                  <option value="Fuel">Fuel</option>
-                  <option value="Maintenance">Maintenance</option>
-                  <option value="Labour">Labour / Salary</option>
-                  <option value="Electricity">Electricity</option>
-                  <option value="Rent">Rent</option>
+                  {dynamicTypes.filter(t => t !== 'Other').map((t) => (
+                    <option key={t} value={t}>
+                      {t === 'Labour' ? 'Labour / Salary' : t}
+                    </option>
+                  ))}
                   <option value="Other">Other</option>
                 </select>
               </div>
+
+              {formData.type === 'Other' && (
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">Custom Type Name *</label>
+                  <input 
+                    type="text" required value={customType} onChange={(e) => setCustomType(e.target.value)}
+                    className="w-full border border-slate-300 rounded-lg p-2.5 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition"
+                    placeholder="e.g. Office Supplies"
+                  />
+                </div>
+              )}
               <div>
                 <label className="block text-sm font-medium text-slate-700 mb-1">Description</label>
                 <textarea 

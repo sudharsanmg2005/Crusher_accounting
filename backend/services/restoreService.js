@@ -1,6 +1,7 @@
 import Customer from '../models/Customer.js';
 import Employee from '../models/Employee.js';
 import Attendance from '../models/Attendance.js';
+import Bill from '../models/Bill.js';
 import { findActiveByPhone } from '../utils/phone.js';
 import { normalizeVehicleNumber } from '../utils/vehicleNumber.js';
 
@@ -14,8 +15,36 @@ const buildAuditPayload = (recordType, phoneNumber, actionTaken, details) => ({
 });
 
 const mergeCustomerFields = (active, backup) => {
-  if (!active.name?.trim() && backup.name) active.name = backup.name;
-  if (!active.address?.trim() && backup.address) active.address = backup.address;
+  // Merge name: if active has a name and backup has a name, and they are different, combine them
+  if (active.name && backup.name) {
+    const activeName = active.name.trim();
+    const backupName = backup.name.trim();
+    if (activeName !== backupName) {
+      if (!activeName.includes(backupName) && !backupName.includes(activeName)) {
+        active.name = `${activeName} / ${backupName}`;
+      } else if (backupName.includes(activeName)) {
+        active.name = backupName;
+      }
+    }
+  } else if (backup.name) {
+    active.name = backup.name;
+  }
+
+  // Merge address: if active has an address and backup has an address, and they are different, combine them
+  if (active.address && backup.address) {
+    const activeAddr = active.address.trim();
+    const backupAddr = backup.address.trim();
+    if (activeAddr !== backupAddr) {
+      if (!activeAddr.includes(backupAddr) && !backupAddr.includes(activeAddr)) {
+        active.address = `${activeAddr} / ${backupAddr}`;
+      } else if (backupAddr.includes(activeAddr)) {
+        active.address = backupAddr;
+      }
+    }
+  } else if (backup.address) {
+    active.address = backup.address;
+  }
+
   const existingNumbers = new Set((active.vehicles || []).map((v) => normalizeVehicleNumber(v.number)));
   for (const vehicle of backup.vehicles || []) {
     const number = normalizeVehicleNumber(vehicle.number);
@@ -32,6 +61,10 @@ const mergeEmployeeFields = (active, backup) => {
   if (!active.phone?.trim() && backup.phone) active.phone = backup.phone;
   if (backup.dailyWages != null && (!active.dailyWages || active.dailyWages === 0)) {
     active.dailyWages = backup.dailyWages;
+  }
+  if (backup.salaryType) active.salaryType = backup.salaryType;
+  if (backup.customSalary != null && (!active.customSalary || active.customSalary === 0)) {
+    active.customSalary = backup.customSalary;
   }
 };
 
@@ -99,6 +132,13 @@ export const restoreCustomerRecord = async (backupId, action = 'restore') => {
     if (action === 'merge') {
       mergeCustomerFields(existing, backup);
       await existing.save();
+
+      // Update all bills belonging to the backup customer to reference the active customer
+      await Bill.updateMany({ customer: backup._id }, { customer: existing._id });
+
+      // Update customerNameSnapshot for all bills of the active customer to the merged name
+      await Bill.updateMany({ customer: existing._id }, { customerNameSnapshot: existing.name });
+
       return {
         status: 'Restored',
         message: 'Merged backup into existing customer',

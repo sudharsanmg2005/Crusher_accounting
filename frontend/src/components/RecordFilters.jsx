@@ -14,7 +14,7 @@ const RecordFilters = ({
 
   return (
     <div className="p-4 border-b border-slate-200 bg-white space-y-3">
-      <div className="grid grid-cols-1 md:grid-cols-4 xl:grid-cols-7 gap-3">
+      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-7 gap-3">
         <input
           type="text"
           value={filters.search}

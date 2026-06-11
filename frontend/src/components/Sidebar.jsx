@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
 import { useAuth } from '../AuthContext';
 import logoUrl from '../assets/dark KBM.png';
@@ -11,12 +11,19 @@ import {
   ReceiptIcon,
   WalletIcon,
   LineChartIcon,
-  ShieldCheckIcon
+  ShieldCheckIcon,
+  CargoIcon
 } from './Icons';
 
 const Sidebar = ({ isOpen, onClose }) => {
   const navigate = useNavigate();
   const { user, logout } = useAuth();
+  const [isFullscreenLogoOpen, setIsFullscreenLogoOpen] = useState(false);
+
+  const handleLogoClick = (e) => {
+    e.stopPropagation();
+    setIsFullscreenLogoOpen(true);
+  };
 
   const onLogout = () => {
     logout();
@@ -36,12 +43,14 @@ const Sidebar = ({ isOpen, onClose }) => {
     ...(user?.role === 'super_admin' ? [{ name: 'Super Admin', path: '/super-admin', icon: ShieldCheckIcon }] : []),
     { name: 'Employees', path: '/employees', icon: HardHatIcon },
     { name: 'Customers', path: '/customers', icon: UsersIcon },
-    { name: 'Materials', path: '/materials', icon: PackageIcon },
     { name: 'Bills', path: '/bills', icon: ReceiptIcon },
+    { name: 'Buyers', path: '/buyers', icon: UserShieldIcon },
+    { name: 'Loads', path: '/loads', icon: CargoIcon },
     { name: 'Expenses', path: '/expenses', icon: WalletIcon },
     { name: 'Reports', path: '/reports', icon: LineChartIcon },
+    { name: 'Materials', path: '/materials', icon: PackageIcon },
   ];
-
+ 
   return (
     <>
       {/* Mobile Sidebar Overlay/Backdrop */}
@@ -62,7 +71,11 @@ const Sidebar = ({ isOpen, onClose }) => {
         {/* Mobile Header (only shown inside drawer on mobile) */}
         <div className="px-4 pt-6 pb-3 flex justify-between items-center md:block">
           <div className="flex items-center gap-3">
-            <div className="h-14 w-14 md:h-16 md:w-16 rounded-full bg-white border border-slate-200 ring-2 ring-blue-600 flex items-center justify-center overflow-hidden shadow-sm shrink-0">
+            <div 
+              onClick={handleLogoClick}
+              className="h-14 w-14 md:h-16 md:w-16 rounded-full bg-white border border-slate-200 ring-2 ring-blue-600 flex items-center justify-center overflow-hidden shadow-sm shrink-0 cursor-pointer hover:scale-105 transition-transform duration-200"
+              title="Zoom Logo"
+            >
               <img src={logoUrl} alt="Krishna Blue Metals" className="h-full w-full object-contain" />
             </div>
             <div className="leading-tight">
@@ -111,6 +124,23 @@ const Sidebar = ({ isOpen, onClose }) => {
           </button>
         </div>
       </aside>
+
+      {isFullscreenLogoOpen && (
+        <div 
+          className="fixed inset-0 bg-slate-950/95 z-[9999] flex flex-col items-center justify-center p-4 backdrop-blur-md cursor-pointer animate-in fade-in duration-300"
+          onClick={() => setIsFullscreenLogoOpen(false)}
+        >
+          <div className="absolute top-6 right-6 text-white hover:text-slate-300 text-3xl font-bold p-2 cursor-pointer transition-colors" onClick={() => setIsFullscreenLogoOpen(false)}>
+            &times;
+          </div>
+          <div className="max-w-md w-full aspect-square bg-white rounded-full p-8 shadow-2xl flex items-center justify-center ring-8 ring-blue-600 animate-in zoom-in duration-300">
+            <img src={logoUrl} alt="Krishna Blue Metals" className="h-full w-full object-contain" />
+          </div>
+          <h2 className="text-white text-3xl font-extrabold tracking-wider mt-8 text-center drop-shadow-md">KRISHNA BLUE METALS</h2>
+          <p className="text-slate-400 text-sm mt-2 text-center uppercase tracking-widest">{user?.role || 'Admin'} Panel</p>
+          <p className="text-slate-500 text-xs mt-8">Click anywhere to dismiss</p>
+        </div>
+      )}
     </>
   );
 };

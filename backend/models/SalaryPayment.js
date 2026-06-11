@@ -15,6 +15,7 @@ const salaryPaymentSchema = new mongoose.Schema(
     attendedDays: { type: Number, required: true },
     dailyWagesSnapshot: { type: Number, required: true },
     baseSalary: { type: Number, required: true },
+    isBaseSalaryOverridden: { type: Boolean, default: false },
     bonus: { type: Number, default: 0 },
     totalSalary: { type: Number, required: true },
     paidAmount: { type: Number, default: 0 },

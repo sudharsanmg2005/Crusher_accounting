@@ -2,6 +2,8 @@ import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import User from '../models/User.js';
 import AuditLog from '../models/AuditLog.js';
+import { getModelByResource } from '../middleware/auditMiddleware.js';
+
 
 const sanitizeUser = (user) => ({
   id: user._id.toString(),
@@ -106,7 +108,10 @@ export const createAdmin = async (req, res) => {
       existing.isDeleted = false;
       existing.deletedAt = undefined;
       await existing.save();
-      return res.status(201).json(sanitizeUser(existing));
+      return res.status(201).json({
+        ...sanitizeUser(existing),
+        auditDetails: `Created admin ${existing.name} (${existing.username}) with ${accessLevel.replaceAll('_', ' ')} access`
+      });
     }
 
     const admin = await User.create({
@@ -120,7 +125,10 @@ export const createAdmin = async (req, res) => {
       deletedAt: undefined
     });
 
-    return res.status(201).json(sanitizeUser(admin));
+    return res.status(201).json({
+      ...sanitizeUser(admin),
+      auditDetails: `Created admin ${admin.name} (${admin.username}) with ${accessLevel.replaceAll('_', ' ')} access`
+    });
   } catch (err) {
     return res.status(500).json({ message: 'Server error' });
   }
@@ -220,7 +228,7 @@ export const deleteAdmin = async (req, res) => {
 
 export const updateAdmin = async (req, res) => {
   try {
-    const { accessLevel, isActive, name } = req.body || {};
+    const { accessLevel, isActive, name, password, superAdminPassword } = req.body || {};
     const admin = await User.findById(req.params.id);
     if (!admin || !['admin', 'super_admin'].includes(admin.role)) {
       return res.status(404).json({ message: 'Admin not found' });
@@ -237,6 +245,24 @@ export const updateAdmin = async (req, res) => {
       }
     }
 
+    let passwordChanged = false;
+    if (password) {
+      if (!superAdminPassword) {
+        return res.status(400).json({ message: 'Super admin password confirmation is required' });
+      }
+      const loggedInSuper = await User.findById(req.user.userId);
+      if (!loggedInSuper) {
+        return res.status(401).json({ message: 'Unauthorized' });
+      }
+      const isMatch = await bcrypt.compare(superAdminPassword, loggedInSuper.passwordHash);
+      if (!isMatch) {
+        return res.status(400).json({ message: 'Invalid super admin password' });
+      }
+
+      admin.passwordHash = await bcrypt.hash(password, 10);
+      passwordChanged = true;
+    }
+
     if (accessLevel !== undefined) {
       if (!['full_access', 'read_only', 'create_bills'].includes(accessLevel)) {
         return res.status(400).json({ message: 'Invalid access level' });
@@ -251,7 +277,7 @@ export const updateAdmin = async (req, res) => {
     await admin.save();
     return res.json({
       ...sanitizeUser(admin),
-      auditDetails: `Updated admin ${admin.name} (${admin.username}) to ${admin.accessLevel}, ${admin.isActive ? 'active' : 'inactive'}`
+      auditDetails: `Updated admin ${admin.name} (${admin.username}) to ${admin.accessLevel}, ${admin.isActive ? 'active' : 'inactive'}${passwordChanged ? ' (password reset by super admin)' : ''}`
     });
   } catch (err) {
     return res.status(500).json({ message: 'Server error' });
@@ -285,3 +311,106 @@ export const getAllAuditLogs = async (req, res) => {
   }
 };
 
+export const restoreAuditLog = async (req, res, next) => {
+  try {
+    const log = await AuditLog.findById(req.params.id);
+    if (!log) {
+      return res.status(404).json({ message: 'Audit log not found' });
+    }
+
+    const { oldDocument, resource } = log.metadata || {};
+    if (!oldDocument) {
+      return res.status(400).json({ message: 'No original document state found in this log to restore' });
+    }
+
+    const Model = getModelByResource(resource);
+    if (!Model) {
+      return res.status(400).json({ message: `Restore not supported for resource type: ${resource}` });
+    }
+
+    const id = oldDocument._id || oldDocument.id;
+    if (!id) {
+      return res.status(400).json({ message: 'Original document ID is missing' });
+    }
+
+    // Revert the document in the database
+    const docExists = await Model.findById(id);
+    if (docExists) {
+      docExists.overwrite(oldDocument);
+      await docExists.save();
+    } else {
+      await Model.create(oldDocument);
+    }
+
+    // Create a new audit log entry for this restore operation
+    await AuditLog.create({
+      actor: req.user.userId,
+      actorName: req.user.name || req.user.username || 'Admin',
+      actorUsername: req.user.username || '',
+      action: `Restored ${resource}`,
+      method: 'POST',
+      path: req.originalUrl,
+      statusCode: 200,
+      targetId: id.toString(),
+      targetLabel: oldDocument.name || oldDocument.billNumber || oldDocument.type || '',
+      metadata: {
+        resource,
+        details: `Rolled back edit to ${resource} (ID: ${id}) using original data from audit log ${log._id}`,
+        actionTaken: 'Restore Edit',
+        restoredBy: req.user.name || req.user.username || 'Admin'
+      }
+    });
+
+    return res.json({ message: `${resource} successfully restored to its original state` });
+  } catch (err) {
+    return res.status(500).json({ message: err.message || 'Server error' });
+  }
+};
+
+export const deleteAuditLog = async (req, res, next) => {
+  try {
+    const log = await AuditLog.findById(req.params.id);
+    if (!log) {
+      return res.status(404).json({ message: 'Audit log not found' });
+    }
+
+    await AuditLog.deleteOne({ _id: log._id });
+
+    return res.json({ message: 'Audit log entry permanently deleted' });
+  } catch (err) {
+    return res.status(500).json({ message: err.message || 'Server error' });
+  }
+};
+
+export const resetSuperAdminPassword = async (req, res) => {
+  try {
+    const { oldPassword, newPassword } = req.body || {};
+    if (!oldPassword || !newPassword) {
+      return res.status(400).json({ message: 'oldPassword and newPassword are required' });
+    }
+
+    if (req.user.role !== 'super_admin') {
+      return res.status(403).json({ message: 'Super admin access required' });
+    }
+
+    const superAdmin = await User.findById(req.user.userId);
+    if (!superAdmin) {
+      return res.status(404).json({ message: 'Super admin user not found' });
+    }
+
+    const isMatch = await bcrypt.compare(oldPassword, superAdmin.passwordHash);
+    if (!isMatch) {
+      return res.status(400).json({ message: 'Invalid old password' });
+    }
+
+    superAdmin.passwordHash = await bcrypt.hash(newPassword, 10);
+    await superAdmin.save();
+
+    return res.json({ 
+      message: 'Super admin password reset successfully',
+      auditDetails: `Super admin ${superAdmin.username} reset their password`
+    });
+  } catch (err) {
+    return res.status(500).json({ message: err.message || 'Server error' });
+  }
+};

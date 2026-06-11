@@ -17,6 +17,8 @@ import expenseRoutes from './routes/expenseRoutes.js';
 import reportRoutes from './routes/reportRoutes.js';
 import employeeRoutes from './routes/employeeRoutes.js';
 import restoreManagementRoutes from './routes/restoreManagementRoutes.js';
+import loadRoutes from './routes/loadRoutes.js';
+import buyerRoutes from './routes/buyerRoutes.js';
 
 dotenv.config();
 
@@ -61,6 +63,8 @@ app.use('/api/expenses', requireAuth, requireAdmin, auditWrites, expenseRoutes);
 app.use('/api/reports', requireAuth, requireAdmin, reportRoutes);
 app.use('/api/employees', requireAuth, requireAdmin, auditWrites, employeeRoutes);
 app.use('/api/restore-management', requireAuth, requireAdmin, auditWrites, restoreManagementRoutes);
+app.use('/api/loads', requireAuth, requireAdmin, auditWrites, loadRoutes);
+app.use('/api/buyers', requireAuth, requireAdmin, auditWrites, buyerRoutes);
 
 if (isProduction) {
   const frontendDist = path.join(__dirname, '../frontend/dist');

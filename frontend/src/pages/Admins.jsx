@@ -4,6 +4,7 @@ import { useAuth } from '../AuthContext';
 import { useConfirm } from '../components/ConfirmDialog';
 import RecordFilters from '../components/RecordFilters';
 import { defaultRecordFilters, filterRecords } from '../utils/recordFilters';
+import { HistoryIcon, TrashIcon, UndoIcon } from '../components/Icons';
 
 const accessLabels = {
   full_access: 'Full Access',
@@ -53,6 +54,17 @@ const Admins = ({ embedded = false }) => {
   const [error, setError] = useState('');
   const [backupFilters, setBackupFilters] = useState({ ...defaultRecordFilters });
   const [customers, setCustomers] = useState([]);
+  const [showResetModal, setShowResetModal] = useState(false);
+  const [resetForm, setResetForm] = useState({ oldPassword: '', newPassword: '', confirmPassword: '' });
+  const [resetSubmitting, setResetSubmitting] = useState(false);
+  const [resetMessage, setResetMessage] = useState('');
+  const [resetError, setResetError] = useState('');
+  const [showAdminResetModal, setShowAdminResetModal] = useState(false);
+  const [resetAdminUser, setResetAdminUser] = useState(null);
+  const [adminResetPassword, setAdminResetPassword] = useState('');
+  const [adminResetConfirm, setAdminResetConfirm] = useState('');
+  const [adminResetSubmitting, setAdminResetSubmitting] = useState(false);
+  const [superAdminConfirmPassword, setSuperAdminConfirmPassword] = useState('');
 
   const isSuperAdmin = user?.role === 'super_admin';
   const activeAdmins = useMemo(() => admins.filter((admin) => !admin.isDeleted), [admins]);
@@ -124,6 +136,61 @@ const Admins = ({ embedded = false }) => {
       setError(err?.response?.data?.message || 'Failed to create admin');
     } finally {
       setSubmitting(false);
+    }
+  };
+
+  const onResetPasswordSubmit = async (e) => {
+    e.preventDefault();
+    if (resetForm.newPassword !== resetForm.confirmPassword) {
+      setResetError('New passwords do not match');
+      return;
+    }
+    setResetSubmitting(true);
+    setResetMessage('');
+    setResetError('');
+    try {
+      const { data } = await api.post('/auth/reset-super-admin-password', {
+        oldPassword: resetForm.oldPassword,
+        newPassword: resetForm.newPassword
+      });
+      setResetMessage(data.message || 'Password updated successfully!');
+      setResetForm({ oldPassword: '', newPassword: '', confirmPassword: '' });
+      setTimeout(() => {
+        setShowResetModal(false);
+        setResetMessage('');
+      }, 2000);
+    } catch (err) {
+      setResetError(err?.response?.data?.message || 'Failed to reset password');
+    } finally {
+      setResetSubmitting(false);
+    }
+  };
+
+  const onAdminResetPasswordSubmit = async (e) => {
+    e.preventDefault();
+    if (!resetAdminUser) return;
+    if (adminResetPassword !== adminResetConfirm) {
+      setError('Passwords do not match');
+      return;
+    }
+    setAdminResetSubmitting(true);
+    setMessage('');
+    setError('');
+    try {
+      await api.put(`/auth/admins/${resetAdminUser.id}`, {
+        password: adminResetPassword,
+        superAdminPassword: superAdminConfirmPassword
+      });
+      setMessage(`Successfully updated password for admin "${resetAdminUser.username}".`);
+      setAdminResetPassword('');
+      setAdminResetConfirm('');
+      setSuperAdminConfirmPassword('');
+      setShowAdminResetModal(false);
+      setResetAdminUser(null);
+    } catch (err) {
+      setError(err?.response?.data?.message || 'Failed to update admin password');
+    } finally {
+      setAdminResetSubmitting(false);
     }
   };
 
@@ -273,18 +340,27 @@ const Admins = ({ embedded = false }) => {
             <h1 className="text-2xl font-bold">Super Admin Control Center</h1>
             <p className="text-slate-300 text-sm mt-1">Manage admins, audit logs, live records, and deleted backups from one place.</p>
           </div>
-          <button
-            type="button"
-            onClick={refreshAll}
-            className="self-start lg:self-auto bg-white text-slate-900 px-4 py-2 rounded-lg text-sm font-semibold hover:bg-slate-100 transition"
-          >
-            Refresh All
-          </button>
+          <div className="flex flex-col lg:flex-row gap-2 w-full lg:w-auto">
+            <button
+              type="button"
+              onClick={() => setShowResetModal(true)}
+              className="w-full lg:w-auto bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-semibold hover:bg-blue-700 transition justify-center inline-flex"
+            >
+              Reset My Password
+            </button>
+            <button
+              type="button"
+              onClick={refreshAll}
+              className="w-full lg:w-auto bg-white text-slate-900 px-4 py-2 rounded-lg text-sm font-semibold hover:bg-slate-100 transition justify-center inline-flex border border-slate-200"
+            >
+              Refresh All
+            </button>
+          </div>
         </div>
       </div>
       )}
 
-      <div className="grid grid-cols-2 xl:grid-cols-5 gap-3">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-3">
         {[
           ['Active Admins', activeAdmins.length],
           ['Archived Admins', deletedAdmins.length],
@@ -305,7 +381,19 @@ const Admins = ({ embedded = false }) => {
         </div>
       )}
 
-      <Panel title="Create Admin" subtitle="New admins can be created with a limited permission level.">
+      <Panel 
+        title="Create Admin" 
+        subtitle="New admins can be created with a limited permission level."
+        action={
+          <button
+            type="button"
+            onClick={() => setShowResetModal(true)}
+            className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-semibold transition inline-flex items-center justify-center cursor-pointer"
+          >
+            Reset My Password
+          </button>
+        }
+      >
         <form onSubmit={onSubmit} className="p-5">
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
             <div>
@@ -330,7 +418,7 @@ const Admins = ({ embedded = false }) => {
             </div>
           </div>
           <div className="pt-4 flex justify-end">
-            <button type="submit" disabled={submitting} className="bg-blue-600 text-white rounded-lg font-semibold py-2.5 px-5 hover:bg-blue-700 transition shadow-sm disabled:opacity-50 disabled:cursor-not-allowed">
+            <button type="submit" disabled={submitting} className="bg-blue-600 text-white rounded-lg font-semibold py-2.5 px-5 hover:bg-blue-700 transition shadow-sm disabled:opacity-50 disabled:cursor-not-allowed w-full md:w-auto justify-center">
               {submitting ? 'Creating...' : 'Create Admin'}
             </button>
           </div>
@@ -388,9 +476,33 @@ const Admins = ({ embedded = false }) => {
                         </label>
                       </td>
                       <td className="p-4 text-right whitespace-nowrap space-x-3">
-                        <button onClick={() => openLogs(admin)} className="text-blue-600 hover:text-blue-800 font-semibold text-sm">Logs</button>
+                        <button 
+                          onClick={() => openLogs(admin)} 
+                          className="text-blue-600 hover:text-blue-800 hover:bg-blue-50 p-2 rounded-lg transition-colors inline-flex items-center cursor-pointer"
+                          title="View Admin Logs"
+                        >
+                          <HistoryIcon className="h-5 w-5" />
+                        </button>
+                        <button 
+                          onClick={() => {
+                            setResetAdminUser(admin);
+                            setShowAdminResetModal(true);
+                          }} 
+                          className="text-amber-600 hover:text-amber-800 hover:bg-amber-50 p-2 rounded-lg transition-colors inline-flex items-center cursor-pointer"
+                          title="Reset Admin Password"
+                        >
+                          <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                            <path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4" />
+                          </svg>
+                        </button>
                         {admin.id !== user?.id && (
-                          <button onClick={() => onDelete(admin)} className="text-red-600 hover:text-red-800 font-semibold text-sm">Archive</button>
+                          <button 
+                            onClick={() => onDelete(admin)} 
+                            className="text-red-600 hover:text-red-800 hover:bg-red-50 p-2 rounded-lg transition-colors inline-flex items-center cursor-pointer"
+                            title="Archive Admin"
+                          >
+                            <TrashIcon className="h-5 w-5" />
+                          </button>
                         )}
                       </td>
                     </tr>
@@ -421,7 +533,13 @@ const Admins = ({ embedded = false }) => {
                       <td className="p-4 text-slate-600">{accessLabels[admin.accessLevel] || admin.accessLevel}</td>
                       <td className="p-4 text-slate-600">{admin.deletedAt ? new Date(admin.deletedAt).toLocaleString() : '-'}</td>
                       <td className="p-4 text-right">
-                        <button onClick={() => openLogs(admin)} className="text-blue-600 hover:text-blue-800 font-semibold text-sm">View Logs</button>
+                        <button 
+                          onClick={() => openLogs(admin)} 
+                          className="text-blue-600 hover:text-blue-800 hover:bg-blue-50 p-2 rounded-lg transition-colors inline-flex items-center cursor-pointer"
+                          title="View Admin Logs"
+                        >
+                          <HistoryIcon className="h-5 w-5" />
+                        </button>
                       </td>
                     </tr>
                   ))}
@@ -436,18 +554,31 @@ const Admins = ({ embedded = false }) => {
             {selectedAdmin && logs.length === 0 ? (
               <div className="text-sm text-slate-500 border border-slate-200 rounded-lg p-3">No logs found.</div>
             ) : (
-              logs.map((log) => (
-                <div key={log._id} className="border border-slate-200 rounded-lg p-3 bg-white">
-                  <div className="flex justify-between gap-3">
-                    <div className="font-semibold text-slate-900 text-sm">{log.metadata?.details || log.action}</div>
-                    <div className="text-xs text-slate-500 whitespace-nowrap">{new Date(log.createdAt).toLocaleString()}</div>
+              logs.map((log) => {
+                const recordType = log.metadata?.recordType || log.metadata?.resource || 'Record';
+                const actionTaken = log.metadata?.actionTaken || log.action;
+                return (
+                  <div key={log._id} className="border border-slate-200 rounded-lg p-3 bg-white">
+                    <div className="flex justify-between gap-3">
+                      <div className="font-semibold text-slate-900 text-sm">{log.metadata?.details || log.action}</div>
+                      <div className="text-xs text-slate-500 whitespace-nowrap">{new Date(log.createdAt).toLocaleString()}</div>
+                    </div>
+                    <div className="flex flex-wrap gap-2 mt-3">
+                      <span className="inline-flex px-2.5 py-1 rounded-full bg-slate-100 text-slate-700 border border-slate-200 text-[11px] font-semibold">
+                        Record: {recordType}
+                      </span>
+                      <span className="inline-flex px-2.5 py-1 rounded-full bg-blue-50 text-blue-700 border border-blue-200 text-[11px] font-semibold">
+                        Action: {actionTaken}
+                      </span>
+                      {log.metadata?.phoneNumber && (
+                        <span className="inline-flex px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 text-[11px] font-semibold">
+                          Phone: {log.metadata.phoneNumber}
+                        </span>
+                      )}
+                    </div>
                   </div>
-                  <div className="text-xs text-slate-500 mt-2">{log.method} {log.path}</div>
-                  {log.metadata?.resource && (
-                    <div className="text-[11px] text-slate-500 mt-2">Resource: {log.metadata.resource}</div>
-                  )}
-                </div>
-              ))
+                );
+              })
             )}
           </div>
         </Panel>
@@ -507,8 +638,22 @@ const Admins = ({ embedded = false }) => {
                     {record.backupType === 'Employee' && money(record.dailyWages)}
                   </td>
                   <td className="p-4 text-right whitespace-nowrap space-x-3">
-                    <button type="button" onClick={() => onRestoreRecord(record)} className="text-blue-600 hover:text-blue-800 font-semibold text-sm">Restore</button>
-                    <button type="button" onClick={() => onPermanentDelete(record)} className="text-red-600 hover:text-red-800 font-semibold text-sm">Delete</button>
+                    <button 
+                      type="button" 
+                      onClick={() => onRestoreRecord(record)} 
+                      className="text-blue-600 hover:text-blue-800 hover:bg-blue-50 p-2 rounded-lg transition-colors inline-flex items-center cursor-pointer"
+                      title="Restore Record"
+                    >
+                      <UndoIcon className="h-5 w-5" />
+                    </button>
+                    <button 
+                      type="button" 
+                      onClick={() => onPermanentDelete(record)} 
+                      className="text-red-600 hover:text-red-800 hover:bg-red-50 p-2 rounded-lg transition-colors inline-flex items-center cursor-pointer"
+                      title="Delete Permanently"
+                    >
+                      <TrashIcon className="h-5 w-5" />
+                    </button>
                   </td>
                 </tr>
               ))}
@@ -516,6 +661,182 @@ const Admins = ({ embedded = false }) => {
           </table>
         </div>
       </Panel>
+      {/* --- RESET PASSWORD MODAL --- */}
+      {showResetModal && (
+        <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-in fade-in duration-200">
+          <div className="bg-white rounded-xl shadow-2xl w-full max-w-md overflow-hidden flex flex-col max-h-[90vh] border border-slate-100 animate-in zoom-in-95 duration-200">
+            <div className="p-5 border-b border-slate-100 flex justify-between items-center bg-slate-50 shrink-0">
+              <div>
+                <h2 className="text-xl font-bold text-slate-800">Reset Super Admin Password</h2>
+                <p className="text-xs text-slate-500 mt-1">Change your super admin password by verifying your current password.</p>
+              </div>
+              <button 
+                onClick={() => {
+                  setShowResetModal(false);
+                  setResetError('');
+                  setResetMessage('');
+                  setResetForm({ oldPassword: '', newPassword: '', confirmPassword: '' });
+                }} 
+                className="text-slate-400 hover:text-slate-600 text-2xl leading-none cursor-pointer border-0 bg-transparent outline-none"
+              >
+                &times;
+              </button>
+            </div>
+            
+            <form onSubmit={onResetPasswordSubmit} className="p-6 space-y-4">
+              {resetMessage && (
+                <div className="text-sm p-3 rounded-lg text-emerald-800 bg-emerald-50 border border-emerald-200">
+                  {resetMessage}
+                </div>
+              )}
+              {resetError && (
+                <div className="text-sm p-3 rounded-lg text-red-700 bg-red-50 border border-red-200">
+                  {resetError}
+                </div>
+              )}
+              
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">Current Password (Old)</label>
+                <input 
+                  type="password" 
+                  required 
+                  value={resetForm.oldPassword} 
+                  onChange={(e) => setResetForm(prev => ({ ...prev, oldPassword: e.target.value }))}
+                  className="w-full border border-slate-300 rounded-lg p-2.5 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition" 
+                />
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">New Password</label>
+                <input 
+                  type="password" 
+                  required 
+                  value={resetForm.newPassword} 
+                  onChange={(e) => setResetForm(prev => ({ ...prev, newPassword: e.target.value }))}
+                  className="w-full border border-slate-300 rounded-lg p-2.5 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition" 
+                />
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">Confirm New Password</label>
+                <input 
+                  type="password" 
+                  required 
+                  value={resetForm.confirmPassword} 
+                  onChange={(e) => setResetForm(prev => ({ ...prev, confirmPassword: e.target.value }))}
+                  className="w-full border border-slate-300 rounded-lg p-2.5 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition" 
+                />
+              </div>
+              
+              <div className="pt-4 flex justify-end gap-3 border-t border-slate-100 bg-slate-50 -mx-6 -mb-6 p-4">
+                <button 
+                  type="button"
+                  onClick={() => {
+                    setShowResetModal(false);
+                    setResetError('');
+                    setResetMessage('');
+                    setResetForm({ oldPassword: '', newPassword: '', confirmPassword: '' });
+                  }}
+                  className="px-4 py-2 border border-slate-300 rounded-lg text-slate-700 text-sm font-medium hover:bg-slate-50 transition cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button 
+                  type="submit" 
+                  disabled={resetSubmitting}
+                  className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-semibold transition disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+                >
+                  {resetSubmitting ? 'Updating...' : 'Update Password'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+      {/* --- RESET OTHER ADMIN PASSWORD MODAL --- */}
+      {showAdminResetModal && resetAdminUser && (
+        <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-in fade-in duration-200">
+          <div className="bg-white rounded-xl shadow-2xl w-full max-w-md overflow-hidden flex flex-col max-h-[90vh] border border-slate-100 animate-in zoom-in-95 duration-200">
+            <div className="p-5 border-b border-slate-100 flex justify-between items-center bg-slate-50 shrink-0">
+              <div>
+                <h2 className="text-xl font-bold text-slate-800">Reset Admin Password</h2>
+                <p className="text-xs text-slate-500 mt-1">Set a new password for <span className="font-semibold text-slate-700">{resetAdminUser.name}</span> ({resetAdminUser.username}).</p>
+              </div>
+              <button 
+                onClick={() => {
+                  setShowAdminResetModal(false);
+                  setResetAdminUser(null);
+                  setAdminResetPassword('');
+                  setAdminResetConfirm('');
+                  setSuperAdminConfirmPassword('');
+                }} 
+                className="text-slate-400 hover:text-slate-600 text-2xl leading-none cursor-pointer border-0 bg-transparent outline-none"
+              >
+                &times;
+              </button>
+            </div>
+            
+            <form onSubmit={onAdminResetPasswordSubmit} className="p-6 space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">New Password</label>
+                <input 
+                  type="password" 
+                  required 
+                  value={adminResetPassword} 
+                  onChange={(e) => setAdminResetPassword(e.target.value)}
+                  className="w-full border border-slate-300 rounded-lg p-2.5 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition" 
+                />
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">Confirm New Password</label>
+                <input 
+                  type="password" 
+                  required 
+                  value={adminResetConfirm} 
+                  onChange={(e) => setAdminResetConfirm(e.target.value)}
+                  className="w-full border border-slate-300 rounded-lg p-2.5 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition" 
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">Your Super Admin Password</label>
+                <input 
+                  type="password" 
+                  required 
+                  value={superAdminConfirmPassword} 
+                  onChange={(e) => setSuperAdminConfirmPassword(e.target.value)}
+                  className="w-full border border-slate-300 rounded-lg p-2.5 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition" 
+                  placeholder="Verify your super admin password"
+                />
+              </div>
+              
+              <div className="pt-4 flex justify-end gap-3 border-t border-slate-100 bg-slate-50 -mx-6 -mb-6 p-4">
+                <button 
+                  type="button"
+                  onClick={() => {
+                    setShowAdminResetModal(false);
+                    setResetAdminUser(null);
+                    setAdminResetPassword('');
+                    setAdminResetConfirm('');
+                    setSuperAdminConfirmPassword('');
+                  }}
+                  className="px-4 py-2 border border-slate-300 rounded-lg text-slate-700 text-sm font-medium hover:bg-slate-50 transition cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button 
+                  type="submit" 
+                  disabled={adminResetSubmitting}
+                  className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-semibold transition disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+                >
+                  {adminResetSubmitting ? 'Updating...' : 'Update Password'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

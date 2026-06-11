@@ -89,7 +89,7 @@ export const getGeneralStatement = async (req, res, next) => {
       const pass = Number(b.passAmount) || 0;
       const total = amount + pass; // Matches the PDF-style columns: AMOUNT + PASS = TOTAL
 
-      return {
+      const row = {
         sno: idx + 1,
         date: formatDateDDMMYYYY(b.date),
         vehicle: b.vehicleNumber || '',
@@ -100,6 +100,12 @@ export const getGeneralStatement = async (req, res, next) => {
         pass: formatMaybeIntOr2(pass),
         total: formatMaybeIntOr2(total)
       };
+
+      if (!customerId) {
+        row.customerName = b.customerNameSnapshot || '';
+      }
+
+      return row;
     });
 
     const sumAmount = bills.reduce((sum, b) => sum + (Number(b.totalAmount) || 0), 0);

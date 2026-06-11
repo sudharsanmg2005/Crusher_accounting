@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import api from '../api';
 import { useConfirm } from '../components/ConfirmDialog';
+import { EditIcon, TrashIcon } from '../components/Icons';
 
 const Materials = () => {
   const confirm = useConfirm();
@@ -71,14 +72,14 @@ const Materials = () => {
 
   return (
     <div className="space-y-6 flex flex-col h-full">
-      <div className="flex justify-between items-center shrink-0">
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 shrink-0">
         <div>
           <h1 className="text-2xl font-bold text-slate-800">Materials</h1>
           <p className="text-slate-500 text-sm mt-1">Manage crusher materials and unit pricing.</p>
         </div>
         <button 
           onClick={() => { setFormData({ name: '', currentPrice: '', pricePerTon: '' }); setIsModalOpen(true); }}
-          className="btn-primary flex items-center shadow-lg hover:shadow-xl"
+          className="btn-primary flex items-center shadow-lg hover:shadow-xl w-full sm:w-auto justify-center"
         >
           <span className="mr-2">+</span> Add Material
         </button>
@@ -106,9 +107,21 @@ const Materials = () => {
                     <td className="p-4 font-medium text-slate-800">{m.name}</td>
                     <td className="p-4 text-slate-600 font-semibold">₹{m.currentPrice}</td>
                     <td className="p-4 text-slate-600 font-semibold">₹{m.pricePerTon ?? m.currentPrice}</td>
-                    <td className="p-4 text-right space-x-3">
-                      <button onClick={() => handleEdit(m)} className="text-blue-600 hover:text-blue-800 font-medium text-sm transition-colors">Edit Price</button>
-                      <button onClick={() => handleDelete(m._id)} className="text-red-600 hover:text-red-800 font-medium text-sm transition-colors">Delete</button>
+                    <td className="p-4 text-right space-x-2 whitespace-nowrap">
+                      <button 
+                        onClick={() => handleEdit(m)} 
+                        className="text-blue-600 hover:text-blue-800 hover:bg-blue-50 p-2 rounded-lg transition-colors inline-flex items-center" 
+                        title="Edit Price"
+                      >
+                        <EditIcon className="h-5 w-5" />
+                      </button>
+                      <button 
+                        onClick={() => handleDelete(m._id)} 
+                        className="text-red-600 hover:text-red-800 hover:bg-red-50 p-2 rounded-lg transition-colors inline-flex items-center" 
+                        title="Delete Material"
+                      >
+                        <TrashIcon className="h-5 w-5" />
+                      </button>
                     </td>
                   </tr>
                 ))}

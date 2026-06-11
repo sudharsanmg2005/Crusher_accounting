@@ -255,27 +255,27 @@ const Dashboard = () => {
 
   return (
     <div className="space-y-6">
-      <div className="flex justify-between items-center">
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <h1 className="text-2xl font-bold text-slate-800">Dashboard</h1>
-        <div className="flex items-center space-x-3">
-          <div className="flex items-center bg-white border border-slate-300 rounded-lg shadow-sm p-3">
-            <div>
+        <div className="flex items-center w-full sm:w-auto">
+          <div className="flex flex-col sm:flex-row sm:items-center bg-white border border-slate-300 rounded-lg shadow-sm p-3 gap-3 w-full sm:w-auto">
+            <div className="w-full sm:w-auto">
               <label className="block text-xs font-semibold text-slate-500 mb-1 uppercase tracking-wider">Report Type</label>
-              <select value={reportType} onChange={(e) => setReportType(e.target.value)} className="border border-slate-300 rounded-lg p-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none bg-white">
+              <select value={reportType} onChange={(e) => setReportType(e.target.value)} className="w-full border border-slate-300 rounded-lg p-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none bg-white">
                 <option value="monthly">Monthly</option>
                 <option value="weekly">Weekly</option>
                 <option value="range">Selected Days</option>
               </select>
             </div>
 
-            <div className="ml-3">
+            <div className="w-full sm:w-auto">
               <label className="block text-xs font-semibold text-slate-500 mb-1 uppercase tracking-wider">Start Date</label>
-              <input type="date" name="startDate" value={dateRange.startDate} onChange={(e) => setDateRange(prev => ({ ...prev, startDate: e.target.value }))} disabled={reportType !== 'range'} className="border border-slate-300 rounded-lg p-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none disabled:bg-slate-50" />
+              <input type="date" name="startDate" value={dateRange.startDate} onChange={(e) => setDateRange(prev => ({ ...prev, startDate: e.target.value }))} disabled={reportType !== 'range'} className="w-full border border-slate-300 rounded-lg p-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none disabled:bg-slate-50" />
             </div>
 
-            <div className="ml-3">
+            <div className="w-full sm:w-auto">
               <label className="block text-xs font-semibold text-slate-500 mb-1 uppercase tracking-wider">End Date</label>
-              <input type="date" name="endDate" value={dateRange.endDate} onChange={(e) => setDateRange(prev => ({ ...prev, endDate: e.target.value }))} disabled={reportType !== 'range'} className="border border-slate-300 rounded-lg p-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none disabled:bg-slate-50" />
+              <input type="date" name="endDate" value={dateRange.endDate} onChange={(e) => setDateRange(prev => ({ ...prev, endDate: e.target.value }))} disabled={reportType !== 'range'} className="w-full border border-slate-300 rounded-lg p-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none disabled:bg-slate-50" />
             </div>
           </div>
           {/* sort toggle removed per request */}

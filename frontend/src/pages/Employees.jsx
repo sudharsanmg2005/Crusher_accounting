@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import api from '../api';
-import { CalendarIcon, FolderIcon, MoneyIcon, SaveIcon, TrashIcon } from '../components/Icons';
+import { CalendarIcon, FolderIcon, MoneyIcon, SaveIcon, TrashIcon, EditIcon, HistoryIcon, PlusIcon } from '../components/Icons';
 import { useConfirm } from '../components/ConfirmDialog';
 
 const MONTHS = [
@@ -86,7 +86,7 @@ const Employees = () => {
   const [employees, setEmployees] = useState([]);
   const [loading, setLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [formData, setFormData] = useState({ name: '', phone: '', designation: '', dailyWages: '', status: 'Active' });
+  const [formData, setFormData] = useState({ name: '', phone: '', designation: '', dailyWages: '', salaryType: 'Daily', customSalary: '', status: 'Active' });
 
   // --- TAB 2: ATTENDANCE STATE ---
   const [attendanceDate, setAttendanceDate] = useState(getLocalDateString());
@@ -96,6 +96,7 @@ const Employees = () => {
   const [attendanceList, setAttendanceList] = useState([]);
   const [attendanceLoading, setAttendanceLoading] = useState(false);
   const [saveLoading, setSaveLoading] = useState(false);
+  const [selectedEmpIds, setSelectedEmpIds] = useState([]);
 
   // --- TAB 3: SALARIES STATE ---
   const [salaryMonth, setSalaryMonth] = useState(new Date().getMonth() + 1);
@@ -122,6 +123,80 @@ const Employees = () => {
 
   // History Popover State
   const [historyEmpId, setHistoryEmpId] = useState(null);
+
+  // Base Salary Override Modal State
+  const [isBaseSalaryModalOpen, setIsBaseSalaryModalOpen] = useState(false);
+  const [baseSalaryData, setBaseSalaryData] = useState({
+    employeeId: '',
+    employeeName: '',
+    baseSalary: ''
+  });
+
+  // --- INDIVIDUAL ATTENDANCE HISTORY STATE ---
+  const [attendanceHistoryEmp, setAttendanceHistoryEmp] = useState(null);
+  const [attendanceLogs, setAttendanceLogs] = useState([]);
+  const [attendanceLogsLoading, setAttendanceLogsLoading] = useState(false);
+
+  const fetchEmployeeAttendance = async (empId) => {
+    setAttendanceLogsLoading(true);
+    try {
+      const { data } = await api.get(`/employees/${empId}/attendance`);
+      setAttendanceLogs(data);
+    } catch (error) {
+      console.error('Error fetching employee attendance history', error);
+      alert('Error loading attendance history');
+    } finally {
+      setAttendanceLogsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (attendanceHistoryEmp) {
+      fetchEmployeeAttendance(attendanceHistoryEmp._id);
+    } else {
+      setAttendanceLogs([]);
+    }
+  }, [attendanceHistoryEmp]);
+
+  const attendanceHistoryStats = useMemo(() => {
+    let present = 0;
+    let halfDay = 0;
+    let absent = 0;
+    attendanceLogs.forEach(log => {
+      if (log.status === 'Present') present++;
+      else if (log.status === 'Half-Day') halfDay++;
+      else if (log.status === 'Absent') absent++;
+    });
+    const totalWorkingDays = present + 0.5 * halfDay;
+    return { present, halfDay, absent, totalWorkingDays };
+  }, [attendanceLogs]);
+
+  const openBaseSalaryModal = (record) => {
+    setBaseSalaryData({
+      employeeId: record.employee._id,
+      employeeName: record.employee.name,
+      baseSalary: String(record.baseSalary)
+    });
+    setIsBaseSalaryModalOpen(true);
+  };
+
+  const handleBaseSalarySubmit = async (e) => {
+    e.preventDefault();
+    try {
+      await api.put('/employees/salaries/base-salary', {
+        employeeId: baseSalaryData.employeeId,
+        month: salaryMonth,
+        year: salaryYear,
+        baseSalary: Number(baseSalaryData.baseSalary)
+      });
+      setIsBaseSalaryModalOpen(false);
+      alert('Base salary overridden successfully!');
+      fetchSalaries();
+    } catch (error) {
+      console.error('Error overriding base salary', error);
+      alert('Error: ' + (error.response?.data?.message || 'Update failed'));
+    }
+  };
 
   // --- LOAD DIRECTORY ---
   useEffect(() => {
@@ -173,14 +248,18 @@ const Employees = () => {
       return;
     }
     try {
-      const payload = { ...formData, dailyWages: Number(formData.dailyWages) };
+      const payload = { 
+        ...formData, 
+        dailyWages: Number(formData.dailyWages || 0), 
+        customSalary: Number(formData.customSalary || 0) 
+      };
       if (formData._id) {
         await api.put(`/employees/${formData._id}`, payload);
       } else {
         await api.post('/employees', payload);
       }
       setIsModalOpen(false);
-      setFormData({ name: '', phone: '', designation: '', dailyWages: '', status: 'Active' });
+      setFormData({ name: '', phone: '', designation: '', dailyWages: '', salaryType: 'Daily', customSalary: '', status: 'Active' });
       fetchEmployees();
     } catch (error) {
       console.error('Error saving employee', error);
@@ -247,6 +326,7 @@ const Employees = () => {
     try {
       const { data } = await api.get(`/employees/attendance?startDate=${weekDates[0]}&endDate=${weekDates[weekDates.length - 1]}`);
       setAttendanceList(data);
+      setSelectedEmpIds(data.map(item => item.employeeId));
     } catch (error) {
       console.error('Error fetching attendance logs', error);
     } finally {
@@ -270,22 +350,41 @@ const Employees = () => {
   };
 
   const handleSaveAttendance = async () => {
+    if (selectedEmpIds.length === 0) {
+      alert('Please select at least one employee to save attendance');
+      return;
+    }
     setSaveLoading(true);
     try {
       const attendance = [];
       attendanceList.forEach(item => {
-        weekDates.forEach(dateStr => {
-          const status = item.statuses[dateStr] || 'Unmarked';
-          attendance.push({
-            employeeId: item.employeeId,
-            date: dateStr,
-            status: status
+        if (selectedEmpIds.includes(item.employeeId)) {
+          weekDates.forEach(dateStr => {
+            const status = item.statuses[dateStr] || 'Unmarked';
+            attendance.push({
+              employeeId: item.employeeId,
+              date: dateStr,
+              status: status
+            });
           });
-        });
+        }
       });
       await api.post('/employees/attendance', { attendance });
       alert('Attendance saved successfully!');
       fetchAttendance();
+      
+      // Auto-align Salaries month/year and switch to Salaries tab
+      if (weekDates.length > 0) {
+        const parts = weekDates[0].split('-');
+        if (parts.length === 3) {
+          const y = parseInt(parts[0], 10);
+          const m = parseInt(parts[1], 10);
+          setSalaryMonth(m);
+          setSalaryYear(y);
+          setSalaryMode('month');
+        }
+      }
+      setActiveTab('salaries');
     } catch (error) {
       console.error('Error saving attendance', error);
       alert('Error saving attendance');
@@ -294,27 +393,7 @@ const Employees = () => {
     }
   };
 
-  const handleClearWeekAttendance = async () => {
-    const ok = await confirm({
-      title: 'Clear attendance',
-      message: `Clear all attendance records from ${weekDates[0]} to ${weekDates[weekDates.length - 1]}?`,
-      confirmText: 'Clear',
-      tone: 'danger'
-    });
-    if (ok) {
-      setSaveLoading(true);
-      try {
-        await api.delete(`/employees/attendance?startDate=${weekDates[0]}&endDate=${weekDates[weekDates.length - 1]}`);
-        alert('Attendance records for this week cleared!');
-        fetchAttendance();
-      } catch (error) {
-        console.error('Error clearing attendance', error);
-        alert('Error clearing attendance');
-      } finally {
-        setSaveLoading(false);
-      }
-    }
-  };
+
 
   // --- SALARIES FUNCTIONS ---
   const fetchSalaries = async () => {
@@ -411,15 +490,15 @@ const Employees = () => {
   return (
     <div className="space-y-6 flex flex-col h-full">
       {/* Title Header */}
-      <div className="flex justify-between items-center shrink-0">
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 shrink-0">
         <div>
           <h1 className="text-2xl font-bold text-slate-800">Employee Management</h1>
           <p className="text-slate-500 text-sm mt-1">Manage profiles, track daily attendance, and process wages.</p>
         </div>
         {activeTab === 'directory' && (
           <button 
-            onClick={() => { setFormData({ name: '', phone: '', designation: '', dailyWages: '', status: 'Active' }); setIsModalOpen(true); }}
-            className="btn-primary flex items-center shadow-lg hover:shadow-xl cursor-pointer"
+            onClick={() => { setFormData({ name: '', phone: '', designation: '', dailyWages: '', salaryType: 'Daily', customSalary: '', status: 'Active' }); setIsModalOpen(true); }}
+            className="btn-primary flex items-center shadow-lg hover:shadow-xl cursor-pointer w-full sm:w-auto justify-center"
           >
             <span className="mr-2">+</span> Add Employee
           </button>
@@ -427,10 +506,10 @@ const Employees = () => {
       </div>
 
       {/* Tabs Selector */}
-      <div className="flex border-b border-slate-200 shrink-0">
+      <div className="flex border-b border-slate-200 shrink-0 overflow-x-auto whitespace-nowrap scrollbar-none">
         <button
           onClick={() => setActiveTab('directory')}
-          className={`py-2 px-4 font-semibold text-sm border-b-2 transition cursor-pointer ${
+          className={`py-2 px-4 font-semibold text-sm border-b-2 transition cursor-pointer flex-shrink-0 ${
             activeTab === 'directory'
               ? 'border-blue-600 text-blue-600'
               : 'border-transparent text-slate-500 hover:text-slate-800'
@@ -440,17 +519,17 @@ const Employees = () => {
         </button>
         <button
           onClick={() => setActiveTab('attendance')}
-          className={`py-2 px-4 font-semibold text-sm border-b-2 transition cursor-pointer ${
+          className={`py-2 px-4 font-semibold text-sm border-b-2 transition cursor-pointer flex-shrink-0 ${
             activeTab === 'attendance'
               ? 'border-blue-600 text-blue-600'
               : 'border-transparent text-slate-500 hover:text-slate-800'
           }`}
         >
-          <span className="inline-flex items-center gap-2"><CalendarIcon className="h-4 w-4" /> Attendance Pool</span>
+          <span className="inline-flex items-center gap-2"><CalendarIcon className="h-4 w-4" /> Mark Attendance</span>
         </button>
         <button
           onClick={() => setActiveTab('salaries')}
-          className={`py-2 px-4 font-semibold text-sm border-b-2 transition cursor-pointer ${
+          className={`py-2 px-4 font-semibold text-sm border-b-2 transition cursor-pointer flex-shrink-0 ${
             activeTab === 'salaries'
               ? 'border-blue-600 text-blue-600'
               : 'border-transparent text-slate-500 hover:text-slate-800'
@@ -498,8 +577,27 @@ const Employees = () => {
                           </span>
                         </td>
                         <td className="p-4 text-right space-x-3">
-                          <button onClick={() => handleEditEmployee(emp)} className="text-blue-600 hover:text-blue-800 font-medium text-sm transition-colors cursor-pointer">Edit</button>
-                          <button onClick={() => handleDeleteEmployee(emp._id)} className="text-red-600 hover:text-red-800 font-medium text-sm transition-colors cursor-pointer">Delete</button>
+                          <button 
+                            onClick={() => setAttendanceHistoryEmp(emp)} 
+                            className="text-emerald-600 hover:text-emerald-800 hover:bg-emerald-50 p-2 rounded-lg transition-colors inline-flex items-center cursor-pointer"
+                            title="View Attendance Track"
+                          >
+                            <CalendarIcon className="h-5 w-5" />
+                          </button>
+                          <button 
+                            onClick={() => handleEditEmployee(emp)} 
+                            className="text-blue-600 hover:text-blue-800 hover:bg-blue-50 p-2 rounded-lg transition-colors inline-flex items-center cursor-pointer"
+                            title="Edit Employee"
+                          >
+                            <EditIcon className="h-5 w-5" />
+                          </button>
+                          <button 
+                            onClick={() => handleDeleteEmployee(emp._id)} 
+                            className="text-red-600 hover:text-red-800 hover:bg-red-50 p-2 rounded-lg transition-colors inline-flex items-center cursor-pointer"
+                            title="Delete Employee"
+                          >
+                            <TrashIcon className="h-5 w-5" />
+                          </button>
                         </td>
                       </tr>
                     ))}
@@ -510,12 +608,12 @@ const Employees = () => {
           </div>
         )}
 
-        {/* --- TAB 2: ATTENDANCE POOL --- */}
+        {/* --- TAB 2: ATTENDANCE --- */}
         {activeTab === 'attendance' && (
           <div className="space-y-4 h-full flex flex-col">
             {/* Filter Date Header */}
-            <div className="flex flex-wrap items-center justify-between gap-3 bg-white p-3 rounded-xl border border-slate-200 shadow-sm shrink-0">
-              <div className="flex items-center space-x-3">
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white p-4 rounded-xl border border-slate-200 shadow-sm shrink-0">
+              <div className="flex flex-wrap items-center gap-3">
                 <span className="text-sm font-bold text-slate-700 uppercase tracking-wide">Attendance Period:</span>
                 <select value={attendanceMode} onChange={(e) => setAttendanceMode(e.target.value)} className="border border-slate-300 rounded-lg p-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none bg-white">
                   <option value="week">Week</option>
@@ -527,7 +625,7 @@ const Employees = () => {
                     type="date"
                     value={attendanceDate}
                     onChange={(e) => setAttendanceDate(e.target.value)}
-                    className="border border-slate-300 rounded-lg p-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+                    className="border border-slate-300 rounded-lg p-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none w-full sm:w-auto"
                   />
                 )}
                 {attendanceMode === 'month' && (
@@ -535,34 +633,26 @@ const Employees = () => {
                     type="month"
                     value={attendanceMonth}
                     onChange={(e) => setAttendanceMonth(e.target.value)}
-                    className="border border-slate-300 rounded-lg p-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+                    className="border border-slate-300 rounded-lg p-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none w-full sm:w-auto"
                   />
                 )}
                 {attendanceMode === 'range' && (
-                  <>
-                    <input type="date" value={attendanceRange.startDate} onChange={(e) => setAttendanceRange((prev) => ({ ...prev, startDate: e.target.value }))} className="border border-slate-300 rounded-lg p-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none" />
-                    <input type="date" value={attendanceRange.endDate} onChange={(e) => setAttendanceRange((prev) => ({ ...prev, endDate: e.target.value }))} className="border border-slate-300 rounded-lg p-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none" />
-                  </>
+                  <div className="flex flex-wrap gap-2 w-full sm:w-auto">
+                    <input type="date" value={attendanceRange.startDate} onChange={(e) => setAttendanceRange((prev) => ({ ...prev, startDate: e.target.value }))} className="border border-slate-300 rounded-lg p-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none flex-1 sm:flex-initial" />
+                    <input type="date" value={attendanceRange.endDate} onChange={(e) => setAttendanceRange((prev) => ({ ...prev, endDate: e.target.value }))} className="border border-slate-300 rounded-lg p-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none flex-1 sm:flex-initial" />
+                  </div>
                 )}
-                <span className="text-xs text-slate-500 font-semibold bg-slate-50 border border-slate-200 rounded px-2.5 py-1.5">
+                <span className="text-xs text-slate-500 font-semibold bg-slate-50 border border-slate-200 rounded px-2.5 py-1.5 w-full sm:w-auto text-center sm:text-left">
                   {weekDates[0]} to {weekDates[weekDates.length - 1]}
                 </span>
               </div>
 
-              <div className="space-x-3">
-                <button
-                  type="button"
-                  onClick={handleClearWeekAttendance}
-                  disabled={attendanceList.length === 0 || attendanceLoading || saveLoading}
-                  className="bg-red-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-red-700 transition shadow-md disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
-                >
-                  <span className="inline-flex items-center gap-2"><TrashIcon className="h-4 w-4" /> Clear</span>
-                </button>
+              <div className="flex items-center gap-3 w-full md:w-auto md:justify-end">
                 <button
                   type="button"
                   onClick={handleSaveAttendance}
-                  disabled={attendanceList.length === 0 || attendanceLoading || saveLoading}
-                  className="bg-blue-600 text-white px-5 py-2 rounded-lg text-sm font-medium hover:bg-blue-700 transition shadow-md disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+                  disabled={selectedEmpIds.length === 0 || attendanceLoading || saveLoading}
+                  className="bg-blue-600 text-white px-5 py-2 rounded-lg text-sm font-medium hover:bg-blue-700 transition shadow-md disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer flex-1 md:flex-initial justify-center inline-flex items-center whitespace-nowrap"
                 >
                   {saveLoading ? 'Saving...' : <span className="inline-flex items-center gap-2"><SaveIcon className="h-4 w-4" /> Save Attendance Grid</span>}
                 </button>
@@ -570,7 +660,7 @@ const Employees = () => {
             </div>
 
             {/* Attendance Sheet */}
-            <div className="card overflow-hidden p-0 border border-slate-200 flex-1 flex flex-col">
+            <div className="card overflow-hidden p-0 border border-slate-200 flex-1 flex flex-col animate-in fade-in duration-200">
               {attendanceLoading ? (
                 <div className="p-8 text-center text-slate-500">Loading weekly attendance grid...</div>
               ) : attendanceList.length === 0 ? (
@@ -580,6 +670,20 @@ const Employees = () => {
                   <table className="w-full text-left border-collapse table-fixed min-w-[800px]">
                     <thead className="sticky top-0 bg-slate-50 shadow-sm z-10 text-xs">
                       <tr className="border-b border-slate-200 text-slate-600 uppercase tracking-wider">
+                        <th className="p-4 w-12 text-center">
+                          <input
+                            type="checkbox"
+                            checked={attendanceList.length > 0 && selectedEmpIds.length === attendanceList.length}
+                            onChange={(e) => {
+                              if (e.target.checked) {
+                                setSelectedEmpIds(attendanceList.map(item => item.employeeId));
+                              } else {
+                                setSelectedEmpIds([]);
+                              }
+                            }}
+                            className="rounded border-slate-300 text-blue-600 focus:ring-blue-500 cursor-pointer h-4 w-4"
+                          />
+                        </th>
                         <th className="p-4 font-semibold w-52">Employee</th>
                         {weekDates.map((dateStr) => (
                           <th key={dateStr} className="p-2 font-semibold text-center whitespace-nowrap">
@@ -591,6 +695,20 @@ const Employees = () => {
                     <tbody className="divide-y divide-slate-100 text-sm">
                       {attendanceList.map((item) => (
                         <tr key={item.employeeId} className="hover:bg-slate-50/50 transition">
+                          <td className="p-4 text-center">
+                            <input
+                              type="checkbox"
+                              checked={selectedEmpIds.includes(item.employeeId)}
+                              onChange={(e) => {
+                                if (e.target.checked) {
+                                  setSelectedEmpIds(prev => [...prev, item.employeeId]);
+                                } else {
+                                  setSelectedEmpIds(prev => prev.filter(id => id !== item.employeeId));
+                                }
+                              }}
+                              className="rounded border-slate-300 text-blue-600 focus:ring-blue-500 cursor-pointer h-4 w-4"
+                            />
+                          </td>
                           <td className="p-4 whitespace-nowrap">
                             <div className="font-bold text-slate-800">{item.name}</div>
                             <div className="text-xs text-slate-500">{item.designation || 'Labour'}</div>
@@ -631,20 +749,20 @@ const Employees = () => {
         {activeTab === 'salaries' && (
           <div className="space-y-4 h-full flex flex-col">
             {/* Salary Period Filters */}
-            <div className="flex flex-wrap items-center gap-3 bg-white p-3 rounded-xl border border-slate-200 shadow-sm shrink-0">
-              <div className="flex items-center space-x-2">
+            <div className="flex flex-wrap items-center gap-3 bg-white p-3 rounded-xl border border-slate-200 shadow-sm shrink-0 w-full">
+              <div className="flex flex-wrap items-center gap-2 w-full">
                 <span className="text-sm font-semibold text-slate-500 uppercase tracking-wider">Payroll Period:</span>
-                <select value={salaryMode} onChange={(e) => setSalaryMode(e.target.value)} className="border border-slate-300 rounded-lg p-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none bg-white font-medium">
+                <select value={salaryMode} onChange={(e) => setSalaryMode(e.target.value)} className="border border-slate-300 rounded-lg p-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none bg-white font-medium w-full sm:w-auto">
                   <option value="month">Month</option>
                   <option value="week">Week</option>
                   <option value="range">Selected Dates</option>
                 </select>
                 {salaryMode === 'month' && (
-                  <>
+                  <div className="flex gap-2 w-full sm:w-auto">
                     <select
                       value={salaryMonth}
                       onChange={(e) => setSalaryMonth(Number(e.target.value))}
-                      className="border border-slate-300 rounded-lg p-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none bg-white font-medium"
+                      className="border border-slate-300 rounded-lg p-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none bg-white font-medium flex-1 sm:flex-initial"
                     >
                       {MONTHS.map(m => (
                         <option key={m.value} value={m.value}>{m.label}</option>
@@ -653,22 +771,22 @@ const Employees = () => {
                     <select
                       value={salaryYear}
                       onChange={(e) => setSalaryYear(Number(e.target.value))}
-                      className="border border-slate-300 rounded-lg p-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none bg-white font-medium"
+                      className="border border-slate-300 rounded-lg p-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none bg-white font-medium flex-1 sm:flex-initial"
                     >
                       {getYears().map(y => (
                         <option key={y} value={y}>{y}</option>
                       ))}
                     </select>
-                  </>
+                  </div>
                 )}
                 {salaryMode === 'week' && (
-                  <input type="date" value={salaryWeekDate} onChange={(e) => setSalaryWeekDate(e.target.value)} className="border border-slate-300 rounded-lg p-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none" />
+                  <input type="date" value={salaryWeekDate} onChange={(e) => setSalaryWeekDate(e.target.value)} className="border border-slate-300 rounded-lg p-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none w-full sm:w-auto" />
                 )}
                 {salaryMode === 'range' && (
-                  <>
-                    <input type="date" value={salaryRange.startDate} onChange={(e) => setSalaryRange((prev) => ({ ...prev, startDate: e.target.value }))} className="border border-slate-300 rounded-lg p-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none" />
-                    <input type="date" value={salaryRange.endDate} onChange={(e) => setSalaryRange((prev) => ({ ...prev, endDate: e.target.value }))} className="border border-slate-300 rounded-lg p-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none" />
-                  </>
+                  <div className="flex flex-wrap gap-2 w-full sm:w-auto">
+                    <input type="date" value={salaryRange.startDate} onChange={(e) => setSalaryRange((prev) => ({ ...prev, startDate: e.target.value }))} className="border border-slate-300 rounded-lg p-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none flex-1 sm:flex-initial" />
+                    <input type="date" value={salaryRange.endDate} onChange={(e) => setSalaryRange((prev) => ({ ...prev, endDate: e.target.value }))} className="border border-slate-300 rounded-lg p-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none flex-1 sm:flex-initial" />
+                  </div>
                 )}
               </div>
             </div>
@@ -686,7 +804,7 @@ const Employees = () => {
                       <tr className="border-b border-slate-200 text-sm text-slate-600 uppercase tracking-wider">
                         <th className="p-4 font-semibold">Employee</th>
                         <th className="p-4 font-semibold whitespace-nowrap">Daily Rate</th>
-                        <th className="p-4 font-semibold whitespace-nowrap">Work Days</th>
+                        <th className="p-4 font-semibold whitespace-nowrap">New Days</th>
                         <th className="p-4 font-semibold whitespace-nowrap">Base Wage</th>
                         <th className="p-4 font-semibold whitespace-nowrap">Bonus</th>
                         <th className="p-4 font-semibold whitespace-nowrap">Total Wage</th>
@@ -705,18 +823,44 @@ const Employees = () => {
                           <React.Fragment key={record.employee._id}>
                             <tr className="hover:bg-slate-50/50 transition">
                               <td className="p-4">
-                                <div className="font-bold text-slate-800">{record.employee.name}</div>
+                                <div className="font-bold text-slate-800 flex items-center gap-2">
+                                  {record.employee.name}
+                                  {record.employee.salaryType === 'Fixed' && (
+                                    <span className="bg-purple-100 text-purple-800 border border-purple-200 px-1.5 py-0.5 rounded text-[10px] font-extrabold">FIXED</span>
+                                  )}
+                                </div>
                                 <div className="text-xs text-slate-500">{record.employee.designation || 'Labour'}</div>
                               </td>
-                              <td className="p-4 font-medium text-slate-700">₹{record.dailyWagesSnapshot.toLocaleString()}</td>
-                              <td className="p-4 font-semibold text-slate-700">{record.attendedDays} days</td>
-                              <td className="p-4 text-slate-700 font-medium">₹{record.baseSalary.toLocaleString()}</td>
+                              <td className="p-4 font-medium text-slate-700">
+                                {record.employee.salaryType === 'Fixed' ? '—' : `₹${record.dailyWagesSnapshot.toLocaleString()}`}
+                              </td>
+                              <td className="p-4 font-semibold text-slate-700">
+                                {record.employee.salaryType === 'Fixed' ? '—' : (() => {
+                                  const newDays = record.attendedDays - (record.paidAmount - (record.bonus || 0)) / record.dailyWagesSnapshot;
+                                  const rounded = Math.max(0, Math.round(newDays * 10) / 10);
+                                  return `${rounded} days`;
+                                })()}
+                              </td>
+                              <td className="p-4 text-slate-700 font-medium">
+                                <div className="flex items-center gap-2">
+                                  <span>₹{record.baseSalary.toLocaleString()}</span>
+                                  {salaryMode === 'month' && (
+                                    <button
+                                      onClick={() => openBaseSalaryModal(record)}
+                                      className="text-slate-400 hover:text-blue-600 p-1 rounded hover:bg-slate-100 transition inline-flex items-center"
+                                      title="Set Custom Base Wage"
+                                    >
+                                      <EditIcon className="h-3.5 w-3.5" />
+                                    </button>
+                                  )}
+                                </div>
+                              </td>
                               <td className="p-4 text-green-600 font-bold">₹{(record.bonus || 0).toLocaleString()}</td>
                               <td className="p-4 text-slate-800 font-extrabold">₹{record.totalSalary.toLocaleString()}</td>
                               <td className="p-4 text-blue-600 font-bold">₹{record.paidAmount.toLocaleString()}</td>
                               <td className="p-4 text-red-600 font-bold">₹{record.pendingAmount.toLocaleString()}</td>
                               <td className="p-4 text-center">
-                                <span className={`px-2 py-1 rounded-full text-xs font-extrabold border ${getStatusColor(record.paymentStatus)}`}>
+                                <span className={`px-2.5 py-1 rounded-full text-xs font-semibold border whitespace-nowrap ${getStatusColor(record.paymentStatus)}`}>
                                   {record.paymentStatus}
                                 </span>
                               </td>
@@ -724,18 +868,20 @@ const Employees = () => {
                                 {hasHistory && (
                                   <button
                                     onClick={() => setHistoryEmpId(isHistoryOpen ? null : record.employee._id)}
-                                    className="text-slate-500 hover:text-slate-800 font-medium text-xs border border-slate-300 rounded px-2 py-1 mr-2 transition-colors cursor-pointer"
+                                    className={`p-2 rounded-lg transition-colors inline-flex items-center cursor-pointer ${isHistoryOpen ? 'text-slate-800 bg-slate-200' : 'text-slate-500 hover:text-slate-800 hover:bg-slate-100'}`}
+                                    title={isHistoryOpen ? 'Hide Logs' : 'Show Logs'}
                                   >
-                                    {isHistoryOpen ? 'Hide Logs ▲' : 'Show Logs ▼'}
+                                    <HistoryIcon className="h-5 w-5" />
                                   </button>
                                 )}
                                 
                                 {salaryMode === 'month' && (
                                   <button
                                     onClick={() => openPaymentModal(record)}
-                                    className="bg-blue-600 hover:bg-blue-700 text-white font-semibold text-xs px-3 py-1.5 rounded shadow-sm hover:shadow transition-all cursor-pointer"
+                                    className="text-blue-600 hover:text-blue-800 hover:bg-blue-50 p-2 rounded-lg transition-colors inline-flex items-center cursor-pointer"
+                                    title="Pay / Bonus"
                                   >
-                                    Pay / Bonus
+                                    <PlusIcon className="h-5 w-5" />
                                   </button>
                                 )}
                               </td>
@@ -761,10 +907,10 @@ const Employees = () => {
                                             <button
                                               type="button"
                                               onClick={() => handleDeleteTransaction(record._id, tx._id, tx.type)}
-                                              className="text-red-600 hover:text-red-800 font-bold text-xs ml-2 cursor-pointer"
+                                              className="text-red-600 hover:text-red-800 hover:bg-red-50 p-1.5 rounded-lg transition-colors inline-flex items-center ml-2 cursor-pointer"
                                               title="Delete transaction and its linked expense"
                                             >
-                                              &times; Delete
+                                              <TrashIcon className="h-4 w-4" />
                                             </button>
                                           </div>
                                         </div>
@@ -821,16 +967,41 @@ const Employees = () => {
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">Daily Wages (₹) *</label>
-                <div className="relative">
-                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500">₹</span>
-                  <input 
-                    type="number" name="dailyWages" required value={formData.dailyWages} onChange={handleTextChange} min="0" step="1"
-                    className="w-full border border-slate-300 rounded-lg p-2.5 pl-8 focus:ring-2 focus:ring-blue-500 outline-none transition"
-                    placeholder="e.g. 700"
-                  />
-                </div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">Salary Type</label>
+                <select 
+                  name="salaryType" value={formData.salaryType || 'Daily'} onChange={handleTextChange}
+                  className="w-full border border-slate-300 rounded-lg p-2.5 focus:ring-2 focus:ring-blue-500 outline-none bg-white mb-3"
+                >
+                  <option value="Daily">Daily Wages (Salary per day)</option>
+                  <option value="Fixed">Custom / Fixed Salary</option>
+                </select>
               </div>
+
+              {(!formData.salaryType || formData.salaryType === 'Daily') ? (
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">Daily Wages (₹) *</label>
+                  <div className="relative">
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500">₹</span>
+                    <input 
+                      type="number" name="dailyWages" required value={formData.dailyWages} onChange={handleTextChange} min="0" step="1"
+                      className="w-full border border-slate-300 rounded-lg p-2.5 pl-8 focus:ring-2 focus:ring-blue-500 outline-none transition"
+                      placeholder="e.g. 700"
+                    />
+                  </div>
+                </div>
+              ) : (
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">Custom / Fixed Salary (₹) *</label>
+                  <div className="relative">
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500">₹</span>
+                    <input 
+                      type="number" name="customSalary" required value={formData.customSalary} onChange={handleTextChange} min="0" step="1"
+                      className="w-full border border-slate-300 rounded-lg p-2.5 pl-8 focus:ring-2 focus:ring-blue-500 outline-none transition"
+                      placeholder="e.g. 15000"
+                    />
+                  </div>
+                </div>
+              )}
               <div>
                 <label className="block text-sm font-medium text-slate-700 mb-1">Status</label>
                 <select 
@@ -932,6 +1103,170 @@ const Employees = () => {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* --- OVERRIDE BASE SALARY MODAL --- */}
+      {isBaseSalaryModalOpen && (
+        <div className="fixed inset-0 bg-slate-900/50 flex items-center justify-center p-4 z-50 animate-in fade-in duration-200">
+          <div className="bg-white rounded-xl shadow-2xl w-full max-w-sm overflow-hidden flex flex-col">
+            <div className="p-5 border-b border-slate-100 flex justify-between items-center bg-blue-50">
+              <div>
+                <h2 className="text-lg font-bold text-blue-900">Set Custom Base Salary</h2>
+                <p className="text-xs text-blue-600 mt-0.5">Overriding for {MONTHS.find(m => m.value === salaryMonth)?.label} {salaryYear}</p>
+              </div>
+              <button onClick={() => setIsBaseSalaryModalOpen(false)} className="text-blue-400 hover:text-blue-600 text-2xl leading-none">&times;</button>
+            </div>
+            
+            <form onSubmit={handleBaseSalarySubmit} className="p-6 space-y-4">
+              <div>
+                <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">Employee Name</label>
+                <div className="font-bold text-slate-800 text-base">{baseSalaryData.employeeName}</div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">Custom Base Salary (₹) *</label>
+                <div className="relative">
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500">₹</span>
+                  <input 
+                    type="number" 
+                    required 
+                    value={baseSalaryData.baseSalary} 
+                    onChange={(e) => setBaseSalaryData({ ...baseSalaryData, baseSalary: e.target.value })} 
+                    min="0" 
+                    step="1"
+                    className="w-full text-lg font-bold border border-slate-300 rounded-lg p-3 pl-8 focus:ring-2 focus:ring-blue-500 outline-none transition"
+                  />
+                </div>
+                <div className="text-[10px] text-slate-500 mt-1 italic">Note: This manually overrides this month's automatically calculated base wage.</div>
+              </div>
+
+              <div className="pt-4 flex justify-end space-x-3 border-t border-slate-100">
+                <button type="button" onClick={() => setIsBaseSalaryModalOpen(false)} className="px-4 py-2 text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-lg font-medium transition cursor-pointer">
+                  Cancel
+                </button>
+                <button type="submit" className="px-5 py-2 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 transition shadow-md cursor-pointer">
+                  Save Override
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* --- EMPLOYEE ATTENDANCE HISTORY MODAL --- */}
+      {attendanceHistoryEmp && (
+        <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-in fade-in duration-200">
+          <div className="bg-white rounded-xl shadow-2xl w-full max-w-xl overflow-hidden flex flex-col max-h-[90vh] border border-slate-100 animate-in zoom-in-95 duration-200">
+            <div className="p-5 border-b border-slate-100 flex justify-between items-center bg-slate-50 shrink-0">
+              <div>
+                <h2 className="text-xl font-bold text-slate-800">Attendance History</h2>
+                <p className="text-xs text-slate-500 mt-1">
+                  Tracking logs for <span className="font-semibold text-slate-700">{attendanceHistoryEmp.name}</span> ({attendanceHistoryEmp.designation || 'Labour'})
+                </p>
+              </div>
+              <button 
+                onClick={() => setAttendanceHistoryEmp(null)} 
+                className="text-slate-400 hover:text-slate-600 text-2xl leading-none cursor-pointer border-0 bg-transparent outline-none"
+              >
+                &times;
+              </button>
+            </div>
+            
+            <div className="p-6 overflow-y-auto space-y-6">
+              {/* Stats Summary Dashboard */}
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                <div className="bg-blue-50 border border-blue-100 rounded-xl p-3 text-center">
+                  <div className="text-[10px] font-bold text-blue-600 uppercase tracking-wider">Work Days</div>
+                  <div className="text-2xl font-extrabold text-blue-800 mt-1">
+                    {attendanceHistoryStats.totalWorkingDays}
+                  </div>
+                </div>
+                <div className="bg-green-50 border border-green-100 rounded-xl p-3 text-center">
+                  <div className="text-[10px] font-bold text-green-600 uppercase tracking-wider">Present</div>
+                  <div className="text-2xl font-extrabold text-green-800 mt-1">
+                    {attendanceHistoryStats.present}
+                  </div>
+                </div>
+                <div className="bg-orange-50 border border-orange-100 rounded-xl p-3 text-center">
+                  <div className="text-[10px] font-bold text-orange-600 uppercase tracking-wider">Half-Day</div>
+                  <div className="text-2xl font-extrabold text-orange-800 mt-1">
+                    {attendanceHistoryStats.halfDay}
+                  </div>
+                </div>
+                <div className="bg-red-50 border border-red-100 rounded-xl p-3 text-center">
+                  <div className="text-[10px] font-bold text-red-600 uppercase tracking-wider">Absent</div>
+                  <div className="text-2xl font-extrabold text-red-800 mt-1">
+                    {attendanceHistoryStats.absent}
+                  </div>
+                </div>
+              </div>
+
+              {/* Logs List */}
+              <div className="space-y-2">
+                <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider">Attendance Logs</h3>
+                
+                {attendanceLogsLoading ? (
+                  <div className="p-8 text-center text-slate-500 italic">Loading attendance logs...</div>
+                ) : attendanceLogs.length === 0 ? (
+                  <div className="p-8 text-center text-slate-500 border border-dashed border-slate-200 rounded-xl bg-slate-50/50 italic">
+                    No attendance records found for this employee.
+                  </div>
+                ) : (
+                  <div className="border border-slate-200 rounded-xl overflow-hidden max-h-[40vh] overflow-y-auto shadow-inner bg-white">
+                    <table className="w-full text-left border-collapse">
+                      <thead className="bg-slate-50 sticky top-0 border-b border-slate-100 text-xs text-slate-500 uppercase tracking-wider">
+                        <tr>
+                          <th className="p-3 font-semibold">Date</th>
+                          <th className="p-3 font-semibold text-right">Status</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100 text-sm">
+                        {attendanceLogs.map((log) => {
+                          const dateStr = log.date;
+                          const d = new Date(dateStr);
+                          const formattedDate = !isNaN(d.getTime())
+                            ? `${String(d.getUTCDate()).padStart(2, '0')} ${d.toLocaleDateString('en-US', { month: 'short', timeZone: 'UTC' })} ${d.getUTCFullYear()}`
+                            : dateStr;
+                          const weekday = !isNaN(d.getTime())
+                            ? d.toLocaleDateString('en-US', { weekday: 'long', timeZone: 'UTC' })
+                            : '';
+
+                          return (
+                            <tr key={log._id} className="hover:bg-slate-50 transition">
+                              <td className="p-3 font-medium text-slate-700">
+                                <div>{formattedDate}</div>
+                                <div className="text-xs text-slate-400 font-normal">{weekday}</div>
+                              </td>
+                              <td className="p-3 text-right">
+                                <span className={`px-2 py-0.5 rounded-full text-xs font-bold border ${
+                                  log.status === 'Present' ? 'bg-green-100 text-green-800 border-green-200' :
+                                  log.status === 'Half-Day' ? 'bg-orange-100 text-orange-800 border-orange-200' :
+                                  'bg-red-100 text-red-800 border-red-200'
+                                }`}>
+                                  {log.status}
+                                </span>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <div className="p-4 border-t border-slate-100 bg-slate-50 flex justify-end shrink-0">
+              <button 
+                type="button" 
+                onClick={() => setAttendanceHistoryEmp(null)} 
+                className="px-5 py-2 bg-slate-800 hover:bg-slate-900 text-white rounded-lg font-medium transition shadow-md cursor-pointer text-sm"
+              >
+                Close View
+              </button>
+            </div>
           </div>
         </div>
       )}

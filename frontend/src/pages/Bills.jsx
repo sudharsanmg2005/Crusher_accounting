@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import api from '../api';
 import { useAuth } from '../AuthContext';
 import { useConfirm } from '../components/ConfirmDialog';
-import { HistoryIcon, ChevronDownIcon, DocumentIcon } from '../components/Icons';
+import { HistoryIcon, ChevronDownIcon, DocumentIcon, EditIcon, TrashIcon, PlusIcon } from '../components/Icons';
 import { formatVehicleInput, isValidVehicleNumber } from '../utils/vehicleNumber';
 import { downloadBillPdf } from '../utils/billPdf';
 import { formatDateTime } from '../utils/dateTime';
@@ -351,15 +351,15 @@ const Bills = () => {
 
   return (
     <div className="space-y-6 flex flex-col h-full">
-      <div className="flex justify-between items-center shrink-0">
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-slate-800">Bills & Invoices</h1>
-          <p className="text-slate-500 text-sm mt-1">Generate new bills and track payments.</p>
+          <h1 className="text-2xl font-bold text-slate-800">Bills</h1>
+          <p className="text-slate-500 text-sm mt-1">Generate and print invoice bills for customers.</p>
         </div>
         {canCreateBills && (
           <button 
             onClick={() => { setFormData(emptyForm()); setIsModalOpen(true); }}
-            className="btn-primary flex items-center shadow-lg hover:shadow-xl"
+            className="btn-primary flex items-center shadow-lg hover:shadow-xl w-full sm:w-auto justify-center"
           >
             <span className="mr-2">+</span> Generate Bill
           </button>
@@ -368,7 +368,7 @@ const Bills = () => {
 
       <div className="card overflow-hidden p-0 border border-slate-200 flex-1 flex flex-col min-h-0 min-w-0">
         <div className="p-4 border-b border-slate-200 bg-white space-y-3">
-          <div className="grid grid-cols-1 md:grid-cols-4 xl:grid-cols-7 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-7 gap-3">
             <input
               type="text"
               value={filters.search}
@@ -462,7 +462,7 @@ const Bills = () => {
                       <td className="p-4 text-slate-600 font-medium whitespace-nowrap">{billDateTime.date}</td>
                       <td className="p-4 text-slate-600 whitespace-nowrap">{billDateTime.time}</td>
                       <td className="p-4 text-slate-800 font-semibold">{bill.customerNameSnapshot}</td>
-                      <td className="p-4 text-slate-600"><span className="bg-slate-100 px-2 py-1 rounded border border-slate-200 text-xs font-mono">{bill.vehicleNumber || '—'}</span></td>
+                      <td className="p-4 text-slate-600"><span className="bg-slate-100 px-2 py-1 rounded border border-slate-200 text-xs font-mono whitespace-nowrap">{bill.vehicleNumber || '—'}</span></td>
                       <td className="p-4 text-slate-600 text-sm">
                         <div className="font-medium text-slate-800">{bill.materialNameSnapshot}</div>
                         <div className="text-xs text-slate-500">{bill.quantity} {bill.quantityUnit || 'unit'}s @ ₹{bill.pricePerUnit}</div>
@@ -477,18 +477,40 @@ const Bills = () => {
                           {bill.paymentStatus}
                         </span>
                       </td>
-                      <td className="p-4 text-right space-x-3">
-                        <button onClick={() => downloadBillPdf(bill)} className="inline-flex items-center gap-1 text-slate-600 hover:text-slate-900 font-medium text-sm transition-colors" title="Download PDF">
-                          <DocumentIcon className="h-4 w-4" /> PDF
+                      <td className="p-4 text-right space-x-2 whitespace-nowrap">
+                        <button 
+                          onClick={() => downloadBillPdf(bill)} 
+                          className="text-slate-600 hover:text-slate-900 hover:bg-slate-100 p-2 rounded-lg transition-colors inline-flex items-center" 
+                          title="Download PDF"
+                        >
+                          <DocumentIcon className="h-5 w-5" />
                         </button>
                         {canWrite && (
-                          <button onClick={() => openEditModal(bill)} className="text-indigo-600 hover:text-indigo-800 font-medium text-sm transition-colors">Edit</button>
+                          <button 
+                            onClick={() => openEditModal(bill)} 
+                            className="text-indigo-600 hover:text-indigo-800 hover:bg-indigo-50 p-2 rounded-lg transition-colors inline-flex items-center"
+                            title="Edit Bill"
+                          >
+                            <EditIcon className="h-5 w-5" />
+                          </button>
                         )}
                         {canWrite && bill.paymentStatus !== 'Paid' && (
-                          <button onClick={() => openPaymentModal(bill)} className="text-blue-600 hover:text-blue-800 font-medium text-sm transition-colors">Record Payment</button>
+                          <button 
+                            onClick={() => openPaymentModal(bill)} 
+                            className="text-blue-600 hover:text-blue-800 hover:bg-blue-50 p-2 rounded-lg transition-colors inline-flex items-center"
+                            title="Record Payment"
+                          >
+                            <PlusIcon className="h-5 w-5" />
+                          </button>
                         )}
                         {canWrite && (
-                          <button onClick={() => handleDelete(bill._id)} className="text-red-600 hover:text-red-800 font-medium text-sm transition-colors">Delete</button>
+                          <button 
+                            onClick={() => handleDelete(bill._id)} 
+                            className="text-red-600 hover:text-red-800 hover:bg-red-50 p-2 rounded-lg transition-colors inline-flex items-center"
+                            title="Delete Bill"
+                          >
+                            <TrashIcon className="h-5 w-5" />
+                          </button>
                         )}
                       </td>
                     </tr>
@@ -548,90 +570,101 @@ const Bills = () => {
               <button onClick={() => setIsModalOpen(false)} className="text-slate-400 hover:text-slate-600 text-2xl leading-none">&times;</button>
             </div>
             
-            <form onSubmit={handleSubmit} className="p-6 space-y-4 overflow-y-auto">
-              <div className="grid grid-cols-2 gap-4">
+            <form onSubmit={handleSubmit} className="p-5 space-y-3.5 overflow-y-auto">
+              <div className="grid grid-cols-2 gap-3.5">
                 <div className="col-span-2">
-                  <label className="block text-sm font-medium text-slate-700 mb-1">Customer *</label>
-                  <div className="flex gap-2">
+                  <label className="block text-xs font-semibold text-slate-500 uppercase">Customer *</label>
+                  <div className="flex gap-2 mt-1">
                     <select 
                       name="customer" required value={formData.customer} onChange={handleChange}
-                      className="flex-1 border border-slate-300 rounded-lg p-2.5 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition bg-white"
+                      className="flex-1 border border-slate-300 rounded-lg p-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition bg-white"
                     >
                       <option value="" disabled>Select Customer</option>
                       {customers.map(c => <option key={c._id} value={c._id}>{c.name}</option>)}
                     </select>
                     {canWrite && (
-                      <button type="button" onClick={() => setIsCreateCustomerOpen(true)} className="px-3 py-2.5 bg-green-600 text-white rounded-lg text-sm font-medium hover:bg-green-700 transition">+ New</button>
+                      <button type="button" onClick={() => setIsCreateCustomerOpen(true)} className="px-3 py-2 bg-green-600 text-white rounded-lg text-sm font-medium hover:bg-green-700 transition shrink-0">+ New</button>
                     )}
                   </div>
                 </div>
                 
-                <div className="col-span-2">
-                  <label className="block text-sm font-medium text-slate-700 mb-1">Vehicle Number (optional)</label>
-                  <div className="flex gap-2 mb-2">
+                <div className="col-span-2 grid grid-cols-3 gap-2">
+                  <div className="col-span-1">
+                    <label className="block text-xs font-semibold text-slate-500 uppercase">Vehicle Type</label>
                     <select
                       value={formData.vehicleMode}
                       onChange={(e) => setFormData({ ...formData, vehicleMode: e.target.value, vehicleNumber: '' })}
-                      className="border border-slate-300 rounded-lg p-2 text-sm bg-white"
+                      className="w-full mt-1 border border-slate-300 rounded-lg p-2 text-sm bg-white focus:ring-2 focus:ring-blue-500 outline-none"
                     >
-                      <option value="select">Select existing</option>
-                      <option value="new">Add new</option>
-                      <option value="none">No vehicle</option>
+                      <option value="select">Existing</option>
+                      <option value="new">Add New</option>
+                      <option value="none">None</option>
                     </select>
                   </div>
-                  {formData.vehicleMode === 'select' && (
-                    <select
-                      name="vehicleNumber"
-                      value={formData.vehicleNumber}
-                      onChange={handleChange}
-                      className="w-full border border-slate-300 rounded-lg p-2.5 bg-white focus:ring-2 focus:ring-blue-500 outline-none"
-                    >
-                      <option value="">Select vehicle</option>
-                      {customerVehicles.map((v) => (
-                        <option key={v._id || v.number} value={v.number}>{v.number}</option>
-                      ))}
-                    </select>
-                  )}
-                  {formData.vehicleMode === 'new' && (
-                    <input
-                      type="text"
-                      name="vehicleNumber"
-                      value={formData.vehicleNumber}
-                      onChange={handleChange}
-                      className="w-full border border-slate-300 rounded-lg p-2.5 uppercase focus:ring-2 focus:ring-blue-500 outline-none"
-                      placeholder="TN 74 AE 2003 or TMR 7177"
-                    />
-                  )}
+                  <div className="col-span-2">
+                    <label className="block text-xs font-semibold text-slate-500 uppercase">Vehicle Number</label>
+                    {formData.vehicleMode === 'select' && (
+                      <select
+                        name="vehicleNumber"
+                        value={formData.vehicleNumber}
+                        onChange={handleChange}
+                        className="w-full mt-1 border border-slate-300 rounded-lg p-2 bg-white focus:ring-2 focus:ring-blue-500 outline-none text-sm"
+                      >
+                        <option value="">Select vehicle</option>
+                        {customerVehicles.map((v) => (
+                          <option key={v._id || v.number} value={v.number}>{v.number}</option>
+                        ))}
+                      </select>
+                    )}
+                    {formData.vehicleMode === 'new' && (
+                      <input
+                        type="text"
+                        name="vehicleNumber"
+                        value={formData.vehicleNumber}
+                        onChange={handleChange}
+                        className="w-full mt-1 border border-slate-300 rounded-lg p-2 uppercase focus:ring-2 focus:ring-blue-500 outline-none text-sm"
+                        placeholder="TN 74 AE 2003"
+                      />
+                    )}
+                    {formData.vehicleMode === 'none' && (
+                      <input
+                        type="text"
+                        disabled
+                        value="No vehicle"
+                        className="w-full mt-1 border border-slate-200 rounded-lg p-2 bg-slate-50 text-slate-400 text-sm outline-none cursor-not-allowed"
+                      />
+                    )}
+                  </div>
                 </div>
 
                 <div className="col-span-1">
-                  <label className="block text-sm font-medium text-slate-700 mb-1">Material *</label>
+                  <label className="block text-xs font-semibold text-slate-500 uppercase">Material *</label>
                   <select 
                     name="material" required value={formData.material} onChange={handleChange}
-                    className="w-full border border-slate-300 rounded-lg p-2.5 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition bg-white"
+                    className="w-full mt-1 border border-slate-300 rounded-lg p-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition bg-white"
                   >
                     <option value="" disabled>Select Material</option>
                     {materials.map(m => (
                       <option key={m._id} value={m._id}>
-                        {m.name} (₹{m.currentPrice}/unit, ₹{m.pricePerTon ?? m.currentPrice}/ton)
+                        {m.name} (₹{m.currentPrice}/unit)
                       </option>
                     ))}
                   </select>
                 </div>
 
                 <div className="col-span-1">
-                  <label className="block text-sm font-medium text-slate-700 mb-1">Quantity *</label>
-                  <div className="flex gap-2">
+                  <label className="block text-xs font-semibold text-slate-500 uppercase">Quantity *</label>
+                  <div className="flex gap-1.5 mt-1">
                     <input 
                       type="number" name="quantity" required value={formData.quantity} onChange={handleChange} min="0.1" step="0.1"
-                      className="flex-1 border border-slate-300 rounded-lg p-2.5 focus:ring-2 focus:ring-blue-500 outline-none transition"
+                      className="w-2/3 border border-slate-300 rounded-lg p-2 focus:ring-2 focus:ring-blue-500 outline-none transition text-sm"
                       placeholder="e.g. 15.5"
                     />
                     <select
                       name="quantityUnit"
                       value={formData.quantityUnit}
                       onChange={handleChange}
-                      className="border border-slate-300 rounded-lg p-2 text-sm bg-white"
+                      className="w-1/3 border border-slate-300 rounded-lg p-2 text-xs bg-white focus:ring-2 focus:ring-blue-500 outline-none"
                     >
                       <option value="unit">Unit</option>
                       <option value="ton">Ton</option>
@@ -639,36 +672,29 @@ const Bills = () => {
                   </div>
                 </div>
 
-                <div className="col-span-2">
-                  <div className="flex items-center space-x-3">
+                <div className="col-span-1">
+                  <label className="flex items-center gap-1.5 text-xs font-semibold text-slate-500 uppercase cursor-pointer">
                     <input 
                       type="checkbox" name="useManualPrice" id="useManualPrice" checked={formData.useManualPrice} onChange={handleChange}
-                      className="rounded border-slate-300"
+                      className="rounded border-slate-300 h-3.5 w-3.5 text-blue-600 focus:ring-blue-500"
                     />
-                    <label htmlFor="useManualPrice" className="text-sm font-medium text-slate-700">Use Custom Price</label>
-                  </div>
+                    <span>Custom Price</span>
+                  </label>
+                  <input
+                    type="number"
+                    name="manualPrice"
+                    disabled={!formData.useManualPrice}
+                    value={formData.manualPrice}
+                    onChange={handleChange}
+                    min="0"
+                    step="0.1"
+                    className="w-full mt-1 border border-slate-300 rounded-lg p-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition disabled:bg-slate-50 disabled:text-slate-400 disabled:border-slate-200"
+                    placeholder={formData.useManualPrice ? "Price per unit/ton" : "Disabled"}
+                  />
                 </div>
 
-                {formData.useManualPrice && (
-                  <div className="col-span-2">
-                    <label className="block text-sm font-medium text-slate-700 mb-1">Custom Price per {formData.quantityUnit} (₹) *</label>
-                    <input
-                      type="number"
-                      name="manualPrice"
-                      value={formData.manualPrice}
-                      onChange={handleChange}
-                      min="0"
-                      step="0.1"
-                      className="w-full border border-slate-300 rounded-lg p-2.5 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition"
-                      placeholder="e.g. 5000"
-                    />
-                  </div>
-                )}
-
-                <div className="col-span-2">
-                  <label className="block text-sm font-medium text-slate-700 mb-1">
-                    PASS Amount (Govt Permission Cost)
-                  </label>
+                <div className="col-span-1">
+                  <label className="block text-xs font-semibold text-slate-500 uppercase">PASS (Govt Fee)</label>
                   <input
                     type="number"
                     name="passAmount"
@@ -676,47 +702,52 @@ const Bills = () => {
                     onChange={handleChange}
                     min="0"
                     step="1"
-                    className="w-full border border-slate-300 rounded-lg p-2.5 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition"
+                    className="w-full mt-1 border border-slate-300 rounded-lg p-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition"
                     placeholder="e.g. 1200"
                   />
                 </div>
 
                 {canWrite && (
-                  <div className="col-span-2 bg-amber-50 border border-amber-200 rounded-lg p-3">
-                    <label className="block text-sm font-semibold text-amber-900 mb-2">Custom Date & Time (for missed bills)</label>
-                    <div className="grid grid-cols-2 gap-3">
-                      <input type="date" name="customDate" value={formData.customDate} onChange={handleChange} className="border border-slate-300 rounded-lg p-2 text-sm" />
-                      <input type="time" name="customTime" value={formData.customTime} onChange={handleChange} className="border border-slate-300 rounded-lg p-2 text-sm" />
-                    </div>
-                    <p className="text-xs text-amber-700 mt-2">Backdated bills are logged separately in the audit trail.</p>
+                  <div className="col-span-2 border border-slate-200 rounded-lg p-2 bg-slate-50">
+                    <details className="group">
+                      <summary className="list-none flex items-center justify-between cursor-pointer text-xs font-semibold text-slate-600 uppercase select-none">
+                        <span>Backdate Bill / Custom Date</span>
+                        <ChevronDownIcon className="h-4 w-4 transition-transform group-open:rotate-180" />
+                      </summary>
+                      <div className="grid grid-cols-2 gap-2 mt-2 pt-2 border-t border-slate-200">
+                        <input type="date" name="customDate" value={formData.customDate} onChange={handleChange} className="border border-slate-300 rounded-lg p-1.5 text-xs focus:ring-2 focus:ring-blue-500 outline-none bg-white" />
+                        <input type="time" name="customTime" value={formData.customTime} onChange={handleChange} className="border border-slate-300 rounded-lg p-1.5 text-xs focus:ring-2 focus:ring-blue-500 outline-none bg-white" />
+                      </div>
+                    </details>
                   </div>
                 )}
               </div>
 
-              <div className="mt-6 bg-slate-50 p-4 rounded-lg border border-slate-200">
-                <div className="flex justify-between text-sm text-slate-600 mb-1">
-                  <span>Price per {formData.quantityUnit}:</span>
-                  <span>₹{selectedMaterialPrice.toLocaleString()}</span>
+              <div className="mt-3 bg-slate-50 p-3 rounded-lg border border-slate-200 grid grid-cols-2 gap-x-4 gap-y-1 text-sm shrink-0">
+                <div>
+                  <span className="text-xs text-slate-500 font-semibold uppercase">Rate:</span>
+                  <span className="ml-1 font-semibold text-slate-700">₹{selectedMaterialPrice.toLocaleString()}</span>
                 </div>
-                <div className="flex justify-between text-lg font-bold text-slate-800 mt-2 pt-2 border-t border-slate-200">
-                  <span>Total Amount:</span>
-                  <span>₹{calculatedTotal.toLocaleString()}</span>
+                <div className="text-right">
+                  <span className="text-xs text-slate-500 font-semibold uppercase">Subtotal:</span>
+                  <span className="ml-1 font-semibold text-slate-700">₹{calculatedTotal.toLocaleString()}</span>
                 </div>
-                <div className="flex justify-between text-sm text-slate-600 mt-2">
-                  <span>PASS (Govt):</span>
-                  <span>₹{(Number(formData.passAmount) || 0).toLocaleString()}</span>
+                <div className="col-span-2 border-t border-slate-200 my-0.5"></div>
+                <div>
+                  <span className="text-xs text-slate-500 font-semibold uppercase">PASS (Govt):</span>
+                  <span className="ml-1 font-semibold text-slate-700">₹{(Number(formData.passAmount) || 0).toLocaleString()}</span>
                 </div>
-                <div className="flex justify-between text-lg font-extrabold text-slate-900 mt-1 pt-1 border-t border-slate-200">
-                  <span>Total (Amount + PASS):</span>
-                  <span>₹{(calculatedTotal + (Number(formData.passAmount) || 0)).toLocaleString()}</span>
+                <div className="text-right">
+                  <span className="text-xs font-bold text-slate-900 uppercase">Grand Total:</span>
+                  <span className="ml-1 font-extrabold text-blue-600 text-base">₹{(calculatedTotal + (Number(formData.passAmount) || 0)).toLocaleString()}</span>
                 </div>
               </div>
               
-              <div className="pt-4 flex justify-end space-x-3 border-t border-slate-100 shrink-0">
-                <button type="button" onClick={() => setIsModalOpen(false)} className="px-4 py-2 text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-lg font-medium transition cursor-pointer">
+              <div className="pt-3 flex justify-end space-x-3 border-t border-slate-100 shrink-0">
+                <button type="button" onClick={() => setIsModalOpen(false)} className="px-4 py-2 text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-lg font-medium transition cursor-pointer text-sm">
                   Cancel
                 </button>
-                <button type="submit" disabled={!formData.customer || !formData.material || !formData.quantity} className="px-4 py-2 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 transition shadow-md cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed">
+                <button type="submit" disabled={!formData.customer || !formData.material || !formData.quantity} className="px-4 py-2 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 transition shadow-md cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed text-sm">
                   Generate Bill
                 </button>
               </div>

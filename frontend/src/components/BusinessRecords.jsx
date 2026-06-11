@@ -101,6 +101,37 @@ const BusinessRecords = ({ records, filters, onFiltersChange, onRefresh }) => {
     [filteredBills]
   );
 
+  const summaryItems = useMemo(() => {
+    const items = [];
+    if (!filters.type || filters.type === 'Customer') {
+      items.push({ label: 'Customers', value: filteredCustomers.length });
+    }
+    if (!filters.type || filters.type === 'Employee') {
+      items.push({ label: 'Employees', value: filteredEmployees.length });
+    }
+    if (!filters.type || filters.type === 'Bill') {
+      items.push({ label: 'Bills', value: filteredBills.length });
+      items.push({ label: 'Bill Total', value: money(billTotals.total) });
+      items.push({ label: 'Pending', value: money(billTotals.pending), tone: 'red' });
+    }
+    if (!filters.type || filters.type === 'Expense') {
+      items.push({ label: 'Expenses', value: filteredExpenses.length });
+    }
+    if (!filters.type || filters.type === 'Material') {
+      items.push({ label: 'Materials', value: filteredMaterials.length });
+    }
+    return items;
+  }, [
+    filters.type,
+    filteredCustomers.length,
+    filteredEmployees.length,
+    filteredBills.length,
+    billTotals.total,
+    billTotals.pending,
+    filteredExpenses.length,
+    filteredMaterials.length
+  ]);
+
   return (
     <section className="bg-white border border-slate-200 rounded-lg shadow-sm overflow-hidden">
       <div className="px-5 py-4 border-b border-slate-200 bg-slate-50/80 flex flex-col md:flex-row md:items-center md:justify-between gap-3">
@@ -131,79 +162,81 @@ const BusinessRecords = ({ records, filters, onFiltersChange, onRefresh }) => {
             { value: 'Partially Paid', label: 'Partially Paid' },
             { value: 'Paid', label: 'Paid' }
           ]}
-          summary={[
-            { label: 'Customers', value: filteredCustomers.length },
-            { label: 'Employees', value: filteredEmployees.length },
-            { label: 'Bills', value: filteredBills.length },
-            { label: 'Bill Total', value: money(billTotals.total) },
-            { label: 'Pending', value: money(billTotals.pending), tone: 'red' },
-            { label: 'Expenses', value: filteredExpenses.length },
-            { label: 'Materials', value: filteredMaterials.length }
-          ]}
+          summary={summaryItems}
         />
       )}
 
-      <div className="p-5 grid grid-cols-1 xl:grid-cols-2 gap-4">
-        <RecordTable title="Customers" count={filteredCustomers.length} headers={['Name', 'Phone', 'Vehicles']} empty="No customers match filters.">
-          {filteredCustomers.map((customer) => (
-            <tr key={customer._id}>
-              <td className="p-3 font-semibold text-slate-900">{customer.name}</td>
-              <td className="p-3 text-slate-600">{customer.phone || '-'}</td>
-              <td className="p-3 text-slate-600">{(customer.vehicles || []).map((v) => v.number).join(', ') || '-'}</td>
-            </tr>
-          ))}
-        </RecordTable>
-
-        <RecordTable title="Employees" count={filteredEmployees.length} headers={['Name', 'Role', 'Daily Wage']} empty="No employees match filters.">
-          {filteredEmployees.map((employee) => (
-            <tr key={employee._id}>
-              <td className="p-3 font-semibold text-slate-900">{employee.name}</td>
-              <td className="p-3 text-slate-600">{employee.designation || '-'}</td>
-              <td className="p-3 text-right text-slate-900 font-semibold">{money(employee.dailyWages)}</td>
-            </tr>
-          ))}
-        </RecordTable>
-
-        <RecordTable title="Bills" count={filteredBills.length} headers={['Date', 'Time', 'Customer', 'Vehicle', 'Material', 'Total', 'Pending']} empty="No bills match filters." wide>
-          {filteredBills.map((bill) => {
-            const dt = formatDateTime(bill.date);
-            return (
-              <tr key={bill._id}>
-                <td className="p-3 text-slate-600">{dt.date}</td>
-                <td className="p-3 text-slate-600">{dt.time}</td>
-                <td className="p-3 font-semibold text-slate-900">{bill.customerNameSnapshot}</td>
-                <td className="p-3 text-slate-600">{bill.vehicleNumber || '-'}</td>
-                <td className="p-3 text-slate-600">{bill.materialNameSnapshot}</td>
-                <td className="p-3 text-right text-slate-900 font-semibold">{money(Number(bill.totalAmount || 0) + Number(bill.passAmount || 0))}</td>
-                <td className="p-3 text-right text-red-600 font-semibold">{money(bill.pendingAmount)}</td>
+      <div className={`p-5 grid grid-cols-1 ${filters.type ? 'grid-cols-1' : 'xl:grid-cols-2'} gap-4`}>
+        {(!filters.type || filters.type === 'Customer') && (
+          <RecordTable title="Customers" count={filteredCustomers.length} headers={['Name', 'Phone', 'Vehicles']} empty="No customers match filters.">
+            {filteredCustomers.map((customer) => (
+              <tr key={customer._id}>
+                <td className="p-3 font-semibold text-slate-900">{customer.name}</td>
+                <td className="p-3 text-slate-600">{customer.phone || '-'}</td>
+                <td className="p-3 text-slate-600">{(customer.vehicles || []).map((v) => v.number).join(', ') || '-'}</td>
               </tr>
-            );
-          })}
-        </RecordTable>
+            ))}
+          </RecordTable>
+        )}
 
-        <RecordTable title="Expenses" count={filteredExpenses.length} headers={['Date', 'Time', 'Type', 'Amount']} empty="No expenses match filters.">
-          {filteredExpenses.map((expense) => {
-            const dt = formatDateTime(expense.date);
-            return (
-              <tr key={expense._id}>
-                <td className="p-3 text-slate-600">{dt.date}</td>
-                <td className="p-3 text-slate-600">{dt.time}</td>
-                <td className="p-3 font-semibold text-slate-900">{expense.type}</td>
-                <td className="p-3 text-right text-slate-900 font-semibold">{money(expense.amount)}</td>
+        {(!filters.type || filters.type === 'Employee') && (
+          <RecordTable title="Employees" count={filteredEmployees.length} headers={['Name', 'Role', 'Daily Wage']} empty="No employees match filters.">
+            {filteredEmployees.map((employee) => (
+              <tr key={employee._id}>
+                <td className="p-3 font-semibold text-slate-900">{employee.name}</td>
+                <td className="p-3 text-slate-600">{employee.designation || '-'}</td>
+                <td className="p-3 text-right text-slate-900 font-semibold">{money(employee.dailyWages)}</td>
               </tr>
-            );
-          })}
-        </RecordTable>
+            ))}
+          </RecordTable>
+        )}
 
-        <RecordTable title="Materials" count={filteredMaterials.length} headers={['Name', 'Unit Price', 'Ton Price']} empty="No materials match filters.">
-          {filteredMaterials.map((material) => (
-            <tr key={material._id}>
-              <td className="p-3 font-semibold text-slate-900">{material.name}</td>
-              <td className="p-3 text-right text-slate-900 font-semibold">{money(material.currentPrice)}</td>
-              <td className="p-3 text-right text-slate-900 font-semibold">{money(material.pricePerTon ?? material.currentPrice)}</td>
-            </tr>
-          ))}
-        </RecordTable>
+        {(!filters.type || filters.type === 'Bill') && (
+          <RecordTable title="Bills" count={filteredBills.length} headers={['Date', 'Time', 'Customer', 'Vehicle', 'Material', 'Total', 'Pending']} empty="No bills match filters." wide>
+            {filteredBills.map((bill) => {
+              const dt = formatDateTime(bill.date);
+              return (
+                <tr key={bill._id}>
+                  <td className="p-3 text-slate-600">{dt.date}</td>
+                  <td className="p-3 text-slate-600">{dt.time}</td>
+                  <td className="p-3 font-semibold text-slate-900">{bill.customerNameSnapshot}</td>
+                  <td className="p-3 text-slate-600">{bill.vehicleNumber || '-'}</td>
+                  <td className="p-3 text-slate-600">{bill.materialNameSnapshot}</td>
+                  <td className="p-3 text-right text-slate-900 font-semibold">{money(Number(bill.totalAmount || 0) + Number(bill.passAmount || 0))}</td>
+                  <td className="p-3 text-right text-red-600 font-semibold">{money(bill.pendingAmount)}</td>
+                </tr>
+              );
+            })}
+          </RecordTable>
+        )}
+
+        {(!filters.type || filters.type === 'Expense') && (
+          <RecordTable title="Expenses" count={filteredExpenses.length} headers={['Date', 'Time', 'Type', 'Amount']} empty="No expenses match filters.">
+            {filteredExpenses.map((expense) => {
+              const dt = formatDateTime(expense.date);
+              return (
+                <tr key={expense._id}>
+                  <td className="p-3 text-slate-600">{dt.date}</td>
+                  <td className="p-3 text-slate-600">{dt.time}</td>
+                  <td className="p-3 font-semibold text-slate-900">{expense.type}</td>
+                  <td className="p-3 text-right text-slate-900 font-semibold">{money(expense.amount)}</td>
+                </tr>
+              );
+            })}
+          </RecordTable>
+        )}
+
+        {(!filters.type || filters.type === 'Material') && (
+          <RecordTable title="Materials" count={filteredMaterials.length} headers={['Name', 'Unit Price', 'Ton Price']} empty="No materials match filters.">
+            {filteredMaterials.map((material) => (
+              <tr key={material._id}>
+                <td className="p-3 font-semibold text-slate-900">{material.name}</td>
+                <td className="p-3 text-right text-slate-900 font-semibold">{money(material.currentPrice)}</td>
+                <td className="p-3 text-right text-slate-900 font-semibold">{money(material.pricePerTon ?? material.currentPrice)}</td>
+              </tr>
+            ))}
+          </RecordTable>
+        )}
       </div>
     </section>
   );

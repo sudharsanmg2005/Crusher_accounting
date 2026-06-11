@@ -13,7 +13,9 @@ import {
   getSalaries,
   getSalarySummary,
   paySalary,
-  deleteTransaction
+  deleteTransaction,
+  updateBaseSalary,
+  getEmployeeAttendance
 } from '../controllers/employeeController.js';
 import { requireSuperAdmin, requireWriteAccess } from '../middleware/permissionMiddleware.js';
 
@@ -25,16 +27,6 @@ router.route('/')
 
 router.route('/archived')
   .get(requireSuperAdmin, getArchivedEmployees);
-
-router.route('/:id')
-  .put(requireWriteAccess, updateEmployee)
-  .delete(requireWriteAccess, deleteEmployee);
-
-router.route('/:id/restore')
-  .patch(requireSuperAdmin, restoreEmployee);
-
-router.route('/:id/permanent')
-  .delete(requireSuperAdmin, permanentDeleteEmployee);
 
 router.route('/attendance')
   .get(getAttendance)
@@ -50,7 +42,23 @@ router.route('/salaries/summary')
 router.route('/salaries/pay')
   .post(requireWriteAccess, paySalary);
 
+router.route('/salaries/base-salary')
+  .put(requireWriteAccess, updateBaseSalary);
+
 router.route('/salaries/payment/:paymentId/history/:transactionId')
   .delete(requireWriteAccess, deleteTransaction);
+
+router.route('/:id')
+  .put(requireWriteAccess, updateEmployee)
+  .delete(requireWriteAccess, deleteEmployee);
+
+router.route('/:id/attendance')
+  .get(getEmployeeAttendance);
+
+router.route('/:id/restore')
+  .patch(requireSuperAdmin, restoreEmployee);
+
+router.route('/:id/permanent')
+  .delete(requireSuperAdmin, permanentDeleteEmployee);
 
 export default router;

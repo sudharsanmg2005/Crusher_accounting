@@ -6,6 +6,8 @@ import Dashboard from './pages/Dashboard';
 import Customers from './pages/Customers';
 import Materials from './pages/Materials';
 import Bills from './pages/Bills';
+import LoadManagement from './pages/LoadManagement';
+import Buyers from './pages/Buyers';
 import Expenses from './pages/Expenses';
 import Reports from './pages/Reports';
 import Login from './pages/Login';
@@ -60,6 +62,22 @@ const App = () => {
               element={
                 <ProtectedRoute>
                   <Bills />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/loads"
+              element={
+                <ProtectedRoute>
+                  <LoadManagement />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/buyers"
+              element={
+                <ProtectedRoute>
+                  <Buyers />
                 </ProtectedRoute>
               }
             />

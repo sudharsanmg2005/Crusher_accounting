@@ -24,4 +24,12 @@ export const ChevronDownIcon = (props) => <Icon {...props}><path d="M6 9l6 6 6-6
 export const ChevronRightIcon = (props) => <Icon {...props}><path d="M9 6l6 6-6 6" /></Icon>;
 export const DocumentIcon = (props) => <Icon {...props}><path d="M7 3h7l3 3v15H7V3z" /><path d="M14 3v4h4" /><path d="M10 13h6" /><path d="M10 17h6" /></Icon>;
 export const ShieldCheckIcon = (props) => <Icon {...props}><path d="M12 3l7 3v5c0 4.5-3 8-7 10-4-2-7-5.5-7-10V6l7-3z" /><path d="M9 12l2 2 4-4" /></Icon>;
+export const CargoIcon = (props) => <Icon {...props}><path d="M14 18V6a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2v11a1 1 0 0 0 1 1h2" /><circle cx="5" cy="18" r="2" /><path d="M7 18h8" /><circle cx="17" cy="18" r="2" /><path d="M19 18h2a1 1 0 0 0 1-1v-6l-3-4h-5v11" /></Icon>;
+export const EditIcon = (props) => <Icon {...props}><path d="M12 20h9" /><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z" /></Icon>;
+export const EyeIcon = (props) => <Icon {...props}><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z" /><circle cx="12" cy="12" r="3" /></Icon>;
+export const PlusIcon = (props) => <Icon {...props}><path d="M5 12h14" /><path d="M12 5v14" /></Icon>;
+export const ListIcon = (props) => <Icon {...props}><line x1="8" x2="21" y1="6" y2="6" /><line x1="8" x2="21" y1="12" y2="12" /><line x1="8" x2="21" y1="18" y2="18" /><line x1="3" x2="3.01" y1="6" y2="6" /><line x1="3" x2="3.01" y1="12" y2="12" /><line x1="3" x2="3.01" y1="18" y2="18" /></Icon>;
+export const UndoIcon = (props) => <Icon {...props}><path d="M3 7v6h6" /><path d="M21 17a9 9 0 0 0-9-9 9 9 0 0 0-6 2.3L3 13" /></Icon>;
+export const CheckIcon = (props) => <Icon {...props}><path d="M20 6 9 17l-5-5" /></Icon>;
+
 

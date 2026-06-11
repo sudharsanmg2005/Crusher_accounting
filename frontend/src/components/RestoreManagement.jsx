@@ -161,7 +161,8 @@ const RestoreManagement = ({ onConflictCountChange }) => {
   const [error, setError] = useState('');
   const [activeSection, setActiveSection] = useState('customers');
   const [conflictItem, setConflictItem] = useState(null);
-  const [recentResults, setRecentResults] = useState([]);
+  const [recentResults, setRecentResults] = useState([]);
+  const [search, setSearch] = useState('');
 
   const fetchPreview = useCallback(async () => {
     setLoading(true);
@@ -202,7 +203,28 @@ const RestoreManagement = ({ onConflictCountChange }) => {
     [preview.employees]
   );
 
-  const activeRows = activeSection === 'customers' ? conflictCustomers : conflictEmployees;
+    const filteredCustomers = useMemo(() => {
+    if (!search.trim()) return conflictCustomers;
+    const q = search.toLowerCase();
+    return conflictCustomers.filter((item) =>
+      (item.backup?.name || '').toLowerCase().includes(q) ||
+      (item.backup?.phone || '').toLowerCase().includes(q) ||
+      (item.existingRecord?.name || '').toLowerCase().includes(q)
+    );
+  }, [conflictCustomers, search]);
+
+  const filteredEmployees = useMemo(() => {
+    if (!search.trim()) return conflictEmployees;
+    const q = search.toLowerCase();
+    return conflictEmployees.filter((item) =>
+      (item.backup?.name || '').toLowerCase().includes(q) ||
+      (item.backup?.phone || '').toLowerCase().includes(q) ||
+      (item.existingRecord?.name || '').toLowerCase().includes(q) ||
+      (item.backup?.designation || '').toLowerCase().includes(q)
+    );
+  }, [conflictEmployees, search]);
+
+  const activeRows = activeSection === 'customers' ? filteredCustomers : filteredEmployees;
   const conflictCount = conflictCustomers.length + conflictEmployees.length;
 
   useEffect(() => {
@@ -293,29 +315,47 @@ const RestoreManagement = ({ onConflictCountChange }) => {
         </div>
       )}
 
-      <div className="flex flex-wrap gap-2">
-        <button
-          type="button"
-          onClick={() => setActiveSection('customers')}
-          className={`px-4 py-2 rounded-lg text-sm font-semibold ${activeSection === 'customers' ? 'bg-blue-600 text-white' : 'bg-white border border-slate-300 text-slate-700'}`}
-        >
-          Customer Conflicts ({conflictCustomers.length})
-        </button>
-        <button
-          type="button"
-          onClick={() => setActiveSection('employees')}
-          className={`px-4 py-2 rounded-lg text-sm font-semibold ${activeSection === 'employees' ? 'bg-blue-600 text-white' : 'bg-white border border-slate-300 text-slate-700'}`}
-        >
-          Employee Conflicts ({conflictEmployees.length})
-        </button>
-        <button
-          type="button"
-          onClick={fetchPreview}
-          disabled={loading}
-          className="ml-auto px-4 py-2 rounded-lg border border-slate-300 text-sm font-semibold hover:bg-white disabled:opacity-50"
-        >
-          Refresh
-        </button>
+            <div className="flex flex-col sm:flex-row gap-3 justify-between items-stretch sm:items-center">
+        <div className="flex flex-wrap gap-2">
+          <button
+            type="button"
+            onClick={() => {
+              setActiveSection('customers');
+              setSearch('');
+            }}
+            className={`px-4 py-2 rounded-lg text-sm font-semibold ${activeSection === 'customers' ? 'bg-blue-600 text-white' : 'bg-white border border-slate-300 text-slate-700'}`}
+          >
+            Customer Conflicts ({conflictCustomers.length})
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              setActiveSection('employees');
+              setSearch('');
+            }}
+            className={`px-4 py-2 rounded-lg text-sm font-semibold ${activeSection === 'employees' ? 'bg-blue-600 text-white' : 'bg-white border border-slate-300 text-slate-700'}`}
+          >
+            Employee Conflicts ({conflictEmployees.length})
+          </button>
+        </div>
+
+        <div className="flex gap-2 flex-1 sm:flex-initial">
+          <input
+            type="text"
+            placeholder="Search by name, phone..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="border border-slate-300 rounded-lg p-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none flex-1 sm:w-64 bg-white"
+          />
+          <button
+            type="button"
+            onClick={fetchPreview}
+            disabled={loading}
+            className="px-4 py-2 rounded-lg border border-slate-300 text-sm font-semibold hover:bg-white disabled:opacity-50 whitespace-nowrap"
+          >
+            Refresh
+          </button>
+        </div>
       </div>
 
       <ConflictTable

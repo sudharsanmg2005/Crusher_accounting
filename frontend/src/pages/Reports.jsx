@@ -105,8 +105,6 @@ const Reports = () => {
       doc.text(str, (pageWidth - w) / 2, xY);
     };
 
-    // Centered header (Company Name + customer name + date)
-    centerText('KRISHNA BLUE METALS', 12, 14, 'bold');
 
     const headerName = statement.customer?.name 
       ? `${statement.customer.name} Bill Statement` 
@@ -121,10 +119,16 @@ const Reports = () => {
     // Table first
     const yStartTable = 36;
 
-    const head = [['S.NO', 'DATE', 'VEHICLE', 'MATERIAL', 'WEIGHT', 'PRICE', 'AMOUNT', 'PASS', 'TOTAL']];
+    const isAllCustomers = !statement.customer;
+
+    const head = isAllCustomers
+      ? [['S.NO', 'DATE', 'CUSTOMER', 'VEHICLE', 'MATERIAL', 'WEIGHT', 'PRICE', 'AMOUNT', 'PASS', 'TOTAL']]
+      : [['S.NO', 'DATE', 'VEHICLE', 'MATERIAL', 'WEIGHT', 'PRICE', 'AMOUNT', 'PASS', 'TOTAL']];
+
     const body = (statement.rows || []).map((r) => [
       r.sno,
       r.date,
+      ...(isAllCustomers ? [r.customerName || ''] : []),
       r.vehicle,
       r.material,
       r.weight,
@@ -196,19 +200,19 @@ const Reports = () => {
 
   return (
     <div className="space-y-6 flex flex-col h-full min-h-0">
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center shrink-0 space-y-4 sm:space-y-0">
+      <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center shrink-0 gap-4">
         <div>
           <h1 className="text-2xl font-bold text-slate-800">Customer Report</h1>
           <p className="text-slate-500 text-sm mt-1">Monthly / Weekly / Selected Days report for all customers or one customer.</p>
         </div>
 
-        <div className="flex flex-wrap items-end gap-3 bg-white p-3 rounded-xl shadow-sm border border-slate-200">
-          <div>
+        <div className="flex flex-wrap items-end gap-3 bg-white p-3 rounded-xl shadow-sm border border-slate-200 w-full lg:w-auto">
+          <div className="w-full sm:w-auto">
             <label className="block text-xs font-semibold text-slate-500 mb-1 uppercase tracking-wider">Report Type</label>
             <select
               value={reportType}
               onChange={(e) => setReportType(e.target.value)}
-              className="border border-slate-300 rounded-lg p-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none bg-white"
+              className="border border-slate-300 rounded-lg p-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none bg-white w-full"
             >
               <option value="monthly">Monthly</option>
               <option value="weekly">Weekly</option>
@@ -216,7 +220,7 @@ const Reports = () => {
             </select>
           </div>
 
-          <div>
+          <div className="w-full sm:w-auto">
             <label className="block text-xs font-semibold text-slate-500 mb-1 uppercase tracking-wider">Start Date</label>
             <input
               type="date"
@@ -225,11 +229,11 @@ const Reports = () => {
               onChange={onChange}
               disabled={reportType !== 'range'}
               required
-              className="border border-slate-300 rounded-lg p-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none disabled:bg-slate-50"
+              className="border border-slate-300 rounded-lg p-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none disabled:bg-slate-50 w-full"
             />
           </div>
 
-          <div>
+          <div className="w-full sm:w-auto">
             <label className="block text-xs font-semibold text-slate-500 mb-1 uppercase tracking-wider">End Date</label>
             <input
               type="date"
@@ -238,17 +242,17 @@ const Reports = () => {
               onChange={onChange}
               disabled={reportType !== 'range'}
               required
-              className="border border-slate-300 rounded-lg p-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none disabled:bg-slate-50"
+              className="border border-slate-300 rounded-lg p-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none disabled:bg-slate-50 w-full"
             />
           </div>
 
-          <div>
+          <div className="w-full sm:w-auto">
             <label className="block text-xs font-semibold text-slate-500 mb-1 uppercase tracking-wider">Customer</label>
             <select
               value={selectedCustomerId}
               onChange={(e) => setSelectedCustomerId(e.target.value)}
               disabled={customersLoading}
-              className="border border-slate-300 rounded-lg p-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none bg-white disabled:bg-slate-50"
+              className="border border-slate-300 rounded-lg p-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none bg-white disabled:bg-slate-50 w-full"
             >
               <option value="">All Customers</option>
               {customers.map((c) => (
@@ -263,7 +267,7 @@ const Reports = () => {
             type="button"
             onClick={downloadPdf}
             disabled={!statement || loading}
-            className="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-blue-700 transition shadow-md disabled:opacity-50 disabled:cursor-not-allowed"
+            className="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-blue-700 transition shadow-md disabled:opacity-50 disabled:cursor-not-allowed w-full sm:w-auto justify-center inline-flex items-center"
           >
             Download PDF
           </button>
@@ -286,7 +290,7 @@ const Reports = () => {
                 <div className="text-center font-extrabold tracking-wider text-lg">{statement.title}</div>
                 <div className="text-center text-sm text-slate-600 mt-1">{statement.rangeLabel}</div>
 
-                <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-3">
+                <div className="mt-4 grid grid-cols-1 sm:grid-cols-3 gap-3">
                   <div className="text-center bg-slate-50 border border-slate-200 rounded-lg p-3">
                     <div className="text-xs font-semibold text-slate-500 uppercase tracking-wider">TOTAL AMOUNT</div>
                     <div className="text-base font-bold text-slate-800">{statement?.totals?.currentWeekBalance}</div>
@@ -309,6 +313,9 @@ const Reports = () => {
                       <tr>
                         <th className="p-4 font-semibold whitespace-nowrap">S.NO</th>
                         <th className="p-4 font-semibold whitespace-nowrap">DATE</th>
+                        {!statement.customer && (
+                          <th className="p-4 font-semibold whitespace-nowrap">CUSTOMER</th>
+                        )}
                         <th className="p-4 font-semibold whitespace-nowrap">VEHICLE</th>
                         <th className="p-4 font-semibold whitespace-nowrap">MATERIAL</th>
                         <th className="p-4 font-semibold whitespace-nowrap text-right">WEIGHT</th>
@@ -321,7 +328,7 @@ const Reports = () => {
                     <tbody className="divide-y divide-slate-100">
                       {statement.rows.length === 0 ? (
                         <tr>
-                          <td colSpan="9" className="p-8 text-center text-slate-500">
+                          <td colSpan={!statement.customer ? "10" : "9"} className="p-8 text-center text-slate-500">
                             No records found for this date range.
                           </td>
                         </tr>
@@ -330,6 +337,9 @@ const Reports = () => {
                           <tr key={`${r.sno}-${r.date}-${r.vehicle}`} className="hover:bg-slate-50 transition">
                             <td className="p-4 text-slate-700 font-medium whitespace-nowrap">{r.sno}</td>
                             <td className="p-4 text-slate-700 whitespace-nowrap">{r.date}</td>
+                            {!statement.customer && (
+                              <td className="p-4 text-slate-800 font-semibold whitespace-nowrap">{r.customerName || ''}</td>
+                            )}
                             <td className="p-4 text-slate-800 font-semibold whitespace-nowrap">{r.vehicle}</td>
                             <td className="p-4 text-slate-800 whitespace-nowrap">{r.material}</td>
                             <td className="p-4 text-right text-slate-700 font-medium whitespace-nowrap">{r.weight}</td>

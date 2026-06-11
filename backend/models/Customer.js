@@ -10,6 +10,7 @@ const vehicleSchema = new mongoose.Schema(
 
 const customerSchema = new mongoose.Schema(
   {
+    customerCode: { type: String, trim: true, unique: true, sparse: true },
     name: { type: String, required: true, trim: true },
     phone: { type: String, required: true, trim: true },
     address: { type: String, trim: true },
@@ -19,13 +20,7 @@ const customerSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
-customerSchema.index(
-  { phone: 1 },
-  {
-    unique: true,
-    partialFilterExpression: { isDeleted: false, phone: { $type: 'string', $ne: '' } }
-  }
-);
+customerSchema.index({ name: 1, phone: 1, isDeleted: 1 });
 
 const Customer = mongoose.model('Customer', customerSchema);
 export default Customer;

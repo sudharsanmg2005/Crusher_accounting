@@ -8,6 +8,8 @@ import RestoreManagement from '../components/RestoreManagement';
 import RecordFilters from '../components/RecordFilters';
 import { defaultRecordFilters, filterRecords } from '../utils/recordFilters';
 import { formatDateTime } from '../utils/dateTime';
+import { useConfirm } from '../components/ConfirmDialog';
+import { EyeIcon } from '../components/Icons';
 
 const baseTabs = [
   { id: 'control', label: 'Super Admin Control' },
@@ -21,11 +23,14 @@ const money = (value) => `₹${Number(value || 0).toLocaleString()}`;
 
 const SuperAdminDashboard = () => {
   const { user } = useAuth();
+  const confirm = useConfirm();
   const [activeTab, setActiveTab] = useState('control');
   const [liveBills, setLiveBills] = useState([]);
   const [liveExpenses, setLiveExpenses] = useState([]);
   const [auditLogs, setAuditLogs] = useState([]);
   const [admins, setAdmins] = useState([]);
+  const [showOnlyEdits, setShowOnlyEdits] = useState(false);
+  const [selectedAuditLog, setSelectedAuditLog] = useState(null);
   const [businessRecords, setBusinessRecords] = useState({
     customers: [],
     employees: [],
@@ -40,6 +45,44 @@ const SuperAdminDashboard = () => {
 
   const isSuperAdmin = user?.role === 'super_admin';
 
+  const handleRestoreLog = async (log) => {
+    const ok = await confirm({
+      title: 'Restore Original State',
+      message: `Are you sure you want to revert this ${log.metadata?.resource} to its original state?`,
+      confirmText: 'Restore',
+      tone: 'primary'
+    });
+    if (!ok) return;
+
+    try {
+      const { data } = await api.post(`/auth/audit-logs/${log._id}/restore`);
+      alert(data.message || 'Restored successfully.');
+      setSelectedAuditLog(null);
+      await fetchAuditLogs();
+    } catch (err) {
+      alert(err.response?.data?.message || 'Failed to restore original state.');
+    }
+  };
+
+  const handleDeleteLog = async (log) => {
+    const ok = await confirm({
+      title: 'Delete History Permanently',
+      message: 'Are you sure you want to permanently delete this audit log entry? This history will be lost forever.',
+      confirmText: 'Delete Permanently',
+      tone: 'danger'
+    });
+    if (!ok) return;
+
+    try {
+      const { data } = await api.delete(`/auth/audit-logs/${log._id}`);
+      alert(data.message || 'Log deleted permanently.');
+      setSelectedAuditLog(null);
+      await fetchAuditLogs();
+    } catch (err) {
+      alert(err.response?.data?.message || 'Failed to delete audit log.');
+    }
+  };
+
   const fetchRestoreConflictCount = useCallback(async () => {
     try {
       const { data } = await api.get('/restore-management/preview');
@@ -52,10 +95,7 @@ const SuperAdminDashboard = () => {
     }
   }, []);
 
-  const tabs = useMemo(
-    () => baseTabs.filter((tab) => tab.id !== 'restore' || (restoreConflictCount ?? 0) > 0),
-    [restoreConflictCount]
-  );
+  const tabs = baseTabs;
 
   const fetchLiveData = async () => {
     const [billsRes, expensesRes, customersRes] = await Promise.all([
@@ -99,13 +139,6 @@ const SuperAdminDashboard = () => {
     if (!isSuperAdmin) return;
     fetchRestoreConflictCount();
   }, [isSuperAdmin, fetchRestoreConflictCount]);
-
-  useEffect(() => {
-    if (!isSuperAdmin) return;
-    if (activeTab === 'restore' && (restoreConflictCount ?? 0) === 0) {
-      setActiveTab('control');
-    }
-  }, [activeTab, isSuperAdmin, restoreConflictCount]);
 
   useEffect(() => {
     if (!isSuperAdmin) return;
@@ -161,28 +194,29 @@ const SuperAdminDashboard = () => {
     [filteredLiveBills, filteredLiveExpenses]
   );
 
-  const filteredAuditLogs = useMemo(
-    () =>
-      filterRecords(auditLogs, auditFilters, {
-        getDate: (log) => log.createdAt,
-        getSearchText: (log) =>
-          [
-            log.metadata?.details,
-            log.action,
-            log.path,
-            log.actorName,
-            log.actorUsername,
-            log.actor?.name,
-            log.actor?.username,
-            log.metadata?.resource
-          ]
-            .filter(Boolean)
-            .join(' '),
-        getAdminId: (log) => log.actor?._id || log.actor,
-        getName: (log) => log.actorName || log.actor?.name || log.action
-      }),
-    [auditLogs, auditFilters]
-  );
+  const filteredAuditLogs = useMemo(() => {
+    let filtered = auditLogs;
+    if (showOnlyEdits) {
+      filtered = filtered.filter(log => log.metadata?.oldDocument);
+    }
+    return filterRecords(filtered, auditFilters, {
+      getDate: (log) => log.createdAt,
+      getSearchText: (log) =>
+        [
+          log.metadata?.details,
+          log.action,
+          log.actorName,
+          log.actorUsername,
+          log.actor?.name,
+          log.actor?.username,
+          log.metadata?.resource
+        ]
+          .filter(Boolean)
+          .join(' '),
+      getAdminId: (log) => log.actor?._id || log.actor,
+      getName: (log) => log.actorName || log.actor?.name || log.action
+    });
+  }, [auditLogs, auditFilters, showOnlyEdits]);
 
   if (!isSuperAdmin) {
     return <Navigate to="/dashboard" replace />;
@@ -195,13 +229,13 @@ const SuperAdminDashboard = () => {
         <p className="text-slate-300 text-sm mt-1">Control center, live records, audit trail, and business data.</p>
       </div>
 
-      <div className="flex flex-wrap gap-2 border-b border-slate-200 pb-1">
+      <div className="flex border-b border-slate-200 pb-1 overflow-x-auto whitespace-nowrap scrollbar-none gap-2">
         {tabs.map((tab) => (
           <button
             key={tab.id}
             type="button"
             onClick={() => setActiveTab(tab.id)}
-            className={`px-4 py-2 rounded-t-lg text-sm font-semibold transition ${
+            className={`px-4 py-2 rounded-t-lg text-sm font-semibold transition flex-shrink-0 ${
               activeTab === tab.id
                 ? 'bg-white border border-b-white border-slate-200 text-blue-700 -mb-px'
                 : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
@@ -329,9 +363,20 @@ const SuperAdminDashboard = () => {
             searchPlaceholder="Action, admin, path, details"
             summary={[{ label: 'Log entries', value: filteredAuditLogs.length }]}
           />
-          <div className="px-5 py-3 border-b border-slate-200 bg-slate-50/80">
-            <h2 className="text-lg font-bold text-slate-900">System Audit Log</h2>
-            <p className="text-sm text-slate-500 mt-1">Filtered activity across all admins.</p>
+          <div className="px-5 py-3 border-b border-slate-200 bg-slate-50/80 flex justify-between items-center flex-wrap gap-3">
+            <div>
+              <h2 className="text-lg font-bold text-slate-900">System Audit Log & Edit History</h2>
+              <p className="text-sm text-slate-500 mt-1">Filtered activity across all admins.</p>
+            </div>
+            <label className="inline-flex items-center gap-2 bg-blue-50 text-blue-800 border border-blue-200 rounded-lg px-3 py-1.5 text-xs font-semibold cursor-pointer select-none hover:bg-blue-100 transition">
+              <input
+                type="checkbox"
+                checked={showOnlyEdits}
+                onChange={(e) => setShowOnlyEdits(e.target.checked)}
+                className="rounded border-blue-300 text-blue-600 focus:ring-blue-500"
+              />
+              Show Edits/Updates Only
+            </label>
           </div>
           <div className="p-4 space-y-3 max-h-[70vh] overflow-y-auto">
             {filteredAuditLogs.length === 0 ? (
@@ -339,25 +384,44 @@ const SuperAdminDashboard = () => {
             ) : (
               filteredAuditLogs.map((log) => {
                 const dt = formatDateTime(log.createdAt);
+                const actorName = log.actorName || log.actor?.name || 'Unknown admin';
+                const actorUsername = log.actorUsername || log.actor?.username || '';
+                const recordType = log.metadata?.recordType || log.metadata?.resource || 'Record';
+                const actionTaken = log.metadata?.actionTaken || log.action;
                 return (
                   <div key={log._id} className="border border-slate-200 rounded-lg p-3 bg-white">
                     <div className="flex justify-between gap-3">
                       <div className="font-semibold text-slate-900 text-sm">{log.metadata?.details || log.action}</div>
                       <div className="text-xs text-slate-500 whitespace-nowrap">{dt.date} {dt.time}</div>
                     </div>
-                    <div className="text-xs text-slate-500 mt-2">
-                      {log.actorName || log.actor?.name} ({log.actorUsername || log.actor?.username}) — {log.method} {log.path}
+                    <div className="text-xs text-slate-600 mt-2">
+                      Done by {actorName}{actorUsername ? ` (${actorUsername})` : ''}
                     </div>
-                    {log.metadata?.recordType && (
-                      <div className="text-[11px] text-slate-500 mt-1">
-                        {log.metadata.recordType}
-                        {log.metadata.phoneNumber ? ` • Phone ${log.metadata.phoneNumber}` : ''}
-                        {log.metadata.actionTaken ? ` • ${log.metadata.actionTaken}` : ''}
+                    <div className="flex flex-wrap items-center justify-between gap-3 mt-3">
+                      <div className="flex flex-wrap gap-2">
+                        <span className="inline-flex px-2.5 py-1 rounded-full bg-slate-100 text-slate-700 border border-slate-200 text-[11px] font-semibold">
+                          Record: {recordType}
+                        </span>
+                        <span className="inline-flex px-2.5 py-1 rounded-full bg-blue-50 text-blue-700 border border-blue-200 text-[11px] font-semibold">
+                          Action: {actionTaken}
+                        </span>
+                        {log.metadata?.phoneNumber && (
+                          <span className="inline-flex px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 text-[11px] font-semibold">
+                            Phone: {log.metadata.phoneNumber}
+                          </span>
+                        )}
                       </div>
-                    )}
-                    {log.metadata?.resource && !log.metadata?.recordType && (
-                      <div className="text-[11px] text-slate-500 mt-1">Resource: {log.metadata.resource}</div>
-                    )}
+                      {log.metadata?.oldDocument && (
+                        <button
+                          type="button"
+                          onClick={() => setSelectedAuditLog(log)}
+                          className="text-slate-700 hover:text-slate-900 hover:bg-slate-100 p-2 rounded-lg transition-colors inline-flex items-center cursor-pointer"
+                          title="View Edit Details"
+                        >
+                          <EyeIcon className="h-5 w-5" />
+                        </button>
+                      )}
+                    </div>
                   </div>
                 );
               })
@@ -374,6 +438,133 @@ const SuperAdminDashboard = () => {
           onRefresh={fetchBusinessRecords}
         />
       )}
+
+      {selectedAuditLog && (
+        <div className="fixed inset-0 bg-slate-900/50 flex items-center justify-center p-4 z-50 animate-in fade-in duration-200">
+          <div className="bg-white rounded-xl shadow-2xl w-full max-w-2xl overflow-hidden flex flex-col max-h-[90vh]">
+            <div className="p-5 border-b border-slate-100 flex justify-between items-center bg-slate-50 shrink-0">
+              <div>
+                <h2 className="text-xl font-bold text-slate-800">Edit Details</h2>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  Reverting {selectedAuditLog.metadata?.resource} (ID: {selectedAuditLog.targetId})
+                </p>
+              </div>
+              <button 
+                onClick={() => setSelectedAuditLog(null)} 
+                className="text-slate-400 hover:text-slate-600 text-2xl leading-none"
+              >
+                &times;
+              </button>
+            </div>
+
+            <div className="p-6 space-y-6 overflow-y-auto flex-1">
+              <div className="bg-slate-50 rounded-xl p-4 border border-slate-200 space-y-2 text-sm text-slate-600">
+                <div className="flex justify-between">
+                  <span className="font-semibold">Action:</span>
+                  <span className="text-slate-800">{selectedAuditLog.action}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="font-semibold">Modified By:</span>
+                  <span className="text-slate-800">
+                    {selectedAuditLog.actorName} ({selectedAuditLog.actorUsername})
+                  </span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="font-semibold">Timestamp:</span>
+                  <span className="text-slate-800">
+                    {new Date(selectedAuditLog.createdAt).toLocaleString()}
+                  </span>
+                </div>
+              </div>
+
+              <div>
+                <h3 className="text-sm font-bold text-slate-800 uppercase tracking-wider mb-3">
+                  Original State vs. Modified State
+                </h3>
+                <div className="bg-slate-50/50 border border-slate-200 rounded-xl p-4 max-h-96 overflow-y-auto">
+                  <RenderDiff 
+                    oldDoc={selectedAuditLog.metadata?.oldDocument} 
+                    newDoc={selectedAuditLog.metadata?.newDocument} 
+                  />
+                </div>
+              </div>
+            </div>
+
+            <div className="p-5 border-t border-slate-100 bg-slate-50 flex justify-between gap-3 shrink-0">
+              <button
+                type="button"
+                onClick={() => handleDeleteLog(selectedAuditLog)}
+                className="px-4 py-2 border border-red-300 text-red-600 hover:bg-red-50 rounded-lg font-semibold text-sm transition cursor-pointer"
+              >
+                Delete Log Permanently
+              </button>
+              
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => setSelectedAuditLog(null)}
+                  className="px-4 py-2 border border-slate-300 text-slate-600 hover:bg-slate-100 rounded-lg font-semibold text-sm transition cursor-pointer"
+                >
+                  Close
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleRestoreLog(selectedAuditLog)}
+                  className="px-5 py-2 bg-blue-600 text-white hover:bg-blue-700 rounded-lg font-semibold text-sm transition shadow-md cursor-pointer"
+                >
+                  Restore to Original
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
+const RenderDiff = ({ oldDoc, newDoc }) => {
+  if (!oldDoc) return <p className="text-slate-500 italic">No original state available</p>;
+
+  const ignoreKeys = ['_id', 'id', '__v', 'createdAt', 'updatedAt', 'isDeleted', 'passwordHash', 'password'];
+  const keys = Array.from(new Set([
+    ...Object.keys(oldDoc),
+    ...Object.keys(newDoc || {})
+  ])).filter(key => !ignoreKeys.includes(key));
+
+  const formatVal = (val) => {
+    if (val === null || val === undefined) return '—';
+    if (typeof val === 'object') return JSON.stringify(val);
+    if (typeof val === 'boolean') return val ? 'Yes' : 'No';
+    return String(val);
+  };
+
+  const changes = keys.map(key => {
+    const oldVal = oldDoc[key];
+    const newVal = newDoc ? newDoc[key] : undefined;
+    const isDifferent = JSON.stringify(oldVal) !== JSON.stringify(newVal);
+    return { key, oldVal, newVal, isDifferent };
+  }).filter(item => item.isDifferent);
+
+  if (changes.length === 0) {
+    return <p className="text-slate-500 italic">No visible differences found</p>;
+  }
+
+  return (
+    <div className="space-y-3">
+      {changes.map(({ key, oldVal, newVal }) => (
+        <div key={key} className="border-b border-slate-100 pb-2 text-sm">
+          <span className="font-bold text-slate-700 block uppercase tracking-wider text-xs mb-1">{key}</span>
+          <div className="grid grid-cols-2 gap-4">
+            <div className="bg-red-50 text-red-700 border border-red-100 rounded p-2 text-xs font-mono break-words line-through">
+              {formatVal(oldVal)}
+            </div>
+            <div className="bg-emerald-50 text-emerald-700 border border-emerald-100 rounded p-2 text-xs font-mono break-words">
+              {formatVal(newVal)}
+            </div>
+          </div>
+        </div>
+      ))}
     </div>
   );
 };

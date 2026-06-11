@@ -16,10 +16,6 @@ export const downloadBillPdf = (bill) => {
   const margin = 14;
   let y = 18;
 
-  doc.setFont('times', 'bold');
-  doc.setFontSize(16);
-  doc.text('Krishna Blue Metals', pageWidth / 2, y, { align: 'center' });
-  y += 12;
 
   doc.setFontSize(11);
   doc.text(`Bill No : ${bill.billNumber || bill._id?.slice(-6) || '-'}`, margin, y);
