@@ -17,8 +17,7 @@ const emptyForm = () => ({
   passAmount: '',
   useManualPrice: false,
   manualPrice: '',
-  customDate: '',
-  customTime: ''
+  customDate: ''
 });
 
 const Bills = () => {
@@ -201,8 +200,7 @@ const Bills = () => {
 
   const buildBillDate = () => {
     if (!canWrite || !formData.customDate) return undefined;
-    const time = formData.customTime || '12:00';
-    return new Date(`${formData.customDate}T${time}`).toISOString();
+    return new Date(`${formData.customDate}T12:00`).toISOString();
   };
 
   const handleSubmit = async (e) => {
@@ -430,7 +428,6 @@ const Bills = () => {
                 <tr className="border-b border-slate-200 text-sm text-slate-600 uppercase tracking-wider">
                   <th className="p-4 font-semibold whitespace-nowrap w-8"></th>
                   <th className="p-4 font-semibold whitespace-nowrap">Date</th>
-                  <th className="p-4 font-semibold whitespace-nowrap">Time</th>
                   <th className="p-4 font-semibold">Customer</th>
                   <th className="p-4 font-semibold whitespace-nowrap">Vehicle No.</th>
                   <th className="p-4 font-semibold whitespace-nowrap">Material (Qty)</th>
@@ -460,7 +457,6 @@ const Bills = () => {
                         </button>
                       </td>
                       <td className="p-4 text-slate-600 font-medium whitespace-nowrap">{billDateTime.date}</td>
-                      <td className="p-4 text-slate-600 whitespace-nowrap">{billDateTime.time}</td>
                       <td className="p-4 text-slate-800 font-semibold">{bill.customerNameSnapshot}</td>
                       <td className="p-4 text-slate-600"><span className="bg-slate-100 px-2 py-1 rounded border border-slate-200 text-xs font-mono whitespace-nowrap">{bill.vehicleNumber || '—'}</span></td>
                       <td className="p-4 text-slate-600 text-sm">
@@ -527,17 +523,15 @@ const Bills = () => {
                                   <thead>
                                     <tr className="border-b border-slate-200 bg-slate-50 text-xs text-slate-600 uppercase">
                                       <th className="p-3 text-left font-semibold">Date</th>
-                                      <th className="p-3 text-left font-semibold">Time</th>
                                       <th className="p-3 text-right font-semibold">Amount (₹)</th>
                                     </tr>
                                   </thead>
                                   <tbody className="divide-y divide-slate-100">
                                     {paymentHistory[bill._id].map((payment, idx) => {
-                                      const { date, time } = formatDateTime(payment.paymentDate || payment.date);
+                                      const { date } = formatDateTime(payment.paymentDate || payment.date);
                                       return (
                                       <tr key={idx} className="hover:bg-slate-50">
                                         <td className="p-3 text-slate-600">{date}</td>
-                                        <td className="p-3 text-slate-600">{time}</td>
                                         <td className="p-3 text-right font-semibold text-green-600">₹{Number(payment.amount).toLocaleString()}</td>
                                       </tr>
                                     );
@@ -714,9 +708,8 @@ const Bills = () => {
                         <span>Backdate Bill / Custom Date</span>
                         <ChevronDownIcon className="h-4 w-4 transition-transform group-open:rotate-180" />
                       </summary>
-                      <div className="grid grid-cols-2 gap-2 mt-2 pt-2 border-t border-slate-200">
-                        <input type="date" name="customDate" value={formData.customDate} onChange={handleChange} className="border border-slate-300 rounded-lg p-1.5 text-xs focus:ring-2 focus:ring-blue-500 outline-none bg-white" />
-                        <input type="time" name="customTime" value={formData.customTime} onChange={handleChange} className="border border-slate-300 rounded-lg p-1.5 text-xs focus:ring-2 focus:ring-blue-500 outline-none bg-white" />
+                      <div className="mt-2 pt-2 border-t border-slate-200">
+                        <input type="date" name="customDate" value={formData.customDate} onChange={handleChange} className="w-full border border-slate-300 rounded-lg p-1.5 text-xs focus:ring-2 focus:ring-blue-500 outline-none bg-white" />
                       </div>
                     </details>
                   </div>
