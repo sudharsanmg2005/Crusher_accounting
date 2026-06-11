@@ -1,4 +1,5 @@
 const STANDARD_REGEX = /^[A-Z]{2}\d{2}[A-Z]{2}\d{4}$/;
+const NEW_REGEX = /^[A-Z]{2}\d{2}[A-Z]{1}\d{4}$/;
 const SHORT_REGEX = /^[A-Z]{3}\d{4}$/;
 
 const compact = (value) => String(value || '').toUpperCase().replace(/\s/g, '');
@@ -6,7 +7,7 @@ const compact = (value) => String(value || '').toUpperCase().replace(/\s/g, '');
 export const isValidVehicleNumber = (value) => {
   if (!value || !String(value).trim()) return true;
   const c = compact(value);
-  return STANDARD_REGEX.test(c) || SHORT_REGEX.test(c);
+  return STANDARD_REGEX.test(c) || NEW_REGEX.test(c) || SHORT_REGEX.test(c);
 };
 
 export const formatVehicleInput = (value) => {
@@ -44,7 +45,7 @@ export const normalizeVehicleNumber = (value) => formatVehicleInput(value || '')
 export const validateVehicleNumber = (value) => {
   if (!value || !String(value).trim()) return null;
   if (!isValidVehicleNumber(value)) {
-    return 'Vehicle number must be TN 74 AE 2003 or TMR 7177 format';
+    return 'Vehicle number must be in a format like TN 74 A 2003, TN 74 AE 2003, or TMR 7177';
   }
   return null;
 };

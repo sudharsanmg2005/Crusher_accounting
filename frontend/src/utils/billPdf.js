@@ -1,13 +1,12 @@
 import jsPDF from 'jspdf';
+import { autoTable } from 'jspdf-autotable';
 
 const formatDate = (date) => {
   const d = new Date(date);
-  return d.toLocaleDateString('en-IN', { day: '2-digit', month: '2-digit', year: 'numeric' });
-};
-
-const formatTime = (date) => {
-  const d = new Date(date);
-  return d.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true });
+  const day = String(d.getDate()).padStart(2, '0');
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  const year = d.getFullYear();
+  return `${day}/${month}/${year}`;
 };
 
 export const downloadBillPdf = (bill) => {
@@ -16,44 +15,100 @@ export const downloadBillPdf = (bill) => {
   const margin = 14;
   let y = 18;
 
+  // Title Block
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(14);
+  doc.setTextColor(15, 23, 42); // slate-900
+  doc.text('RETAIL BILL / INVOICE', pageWidth / 2, y, { align: 'center' });
+  y += 6;
 
-  doc.setFontSize(11);
-  doc.text(`Bill No : ${bill.billNumber || bill._id?.slice(-6) || '-'}`, margin, y);
-  y += 8;
+  // Horizontal line separator
+  doc.setDrawColor(226, 232, 240); // slate-200
+  doc.setLineWidth(0.5);
+  doc.line(margin, y, pageWidth - margin, y);
+  y += 6;
 
+  // Metadata Table (Bill Info)
   const dateStr = formatDate(bill.date);
-  const timeStr = formatTime(bill.date);
-  doc.text(`Date : ${dateStr}`, margin, y);
-  doc.text(`Time : ${timeStr}`, pageWidth - margin, y, { align: 'right' });
-  y += 8;
+  const metaBody = [
+    [
+      { content: `Bill No : ${bill.billNumber || bill._id?.slice(-6) || '-'}`, styles: { fontStyle: 'bold' } },
+      { content: `Date : ${dateStr}`, styles: { halign: 'right' } }
+    ],
+    [
+      { content: `Customer : ${bill.customerNameSnapshot || '-'}` },
+      { content: `Vehicle No : ${bill.vehicleNumber || '-'}`, styles: { halign: 'right' } }
+    ]
+  ];
 
-  doc.text(`Customer Name : ${bill.customerNameSnapshot || '-'}`, margin, y);
-  y += 8;
+  autoTable(doc, {
+    body: metaBody,
+    startY: y,
+    margin: { left: margin, right: margin },
+    theme: 'plain',
+    styles: { fontSize: 9.5, cellPadding: 1.5, textColor: [71, 85, 105] }, // slate-600
+    columnStyles: {
+      0: { cellWidth: 'auto' },
+      1: { cellWidth: 'auto' }
+    }
+  });
 
-  if (bill.vehicleNumber) {
-    doc.text(`Vehicle No : ${bill.vehicleNumber}`, margin, y);
-    y += 8;
-  }
+  y = doc.lastAutoTable.finalY + 6;
 
+  // Transaction Details Table
   const unitLabel = bill.quantityUnit === 'ton' ? 'ton' : 'unit';
-  const rateLabel = `Rate/${unitLabel}`;
-  doc.text(`Material : ${bill.materialNameSnapshot || '-'}`, margin, y);
-  doc.text(`${rateLabel} : ${Number(bill.pricePerUnit || 0).toLocaleString()}`, pageWidth - margin, y, { align: 'right' });
-  y += 8;
-
-  doc.text(`Load Weight : ${bill.quantity} ${unitLabel}${bill.quantity !== 1 ? 's' : ''}`, margin, y);
-  y += 10;
-
+  const rateLabel = `₹ ${Number(bill.pricePerUnit || 0).toLocaleString('en-IN')}/${unitLabel}`;
   const materialTotal = Number(bill.totalAmount || 0);
   const passAmount = Number(bill.passAmount || 0);
   const grandTotal = materialTotal + passAmount;
 
-  doc.text(`Total Material Price : ${materialTotal.toLocaleString()}`, margin + 8, y);
-  y += 8;
-  doc.text(`Pass : ${passAmount.toLocaleString()}`, margin + 8, y);
-  y += 10;
-  doc.setFont('times', 'bold');
-  doc.text(`Total : ${grandTotal.toLocaleString()}`, margin + 8, y);
+  const head = [['Particulars', 'Qty / Weight', 'Rate', 'Amount (₹)']];
+  const body = [
+    [
+      `Material: ${bill.materialNameSnapshot || '-'}`,
+      `${bill.quantity} ${unitLabel}${bill.quantity !== 1 ? 's' : ''}`,
+      rateLabel,
+      materialTotal.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+    ],
+    [
+      'Pass Charges',
+      '-',
+      '-',
+      passAmount.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+    ]
+  ];
+
+  // Add Grand Total row as footer
+  const foot = [
+    [
+      { content: 'Total Amount', colSpan: 3, styles: { fontStyle: 'bold', halign: 'right' } },
+      { content: `₹ ${grandTotal.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`, styles: { fontStyle: 'bold' } }
+    ]
+  ];
+
+  autoTable(doc, {
+    head,
+    body,
+    foot,
+    startY: y,
+    margin: { left: margin, right: margin },
+    theme: 'grid',
+    styles: { fontSize: 9, cellPadding: 3, valign: 'middle', textColor: [30, 41, 59] }, // slate-800
+    headStyles: { fillColor: [51, 65, 85], textColor: [255, 255, 255], fontStyle: 'bold' }, // slate-700
+    columnStyles: {
+      0: { halign: 'left', cellWidth: 45 },
+      1: { halign: 'center', cellWidth: 25 },
+      2: { halign: 'center', cellWidth: 25 },
+      3: { halign: 'right', cellWidth: 25 }
+    },
+    footStyles: { fillColor: [241, 245, 249], textColor: [15, 23, 42] } // slate-100 / slate-900
+  });
+
+  // Footer note
+  doc.setFontSize(8.5);
+  doc.setFont('helvetica', 'normal');
+  doc.setTextColor(148, 163, 184); // slate-400
+  doc.text('Thank you for your business!', pageWidth / 2, 200, { align: 'center' });
 
   doc.save(`Bill-${bill.billNumber || bill._id?.slice(-6) || 'invoice'}.pdf`);
 };
