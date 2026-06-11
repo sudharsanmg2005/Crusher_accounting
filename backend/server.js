@@ -38,7 +38,8 @@ const resolveCors = () => {
   const configured = process.env.CORS_ORIGIN?.trim();
   if (configured === '*') return { origin: true };
   if (configured) return { origin: configured.split(',').map((item) => item.trim()) };
-  if (isProduction) return { origin: false };
+  // Default fallback if CORS_ORIGIN is not configured:
+  // Reflect the request origin (origin: true) to allow connection from the frontend.
   return { origin: true };
 };
 
