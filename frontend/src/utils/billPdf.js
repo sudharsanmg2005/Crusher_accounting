@@ -32,12 +32,12 @@ export const downloadBillPdf = (bill) => {
   const dateStr = formatDate(bill.date);
   const metaBody = [
     [
-      { content: `Bill No : ${bill.billNumber || bill._id?.slice(-6) || '-'}`, styles: { fontStyle: 'bold' } },
+      { content: `Customer : ${bill.customerNameSnapshot || '-'}`, styles: { fontStyle: 'bold' } },
       { content: `Date : ${dateStr}`, styles: { halign: 'right' } }
     ],
     [
-      { content: `Customer : ${bill.customerNameSnapshot || '-'}` },
-      { content: `Vehicle No : ${bill.vehicleNumber || '-'}`, styles: { halign: 'right' } }
+      { content: `Vehicle No : ${bill.vehicleNumber || '-'}` },
+      { content: '', styles: { halign: 'right' } }
     ]
   ];
 
@@ -82,7 +82,7 @@ export const downloadBillPdf = (bill) => {
   const foot = [
     [
       { content: 'Total Amount', colSpan: 3, styles: { fontStyle: 'bold', halign: 'right' } },
-      { content: `₹ ${grandTotal.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`, styles: { fontStyle: 'bold' } }
+      { content: `₹ ${grandTotal.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`, styles: { fontStyle: 'bold', halign: 'right' } }
     ]
   ];
 
