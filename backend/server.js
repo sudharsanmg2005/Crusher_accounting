@@ -21,6 +21,9 @@ import loadRoutes from './routes/loadRoutes.js';
 import buyerRoutes from './routes/buyerRoutes.js';
 import paymentRoutes from './routes/paymentRoutes.js';
 import { migrateOldPayments } from './services/paymentService.js';
+import Buyer from './models/Buyer.js';
+import Customer from './models/Customer.js';
+
 
 dotenv.config();
 
@@ -62,6 +65,52 @@ app.get('/api/health', (req, res) => {
     environment: process.env.NODE_ENV || 'development',
     database
   });
+});
+
+app.get('/api/migrate-buyers', async (req, res, next) => {
+  try {
+    const buyers = await Buyer.find({});
+    let migratedCount = 0;
+    let existingCount = 0;
+    const details = [];
+
+    for (const buyer of buyers) {
+      const existingCustomer = await Customer.findOne({
+        $or: [
+          { phone: buyer.phone },
+          { name: buyer.name }
+        ]
+      });
+
+      if (existingCustomer) {
+        existingCount++;
+        details.push({ buyer: buyer.name, status: 'skipped (already exists as customer)' });
+      } else {
+        const newCustomer = new Customer({
+          name: buyer.name,
+          phone: buyer.phone,
+          address: buyer.address || '',
+          vehicles: [],
+          isDeleted: buyer.isDeleted || false
+        });
+        await newCustomer.save();
+        migratedCount++;
+        details.push({ buyer: buyer.name, status: 'migrated successfully' });
+      }
+    }
+
+    res.json({
+      message: 'Migration completed',
+      summary: {
+        totalBuyersProcessed: buyers.length,
+        newCustomersCreated: migratedCount,
+        existingCustomersSkipped: existingCount
+      },
+      details
+    });
+  } catch (err) {
+    next(err);
+  }
 });
 
 app.use('/api/auth', authRoutes);
