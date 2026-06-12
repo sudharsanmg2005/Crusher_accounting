@@ -20,6 +20,8 @@ import restoreManagementRoutes from './routes/restoreManagementRoutes.js';
 import loadRoutes from './routes/loadRoutes.js';
 import buyerRoutes from './routes/buyerRoutes.js';
 import paymentRoutes from './routes/paymentRoutes.js';
+import buyerPaymentRoutes from './routes/buyerPaymentRoutes.js';
+
 import { migrateOldPayments } from './services/paymentService.js';
 
 dotenv.config();
@@ -75,6 +77,8 @@ app.use('/api/restore-management', requireAuth, requireAdmin, auditWrites, resto
 app.use('/api/loads', requireAuth, requireAdmin, auditWrites, loadRoutes);
 app.use('/api/buyers', requireAuth, requireAdmin, auditWrites, buyerRoutes);
 app.use('/api/payments', requireAuth, requireAdmin, auditWrites, paymentRoutes);
+app.use('/api/buyer-payments', requireAuth, requireAdmin, auditWrites, buyerPaymentRoutes);
+
 
 if (isProduction) {
   const frontendDist = path.join(__dirname, '../frontend/dist');

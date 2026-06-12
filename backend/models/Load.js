@@ -10,10 +10,20 @@ const loadSchema = new mongoose.Schema(
     price: { type: Number, required: true },
     quantity: { type: Number, required: true },
     unitType: { type: String, enum: ['units', 'tons'], default: 'units' },
+    allocatedAmount: { type: Number, default: 0 },
     isDeleted: { type: Boolean, default: false }
   },
-  { timestamps: true }
+  { 
+    timestamps: true,
+    toJSON: { virtuals: true },
+    toObject: { virtuals: true }
+  }
 );
+
+// Virtual for pending amount: (price * quantity) - allocatedAmount
+loadSchema.virtual('pendingAmount').get(function () {
+  return Math.max(0, (this.price * this.quantity) - (this.allocatedAmount || 0));
+});
 
 const Load = mongoose.model('Load', loadSchema);
 export default Load;

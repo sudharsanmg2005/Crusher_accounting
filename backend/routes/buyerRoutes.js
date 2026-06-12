@@ -1,5 +1,5 @@
 import express from 'express';
-import { getBuyers, createBuyer, updateBuyer, deleteBuyer } from '../controllers/buyerController.js';
+import { getBuyers, createBuyer, updateBuyer, deleteBuyer, getBuyerById } from '../controllers/buyerController.js';
 
 const router = express.Router();
 
@@ -8,6 +8,7 @@ router.route('/')
   .post(createBuyer);
 
 router.route('/:id')
+  .get(getBuyerById)
   .put(updateBuyer)
   .delete(deleteBuyer);
 
