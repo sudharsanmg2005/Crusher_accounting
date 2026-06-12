@@ -160,13 +160,20 @@ export const createBill = async (req, res, next) => {
       isBackdated
     });
 
+    if (bill.customer) {
+      await recalculateCustomerBalances(bill.customer);
+    }
+
     const auditBase = `Created bill ${bill.billNumber} for ${bill.customerNameSnapshot}`;
     const auditDetails = isBackdated
       ? `${auditBase} — BACKDATED entry for ${billDate.toISOString()} (missed bill recorded on past date/time)`
       : `${auditBase} (${bill.vehicleNumber || 'no vehicle'}) amount ${grandTotal}`;
 
+    // Reload bill to get the updated allocatedAmount after recalculation
+    const reloadedBill = await Bill.findById(bill._id);
+
     res.status(201).json({
-      ...bill.toObject(),
+      ...reloadedBill.toObject(),
       auditDetails
     });
   } catch (err) {

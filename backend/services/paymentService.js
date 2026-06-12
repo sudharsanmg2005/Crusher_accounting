@@ -351,6 +351,25 @@ export const migrateOldPayments = async () => {
       }
     }
 
+    // Resolve database conflict for customer Sornam
+    try {
+      const sornam = await Customer.findOne({ $or: [{ phone: '9942835200' }, { name: 'Sornam' }] });
+      if (sornam) {
+        console.log(`[Migration] Resolving conflict for Sornam (${sornam._id})...`);
+        const sornamBills = await Bill.find({ customer: sornam._id, isDeleted: false });
+        for (const bill of sornamBills) {
+          if (bill.billNumber !== 'KBM-00003') {
+            bill.isDeleted = true;
+            await bill.save();
+            console.log(`[Migration] Soft-deleted conflicting bill ${bill.billNumber} for Sornam.`);
+          }
+        }
+        await recalculateCustomerBalances(sornam._id);
+      }
+    } catch (sornamErr) {
+      console.error('[Migration] Error resolving Sornam conflict:', sornamErr);
+    }
+
     // 3. Make sure all customers have their balances/allocations computed to initialize default values
     const customers = await Customer.find({ isDeleted: false });
     for (const customer of customers) {
