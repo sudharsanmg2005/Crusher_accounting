@@ -290,7 +290,14 @@ const LoadManagement = () => {
       doc.text(str, (pageWidth - w) / 2, xY);
     };
 
-    centerText('LOAD MANAGEMENT REPORT', 19, 12, 'bold');
+    const selectedBuyer = buyers.find((b) => b._id === selectedBuyerId);
+    const buyerName = selectedBuyer ? selectedBuyer.name : '';
+
+    const titleText = buyerName
+      ? `${buyerName.toUpperCase()} LOAD STATEMENT${selectedQuarryName ? ` - ${selectedQuarryName.toUpperCase()}` : ''}`
+      : `LOAD MANAGEMENT REPORT${selectedQuarryName ? ` - ${selectedQuarryName.toUpperCase()}` : ''}`;
+
+    centerText(titleText, 19, 12, 'bold');
 
     let rangeLabel = 'All Time';
     if (reportType !== 'all' && dateRange.startDate && dateRange.endDate) {
@@ -377,7 +384,13 @@ const LoadManagement = () => {
       .replaceAll(' ', '_')
       .replaceAll('/', '-')
       .replaceAll('.', '-');
-    doc.save(`Load_Report_${rangeSlug}.pdf`);
+    
+    const quarrySlug = selectedQuarryName ? `_${selectedQuarryName.replaceAll(' ', '_').replaceAll('/', '-')}` : '';
+    const fileSlug = buyerName 
+      ? `${buyerName.replaceAll(' ', '_').replaceAll('/', '-')}_statement${quarrySlug}` 
+      : `Load_Report${quarrySlug}`;
+
+    doc.save(`${fileSlug}_${rangeSlug}.pdf`);
   };
 
   return (
