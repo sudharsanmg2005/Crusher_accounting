@@ -31,6 +31,8 @@ const LoadManagement = () => {
   const [reportType, setReportType] = useState('all'); // all | daily | weekly | monthly | range
   const [dateRange, setDateRange] = useState({ startDate: '', endDate: '', particularDate: '', month: '', weekStart: '' });
   const [searchQuery, setSearchQuery] = useState('');
+  const [selectedBuyerId, setSelectedBuyerId] = useState('');
+  const [selectedQuarryName, setSelectedQuarryName] = useState('');
   
   // New buyer modal states
   const [isCreateBuyerOpen, setIsCreateBuyerOpen] = useState(false);
@@ -79,6 +81,9 @@ const LoadManagement = () => {
       if (searchQuery.trim()) {
         params.append('search', searchQuery.trim());
       }
+      if (selectedBuyerId) {
+        params.append('buyerId', selectedBuyerId);
+      }
       const { data } = await api.get(`/loads?${params.toString()}`);
       setLoads(data);
     } catch (error) {
@@ -100,11 +105,33 @@ const LoadManagement = () => {
   useEffect(() => {
     fetchLoads();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [dateRange, reportType, searchQuery]);
+  }, [dateRange, reportType, searchQuery, selectedBuyerId]);
 
   useEffect(() => {
     fetchBuyers();
   }, []);
+
+  useEffect(() => {
+    setSelectedQuarryName('');
+  }, [selectedBuyerId]);
+
+  const uniqueQuarryNames = useMemo(() => {
+    const quarries = new Set();
+    loads.forEach((l) => {
+      if (l.quarryName?.trim()) {
+        quarries.add(l.quarryName.trim());
+      }
+    });
+    return Array.from(quarries).sort();
+  }, [loads]);
+
+  const filteredLoads = useMemo(() => {
+    let list = loads;
+    if (selectedQuarryName) {
+      list = list.filter((l) => l.quarryName?.trim() === selectedQuarryName);
+    }
+    return list;
+  }, [loads, selectedQuarryName]);
 
   const handleDateFilterChange = (name, value) => {
     if (name === 'particularDate') {
@@ -233,7 +260,7 @@ const LoadManagement = () => {
   };
 
   const totals = useMemo(() => {
-    return loads.reduce(
+    return filteredLoads.reduce(
       (acc, load) => {
         acc.totalPrice += Number(load.price || 0) * Number(load.quantity || 0);
         if (load.unitType === 'tons') {
@@ -245,10 +272,11 @@ const LoadManagement = () => {
       },
       { totalPrice: 0, totalTons: 0, totalUnits: 0 }
     );
-  }, [loads]);
+  }, [filteredLoads]);
 
   const downloadPdf = () => {
-    if (loads.length === 0) return;
+    const listToExport = filteredLoads;
+    if (listToExport.length === 0) return;
 
     const doc = new jsPDF();
     const pageWidth = doc.internal.pageSize.getWidth();
@@ -278,8 +306,8 @@ const LoadManagement = () => {
     doc.setDrawColor(200, 200, 200);
     doc.line(14, 29, pageWidth - 14, 29);
 
-    const head = [['S.NO', 'DATE', 'VEHICLE TYPE', 'QUARRY NAME', 'BUYER NAME', 'QTY', 'UNIT TYPE', 'PRICE (₹)', 'TOTAL (₹)']];
-    const body = loads.map((l, idx) => [
+    const head = [['S.NO', 'DATE', 'VEHICLE TYPE', 'QUARRY NAME', 'BUYER NAME', 'QTY', 'UNIT TYPE', 'PRICE (Rs.)', 'TOTAL (Rs.)']];
+    const body = listToExport.map((l, idx) => [
       idx + 1,
       new Date(l.date).toLocaleDateString(),
       l.vehicleType,
@@ -308,12 +336,12 @@ const LoadManagement = () => {
 
     // Aggregates summary by Buyer Name / Quarry Name
     const byBuyer = {};
-    loads.forEach((l) => {
+    listToExport.forEach((l) => {
       const key = `${l.buyerNameSnapshot || '—'} (${l.quarryName || '—'})`;
       byBuyer[key] = (byBuyer[key] || 0) + (l.price * l.quantity);
     });
 
-    const summaryHead = [['BUYER & QUARRY NAME', 'TOTAL AMOUNT (₹)']];
+    const summaryHead = [['BUYER & QUARRY NAME', 'TOTAL AMOUNT (Rs.)']];
     const summaryBody = Object.entries(byBuyer).map(([buyer, amt]) => [
       buyer,
       amt.toLocaleString()
@@ -370,6 +398,34 @@ const LoadManagement = () => {
               onChange={(e) => setSearchQuery(e.target.value)}
               className="border border-slate-300 rounded-lg p-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none w-full sm:w-48 bg-white"
             />
+          </div>
+
+          <div className="w-full sm:w-auto">
+            <label className="block text-xs font-semibold text-slate-500 mb-1 uppercase tracking-wider">Buyer Name</label>
+            <select
+              value={selectedBuyerId}
+              onChange={(e) => setSelectedBuyerId(e.target.value)}
+              className="border border-slate-300 rounded-lg p-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none bg-white w-full sm:w-40"
+            >
+              <option value="">All Buyers</option>
+              {buyers.map((b) => (
+                <option key={b._id} value={b._id}>{b.name}</option>
+              ))}
+            </select>
+          </div>
+
+          <div className="w-full sm:w-auto">
+            <label className="block text-xs font-semibold text-slate-500 mb-1 uppercase tracking-wider">Quarry Name</label>
+            <select
+              value={selectedQuarryName}
+              onChange={(e) => setSelectedQuarryName(e.target.value)}
+              className="border border-slate-300 rounded-lg p-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none bg-white w-full sm:w-40"
+            >
+              <option value="">All Quarries</option>
+              {uniqueQuarryNames.map((q) => (
+                <option key={q} value={q}>{q}</option>
+              ))}
+            </select>
           </div>
 
           <div className="w-full sm:w-auto">
@@ -497,7 +553,7 @@ const LoadManagement = () => {
       <div className="card overflow-hidden p-0 border border-slate-200 flex-1 flex flex-col min-h-0 min-w-0">
         {loading ? (
           <div className="p-8 text-center text-slate-500">Loading loads...</div>
-        ) : loads.length === 0 ? (
+        ) : filteredLoads.length === 0 ? (
           <div className="p-8 text-center text-slate-500 border-t border-slate-100 italic">No loads recorded for the selected filter.</div>
         ) : (
           <div className="overflow-auto flex-1 min-h-0 min-w-0">
@@ -515,7 +571,7 @@ const LoadManagement = () => {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 whitespace-nowrap">
-                {loads.map((load) => (
+                {filteredLoads.map((load) => (
                   <tr key={load._id} className="hover:bg-slate-50 transition">
                     <td className="p-4 text-slate-600 whitespace-nowrap">{new Date(load.date).toLocaleDateString()}</td>
                     <td className="p-4 font-medium text-slate-800 whitespace-nowrap">{load.vehicleType}</td>

@@ -276,7 +276,7 @@ const Buyers = () => {
     doc.line(14, 29, pageWidth - 14, 29);
 
     const yStartTable = 36;
-    const head = [['S.NO', 'DATE', 'VEHICLE TYPE', 'QUARRY NAME', 'PRICE (₹)', 'QUANTITY', 'TOTAL VALUE (₹)', 'ALLOCATED (₹)', 'PENDING (₹)']];
+    const head = [['S.NO', 'DATE', 'VEHICLE TYPE', 'QUARRY NAME', 'PRICE (Rs.)', 'QUANTITY', 'TOTAL VALUE (Rs.)', 'ALLOCATED (Rs.)', 'PENDING (Rs.)']];
     const body = (buyerDetails.bills || []).map((r, idx) => [
       idx + 1,
       formatDateTime(r.date).date,
