@@ -122,12 +122,11 @@ const Reports = () => {
     const isAllCustomers = !statement.customer;
 
     const head = isAllCustomers
-      ? [['S.NO', 'BILL NO', 'DATE', 'CUSTOMER', 'VEHICLE', 'MATERIAL', 'WEIGHT', 'PRICE', 'AMOUNT', 'PASS', 'TOTAL', 'ALLOCATED', 'PENDING']]
-      : [['S.NO', 'BILL NO', 'DATE', 'VEHICLE', 'MATERIAL', 'WEIGHT', 'PRICE', 'AMOUNT', 'PASS', 'TOTAL', 'ALLOCATED', 'PENDING']];
+      ? [['S.NO', 'DATE', 'CUSTOMER', 'VEHICLE', 'MATERIAL', 'WEIGHT', 'PRICE', 'AMOUNT', 'PASS', 'TOTAL', 'ALLOCATED', 'PENDING']]
+      : [['S.NO', 'DATE', 'VEHICLE', 'MATERIAL', 'WEIGHT', 'PRICE', 'AMOUNT', 'PASS', 'TOTAL', 'ALLOCATED', 'PENDING']];
 
     const body = (statement.rows || []).map((r) => [
       r.sno,
-      r.billNumber || '',
       r.date,
       ...(isAllCustomers ? [r.customerName || ''] : []),
       r.vehicle,

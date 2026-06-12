@@ -38,6 +38,14 @@ const Customers = () => {
   const [paymentNote, setPaymentNote] = useState('');
   const [paymentReceivedBy, setPaymentReceivedBy] = useState('');
   
+  // Payment editing state
+  const [editPaymentModalOpen, setEditPaymentModalOpen] = useState(false);
+  const [editingPayment, setEditingPayment] = useState(null);
+  const [editPaymentAmount, setEditPaymentAmount] = useState('');
+  const [editPaymentDate, setEditPaymentDate] = useState('');
+  const [editPaymentNote, setEditPaymentNote] = useState('');
+  const [editPaymentReceivedBy, setEditPaymentReceivedBy] = useState('');
+  
   const [formData, setFormData] = useState({ name: '', phone: '', address: '', vehicles: [] });
   const [newVehicle, setNewVehicle] = useState('');
   const [expandedVehicleId, setExpandedVehicleId] = useState(null);
@@ -224,6 +232,64 @@ const Customers = () => {
     } catch (error) {
       console.error('Error processing payment', error);
       alert('Error processing payment: ' + (error.response?.data?.message || 'Unknown error'));
+    }
+  };
+
+  const openEditPaymentModal = (pay) => {
+    setEditingPayment(pay);
+    setEditPaymentAmount(pay.amount.toString());
+    const dateStr = pay.paymentDate ? new Date(pay.paymentDate).toISOString().split('T')[0] : '';
+    setEditPaymentDate(dateStr);
+    setEditPaymentNote(pay.notes || '');
+    setEditPaymentReceivedBy(pay.receivedBy || '');
+    setEditPaymentModalOpen(true);
+  };
+
+  const handleEditPaymentSubmit = async (e) => {
+    e.preventDefault();
+    const amount = Number(editPaymentAmount);
+    if (!amount || amount <= 0) {
+      alert('Please enter a valid payment amount');
+      return;
+    }
+    const maxAllowed = (customerDetails?.summary?.totalOutstandingAmount || 0) + editingPayment.amount;
+    if (amount - maxAllowed > 1e-4) {
+      alert(`Payment amount (₹${amount.toLocaleString()}) cannot exceed maximum allowed outstanding plus original payment (₹${maxAllowed.toLocaleString()})`);
+      return;
+    }
+    try {
+      await api.put(`/payments/${editingPayment._id}`, {
+        amount,
+        date: editPaymentDate,
+        notes: editPaymentNote,
+        receivedBy: editPaymentReceivedBy
+      });
+      setEditPaymentModalOpen(false);
+      setEditingPayment(null);
+      await fetchCustomerHistory(customerDetails.customer);
+      fetchCustomers(); // Refresh list balances
+    } catch (error) {
+      console.error('Error updating payment', error);
+      alert('Error updating payment: ' + (error.response?.data?.message || 'Unknown error'));
+    }
+  };
+
+  const handleDeletePayment = async (pay) => {
+    const ok = await confirm({
+      title: 'Delete Payment',
+      message: `Are you sure you want to delete payment ${pay.paymentNumber || ''} of ₹${pay.amount.toLocaleString()}? This will recalculate customer balances.`,
+      confirmText: 'Delete',
+      tone: 'danger'
+    });
+    if (ok) {
+      try {
+        await api.delete(`/payments/${pay._id}`);
+        await fetchCustomerHistory(customerDetails.customer);
+        fetchCustomers(); // Refresh list balances
+      } catch (error) {
+        console.error('Error deleting payment', error);
+        alert('Error deleting payment: ' + (error.response?.data?.message || 'Unknown error'));
+      }
     }
   };
 
@@ -737,6 +803,7 @@ const Customers = () => {
                         <th className="p-4">Received By</th>
                         <th className="p-4">Notes</th>
                         <th className="p-4 text-right">Outstanding After</th>
+                        {canWrite && <th className="p-4 text-right">Actions</th>}
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100">
@@ -761,10 +828,28 @@ const Customers = () => {
                               <td className="p-4 text-slate-600">{pay.receivedBy || '—'}</td>
                               <td className="p-4 text-slate-500 italic truncate max-w-xs">{pay.notes || '—'}</td>
                               <td className="p-4 text-right font-semibold text-slate-800">₹{Number(pay.outstandingBalanceAfterPayment || 0).toLocaleString()}</td>
+                              {canWrite && (
+                                <td className="p-4 text-right space-x-2.5 whitespace-nowrap">
+                                  <button 
+                                    onClick={() => openEditPaymentModal(pay)} 
+                                    className="text-blue-600 hover:text-blue-800 hover:bg-blue-50 p-1.5 rounded-lg transition-colors inline-flex items-center" 
+                                    title="Edit Payment"
+                                  >
+                                    <EditIcon className="h-4 w-4" />
+                                  </button>
+                                  <button 
+                                    onClick={() => handleDeletePayment(pay)} 
+                                    className="text-red-600 hover:text-red-800 hover:bg-red-50 p-1.5 rounded-lg transition-colors inline-flex items-center" 
+                                    title="Delete Payment"
+                                  >
+                                    <TrashIcon className="h-4 w-4" />
+                                  </button>
+                                </td>
+                              )}
                             </tr>
                             {isExpanded && (
                               <tr className="bg-slate-50/50">
-                                <td colSpan={7} className="p-4 border-l-4 border-emerald-500 bg-emerald-50/10">
+                                <td colSpan={canWrite ? 8 : 7} className="p-4 border-l-4 border-emerald-500 bg-emerald-50/10">
                                   <div className="pl-6 py-2">
                                     <h4 className="text-xs font-bold text-emerald-700 uppercase tracking-wider mb-2">FIFO Allocation Details</h4>
                                     <div className="flex flex-wrap gap-4">
@@ -789,7 +874,7 @@ const Customers = () => {
                       })}
                       {(!customerDetails.payments || customerDetails.payments.length === 0) && (
                         <tr>
-                          <td colSpan={7} className="p-8 text-center text-slate-400">No payments found for the selected period</td>
+                          <td colSpan={canWrite ? 8 : 7} className="p-8 text-center text-slate-400">No payments found for the selected period</td>
                         </tr>
                       )}
                     </tbody>
@@ -925,6 +1010,98 @@ const Customers = () => {
                   className="px-5 py-2 bg-emerald-600 text-white rounded-lg font-semibold text-sm hover:bg-emerald-700 disabled:opacity-40 disabled:cursor-not-allowed transition shadow-md"
                 >
                   Record Payment
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Edit Customer Payment Modal */}
+      {editPaymentModalOpen && editingPayment && customerDetails && (
+        <div className="fixed inset-0 bg-slate-900/60 flex items-center justify-center p-4 z-[60] animate-in fade-in duration-200">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden flex flex-col">
+            <div className="p-5 border-b border-slate-100 flex justify-between items-center bg-blue-50">
+              <h2 className="text-xl font-bold text-blue-900">Edit Customer Payment</h2>
+              <button onClick={() => setEditPaymentModalOpen(false)} className="text-blue-400 hover:text-blue-600 text-2xl leading-none font-bold">&times;</button>
+            </div>
+            
+            <form onSubmit={handleEditPaymentSubmit} className="p-6 space-y-4">
+              <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 text-sm">
+                <div className="flex justify-between items-center py-1">
+                  <span className="text-slate-500 font-medium">Customer:</span>
+                  <span className="font-bold text-slate-800">{customerDetails.customer?.name}</span>
+                </div>
+                <div className="flex justify-between items-center py-1 mt-1 border-t border-slate-100">
+                  <span className="text-blue-600 font-semibold">Payment Number:</span>
+                  <span className="font-bold text-blue-700">{editingPayment.paymentNumber}</span>
+                </div>
+                <div className="flex justify-between items-center py-1 mt-1 border-t border-slate-100">
+                  <span className="text-rose-500 font-semibold">Max Allowed Amount:</span>
+                  <span className="font-extrabold text-rose-600 text-base">₹{Number((customerDetails.summary?.totalOutstandingAmount || 0) + editingPayment.amount).toLocaleString()}</span>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-semibold text-slate-700 mb-1">Amount Paid (₹) *</label>
+                <div className="relative">
+                  <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 font-bold">₹</span>
+                  <input 
+                    type="number" 
+                    required 
+                    value={editPaymentAmount} 
+                    onChange={(e) => setEditPaymentAmount(e.target.value)} 
+                    min="1" 
+                    step="0.01"
+                    className="w-full text-xl font-extrabold border border-slate-300 rounded-lg p-3 pl-8 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition bg-white text-slate-800"
+                    placeholder="Enter amount"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-semibold text-slate-700 mb-1">Payment Date *</label>
+                <input 
+                  type="date" 
+                  required
+                  value={editPaymentDate} 
+                  onChange={(e) => setEditPaymentDate(e.target.value)}
+                  className="w-full border border-slate-300 rounded-lg p-2.5 focus:ring-2 focus:ring-blue-500 outline-none text-sm bg-white text-slate-800"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-semibold text-slate-700 mb-1">Received By</label>
+                <input 
+                  type="text" 
+                  value={editPaymentReceivedBy} 
+                  onChange={(e) => setEditPaymentReceivedBy(e.target.value)}
+                  className="w-full border border-slate-300 rounded-lg p-2.5 focus:ring-2 focus:ring-blue-500 outline-none text-sm bg-white text-slate-800"
+                  placeholder="Employee name or Cashier"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-semibold text-slate-700 mb-1">Notes / Remarks</label>
+                <textarea 
+                  rows="2" 
+                  value={editPaymentNote} 
+                  onChange={(e) => setEditPaymentNote(e.target.value)}
+                  className="w-full border border-slate-300 rounded-lg p-2.5 focus:ring-2 focus:ring-blue-500 outline-none text-sm bg-white text-slate-800"
+                  placeholder="E.g. Paid in Cash, Cheque number, etc."
+                />
+              </div>
+
+              <div className="pt-4 flex justify-end space-x-3 border-t border-slate-100">
+                <button type="button" onClick={() => setEditPaymentModalOpen(false)} className="px-4 py-2 text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-lg font-semibold text-sm transition">
+                  Cancel
+                </button>
+                <button 
+                  type="submit" 
+                  disabled={Number(editPaymentAmount) <= 0 || Number(editPaymentAmount) - ((customerDetails?.summary?.totalOutstandingAmount || 0) + editingPayment.amount) > 1e-4}
+                  className="px-5 py-2 bg-blue-600 text-white rounded-lg font-semibold text-sm hover:bg-blue-700 disabled:opacity-40 disabled:cursor-not-allowed transition shadow-md"
+                >
+                  Save Changes
                 </button>
               </div>
             </form>
