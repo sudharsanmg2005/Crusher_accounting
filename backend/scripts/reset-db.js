@@ -1,6 +1,6 @@
 import dotenv from 'dotenv';
 import mongoose from 'mongoose';
-import bcrypt from 'bcryptjs';
+import bcrypt from 'bcrypt';
 import User from '../models/User.js';
 import Attendance from '../models/Attendance.js';
 import AuditLog from '../models/AuditLog.js';

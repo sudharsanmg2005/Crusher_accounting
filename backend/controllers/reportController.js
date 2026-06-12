@@ -68,14 +68,20 @@ export const getGeneralStatement = async (req, res, next) => {
 
     const billFilter = { date: { $gte: start, $lte: end }, isDeleted: false };
     const prevBillFilter = { date: { $gte: prevStart, $lte: prevEnd }, isDeleted: false };
+    const paymentFilter = { paymentDate: { $gte: start, $lte: end } };
+    const prevPaymentFilter = { paymentDate: { $gte: prevStart, $lte: prevEnd } };
     if (customerId) {
       billFilter.customer = customerId;
       prevBillFilter.customer = customerId;
+      paymentFilter.customerId = customerId;
+      prevPaymentFilter.customerId = customerId;
     }
 
-    const [bills, prevBills] = await Promise.all([
+    const [bills, prevBills, payments, prevPayments] = await Promise.all([
       Bill.find(billFilter).sort({ date: 1 }),
-      Bill.find(prevBillFilter).sort({ date: 1 })
+      Bill.find(prevBillFilter).sort({ date: 1 }),
+      Payment.find(paymentFilter),
+      Payment.find(prevPaymentFilter)
     ]);
 
     const customer =
@@ -114,13 +120,13 @@ export const getGeneralStatement = async (req, res, next) => {
 
     const sumAmount = bills.reduce((sum, b) => sum + (Number(b.totalAmount) || 0), 0);
     const sumPass = bills.reduce((sum, b) => sum + (Number(b.passAmount) || 0), 0);
-    const sumPaid = bills.reduce((sum, b) => sum + (Number(b.paidAmount) || 0), 0);
+    const sumPaid = payments.reduce((sum, p) => sum + (Number(p.amount) || 0), 0);
     const currentWeekBalance = sumAmount + sumPass; // AMOUNT + PASS
 
     const prevSumAmount = prevBills.reduce((sum, b) => sum + (Number(b.totalAmount) || 0), 0);
     const prevSumPass = prevBills.reduce((sum, b) => sum + (Number(b.passAmount) || 0), 0);
-    const prevSumPaid = prevBills.reduce((sum, b) => sum + (Number(b.paidAmount) || 0), 0);
-    const lastWeekBalance = prevSumAmount + prevSumPass; // AMOUNT + PASS
+    const prevSumPaid = prevPayments.reduce((sum, p) => sum + (Number(p.amount) || 0), 0);
+    const lastWeekBalance = Math.max(0, prevSumAmount + prevSumPass - prevSumPaid);
 
   const title = customer ? `${customer.name} Bill` : 'GENERAL STATEMENT';
 

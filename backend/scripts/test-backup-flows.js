@@ -4,7 +4,7 @@
  */
 import mongoose from 'mongoose';
 import dotenv from 'dotenv';
-import bcrypt from 'bcryptjs';
+import bcrypt from 'bcrypt';
 import jwt from 'jsonwebtoken';
 import Customer from '../models/Customer.js';
 import Employee from '../models/Employee.js';
