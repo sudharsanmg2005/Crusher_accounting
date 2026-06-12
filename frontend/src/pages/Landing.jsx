@@ -27,7 +27,7 @@ const Landing = () => {
     navigate('/login', { replace: true });
   };
 
-  if (loading || user) {
+  if (user) {
     return null;
   }
 
@@ -56,10 +56,19 @@ const Landing = () => {
         <p className="text-blue-200 text-sm sm:text-base font-medium mb-10">Crusher Accounting System</p>
 
         <div className="flex flex-col items-center gap-3">
-          <div className="h-1 w-24 rounded-full bg-blue-500/40 overflow-hidden">
-            <div className="h-full bg-blue-400 rounded-full animate-loading-bar" />
-          </div>
-          <p className="text-slate-400 text-sm">Tap anywhere to continue</p>
+          {loading ? (
+            <div className="flex flex-col items-center gap-2">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-400" />
+              <p className="text-blue-300 text-xs mt-1 animate-pulse">Connecting to system, please wait...</p>
+            </div>
+          ) : (
+            <>
+              <div className="h-1 w-24 rounded-full bg-blue-500/40 overflow-hidden">
+                <div className="h-full bg-blue-400 rounded-full animate-loading-bar" />
+              </div>
+              <p className="text-slate-400 text-sm">Tap anywhere to continue</p>
+            </>
+          )}
         </div>
       </div>
     </div>
