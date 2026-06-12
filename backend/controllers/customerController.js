@@ -152,64 +152,50 @@ export const getCustomerHistory = async (req, res, next) => {
     const bills = await Bill.find(billFilter).sort({ date: -1 });
     const payments = await Payment.find(paymentFilter).sort({ paymentDate: -1 });
 
-    const customerObjId = new mongoose.Types.ObjectId(customerId);
-    const customerIdMatch = { $in: [customerObjId, customerId] };
-
-    // 2. Aggregate stats (within the selected range)
-    const billMatch = { customer: customerIdMatch, isDeleted: false };
-    const paymentMatch = { customerId: customerIdMatch };
-    if (startDate || endDate) {
-      billMatch.date = billFilter.date;
-      paymentMatch.paymentDate = paymentFilter.paymentDate;
+    // 2. Compute stats (within the selected range) in JavaScript
+    let totalBillsAmount = 0;
+    let totalBillsCount = 0;
+    let lastBillDate = null;
+    for (const b of bills) {
+      totalBillsAmount += (b.totalAmount || 0) + (b.passAmount || 0);
+      totalBillsCount++;
+      if (!lastBillDate || new Date(b.date) > new Date(lastBillDate)) {
+        lastBillDate = b.date;
+      }
     }
 
-    const billAgg = await Bill.aggregate([
-      { $match: billMatch },
-      {
-        $group: {
-          _id: null,
-          totalBillsAmount: { $sum: { $add: ['$totalAmount', { $ifNull: ['$passAmount', 0] }] } },
-          totalBillsCount: { $sum: 1 },
-          lastBillDate: { $max: '$date' }
-        }
+    let totalPaymentsAmount = 0;
+    let lastPaymentDate = null;
+    for (const p of payments) {
+      totalPaymentsAmount += (p.amount || 0);
+      if (!lastPaymentDate || new Date(p.paymentDate) > new Date(lastPaymentDate)) {
+        lastPaymentDate = p.paymentDate;
       }
-    ]);
-
-    const paymentAgg = await Payment.aggregate([
-      { $match: paymentMatch },
-      {
-        $group: {
-          _id: null,
-          totalPaymentsAmount: { $sum: '$amount' },
-          lastPaymentDate: { $max: '$paymentDate' }
-        }
-      }
-    ]);
+    }
 
     // Overall outstanding (cumulative of all time, ignoring date filter)
-    const overallBillAgg = await Bill.aggregate([
-      { $match: { customer: customerIdMatch, isDeleted: false } },
-      { $group: { _id: null, total: { $sum: { $add: ['$totalAmount', { $ifNull: ['$passAmount', 0] }] } } }
-    ]);
-    const overallPaymentAgg = await Payment.aggregate([
-      { $match: { customerId: customerIdMatch } },
-      { $group: { _id: null, total: { $sum: '$amount' } } }
-    ]);
+    const allBillsForOutstanding = await Bill.find({ customer: customerId, isDeleted: false });
+    const allPaymentsForOutstanding = await Payment.find({ customerId });
 
-    const bStats = billAgg[0] || { totalBillsAmount: 0, totalBillsCount: 0, lastBillDate: null };
-    const pStats = paymentAgg[0] || { totalPaymentsAmount: 0, lastPaymentDate: null };
+    let overallBilled = 0;
+    for (const b of allBillsForOutstanding) {
+      overallBilled += (b.totalAmount || 0) + (b.passAmount || 0);
+    }
 
-    const overallBilled = overallBillAgg[0]?.total || 0;
-    const overallPaid = overallPaymentAgg[0]?.total || 0;
+    let overallPaid = 0;
+    for (const p of allPaymentsForOutstanding) {
+      overallPaid += (p.amount || 0);
+    }
+
     const totalOutstandingAmount = Math.max(0, overallBilled - overallPaid);
 
     const summary = {
-      totalBillsAmount: bStats.totalBillsAmount,
-      totalPaidAmount: pStats.totalPaymentsAmount,
+      totalBillsAmount,
+      totalPaidAmount: totalPaymentsAmount,
       totalOutstandingAmount,
-      totalBillsCount: bStats.totalBillsCount,
-      lastBillDate: bStats.lastBillDate,
-      lastPaymentDate: pStats.lastPaymentDate
+      totalBillsCount,
+      lastBillDate,
+      lastPaymentDate
     };
 
     // 3. Generate running ledger (always computed cumulatively)

@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import api from '../api';
 import { useAuth } from '../AuthContext';
 import { useConfirm } from '../components/ConfirmDialog';
-import { HistoryIcon, ChevronDownIcon, DocumentIcon, EditIcon, TrashIcon, PlusIcon } from '../components/Icons';
+import { HistoryIcon, ChevronDownIcon, DocumentIcon, EditIcon, TrashIcon } from '../components/Icons';
 import { formatVehicleInput, isValidVehicleNumber } from '../utils/vehicleNumber';
 import { downloadBillPdf } from '../utils/billPdf';
 import { formatDateTime } from '../utils/dateTime';
@@ -30,14 +30,6 @@ const Bills = () => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editModalOpen, setEditModalOpen] = useState(false);
   const [editingBill, setEditingBill] = useState(null);
-  
-  // State for recording a payment
-  const [paymentModalOpen, setPaymentModalOpen] = useState(false);
-  const [currentBill, setCurrentBill] = useState(null);
-  const [paymentAmount, setPaymentAmount] = useState('');
-  const [paymentNote, setPaymentNote] = useState('');
-  const [paymentReceivedBy, setPaymentReceivedBy] = useState('');
-
   const [formData, setFormData] = useState(emptyForm());
   const [editFormData, setEditFormData] = useState({ vehicleNumber: '', quantity: '', quantityUnit: 'unit', pricePerUnit: '' });
 
@@ -276,34 +268,6 @@ const Bills = () => {
     }
   };
 
-  const handlePaymentSubmit = async (e) => {
-    e.preventDefault();
-    const amount = Number(paymentAmount);
-    if (!amount || amount <= 0) {
-      alert('Please enter a valid payment amount');
-      return;
-    }
-    
-    try {
-      // Call endpoint. Backend will execute FIFO allocation for the customer
-      await api.post(`/bills/${currentBill._id}/pay`, { 
-        amount,
-        note: paymentNote,
-        method: paymentReceivedBy
-      });
-      
-      setPaymentModalOpen(false);
-      setPaymentAmount('');
-      setPaymentNote('');
-      setPaymentReceivedBy('');
-      setCurrentBill(null);
-      fetchData();
-    } catch (error) {
-      console.error('Error processing payment', error);
-      alert('Error processing payment: ' + (error.response?.data?.message || 'Unknown error'));
-    }
-  };
-
   const handleCreateCustomer = async (e) => {
     e.preventDefault();
     try {
@@ -316,14 +280,6 @@ const Bills = () => {
       console.error('Error creating customer', error);
       alert('Error creating customer: ' + (error.response?.data?.message || 'Unknown error'));
     }
-  };
-
-  const openPaymentModal = (bill) => {
-    setCurrentBill(bill);
-    setPaymentAmount(bill.pendingAmount.toString());
-    setPaymentNote('');
-    setPaymentReceivedBy(user?.name || '');
-    setPaymentModalOpen(true);
   };
 
   const handleDelete = async (id) => {
@@ -510,15 +466,6 @@ const Bills = () => {
                             title="Edit Bill"
                           >
                             <EditIcon className="h-5 w-5" />
-                          </button>
-                        )}
-                        {canWrite && bill.pendingAmount > 0 && (
-                          <button 
-                            onClick={() => openPaymentModal(bill)} 
-                            className="text-blue-600 hover:text-blue-800 hover:bg-blue-50 p-2 rounded-lg transition-colors inline-flex items-center"
-                            title="Record Payment"
-                          >
-                            <PlusIcon className="h-5 w-5" />
                           </button>
                         )}
                         {canWrite && (
@@ -813,85 +760,6 @@ const Bills = () => {
               <div className="flex justify-end gap-3 pt-2">
                 <button type="button" onClick={() => setEditModalOpen(false)} className="px-4 py-2 bg-slate-100 rounded-lg">Cancel</button>
                 <button type="submit" className="px-4 py-2 bg-blue-600 text-white rounded-lg font-medium">Save Changes</button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* Record Payment Modal */}
-      {paymentModalOpen && currentBill && (
-        <div className="fixed inset-0 bg-slate-900/50 flex items-center justify-center p-4 z-50 animate-in fade-in duration-200">
-          <div className="bg-white rounded-xl shadow-2xl w-full max-w-sm overflow-hidden flex flex-col">
-            <div className="p-5 border-b border-slate-100 flex justify-between items-center bg-blue-50">
-              <h2 className="text-xl font-bold text-blue-900">Record Payment</h2>
-              <button onClick={() => { setPaymentModalOpen(false); setCurrentBill(null); }} className="text-blue-400 hover:text-blue-600 text-2xl leading-none font-bold">&times;</button>
-            </div>
-            
-            <form onSubmit={handlePaymentSubmit} className="p-6 space-y-4">
-              <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 text-xs space-y-1">
-                <div className="flex justify-between">
-                  <span className="text-slate-500 font-semibold">Customer:</span>
-                  <span className="font-bold text-slate-800">{currentBill.customerNameSnapshot}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-slate-500 font-semibold">Bill Number:</span>
-                  <span className="font-bold text-slate-800">{currentBill.billNumber}</span>
-                </div>
-                <div className="flex justify-between mt-2 pt-2 border-t border-slate-200">
-                  <span className="text-rose-500 font-bold">Bill Outstanding:</span>
-                  <span className="font-bold text-rose-600">₹{currentBill.pendingAmount.toLocaleString()}</span>
-                </div>
-                <div className="text-[10px] text-slate-400 mt-2 italic">
-                  Note: Payment will be allocated to this customer's oldest outstanding bills in FIFO order.
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-sm font-semibold text-slate-700 mb-1">Amount Receiving (₹) *</label>
-                <div className="relative">
-                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500 font-bold">₹</span>
-                  <input 
-                    type="number" 
-                    required 
-                    value={paymentAmount} 
-                    onChange={(e) => setPaymentAmount(e.target.value)} 
-                    min="1" 
-                    step="0.01"
-                    className="w-full text-lg font-bold border border-slate-300 rounded-lg p-3 pl-8 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition"
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-sm font-semibold text-slate-700 mb-1">Received By</label>
-                <input 
-                  type="text" 
-                  value={paymentReceivedBy} 
-                  onChange={(e) => setPaymentReceivedBy(e.target.value)}
-                  className="w-full border border-slate-300 rounded-lg p-2.5 focus:ring-2 focus:ring-blue-500 outline-none text-sm bg-white text-slate-800"
-                  placeholder="Cashier or Employee name"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-semibold text-slate-700 mb-1">Notes</label>
-                <textarea 
-                  rows="2" 
-                  value={paymentNote} 
-                  onChange={(e) => setPaymentNote(e.target.value)}
-                  className="w-full border border-slate-300 rounded-lg p-2.5 focus:ring-2 focus:ring-blue-500 outline-none text-sm bg-white text-slate-800"
-                  placeholder="E.g. Received cash, cheque etc."
-                />
-              </div>
-
-              <div className="pt-4 flex justify-end space-x-3 border-t border-slate-100">
-                <button type="button" onClick={() => { setPaymentModalOpen(false); setCurrentBill(null); }} className="px-4 py-2 text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-lg font-semibold text-sm transition">
-                  Cancel
-                </button>
-                <button type="submit" className="px-5 py-2 bg-green-600 text-white rounded-lg font-semibold text-sm hover:bg-green-700 transition shadow-md">
-                  Confirm Payment
-                </button>
               </div>
             </form>
           </div>
