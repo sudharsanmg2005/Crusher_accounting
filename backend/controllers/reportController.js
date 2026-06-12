@@ -92,6 +92,7 @@ export const getGeneralStatement = async (req, res, next) => {
 
       const row = {
         sno: idx + 1,
+        billNumber: b.billNumber || '',
         date: formatDateDDMMYYYY(b.date),
         vehicle: b.vehicleNumber || '',
         material: b.materialNameSnapshot || '',
@@ -99,7 +100,9 @@ export const getGeneralStatement = async (req, res, next) => {
         price: formatMaybeIntOr2(price),
         amount: amount.toFixed(2),
         pass: formatMaybeIntOr2(pass),
-        total: formatMaybeIntOr2(total)
+        total: formatMaybeIntOr2(total),
+        allocatedAmount: formatMaybeIntOr2(b.allocatedAmount || 0),
+        pendingAmount: formatMaybeIntOr2(b.pendingAmount || 0)
       };
 
       if (!customerId) {

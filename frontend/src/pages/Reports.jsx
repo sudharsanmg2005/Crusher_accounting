@@ -122,11 +122,12 @@ const Reports = () => {
     const isAllCustomers = !statement.customer;
 
     const head = isAllCustomers
-      ? [['S.NO', 'DATE', 'CUSTOMER', 'VEHICLE', 'MATERIAL', 'WEIGHT', 'PRICE', 'AMOUNT', 'PASS', 'TOTAL']]
-      : [['S.NO', 'DATE', 'VEHICLE', 'MATERIAL', 'WEIGHT', 'PRICE', 'AMOUNT', 'PASS', 'TOTAL']];
+      ? [['S.NO', 'BILL NO', 'DATE', 'CUSTOMER', 'VEHICLE', 'MATERIAL', 'WEIGHT', 'PRICE', 'AMOUNT', 'PASS', 'TOTAL', 'ALLOCATED', 'PENDING']]
+      : [['S.NO', 'BILL NO', 'DATE', 'VEHICLE', 'MATERIAL', 'WEIGHT', 'PRICE', 'AMOUNT', 'PASS', 'TOTAL', 'ALLOCATED', 'PENDING']];
 
     const body = (statement.rows || []).map((r) => [
       r.sno,
+      r.billNumber || '',
       r.date,
       ...(isAllCustomers ? [r.customerName || ''] : []),
       r.vehicle,
@@ -135,7 +136,9 @@ const Reports = () => {
       r.price,
       r.amount,
       r.pass,
-      r.total
+      r.total,
+      r.allocatedAmount || '0',
+      r.pendingAmount || '0'
     ]);
 
     autoTable(doc, {
@@ -143,7 +146,7 @@ const Reports = () => {
       body,
       startY: yStartTable,
       theme: 'grid',
-      styles: { fontSize: 7, cellPadding: 2 },
+      styles: { fontSize: 6.5, cellPadding: 1.5 },
       headStyles: { fillColor: [245, 246, 250], textColor: [15, 23, 42], fontStyle: 'bold' }
     });
 
@@ -312,6 +315,7 @@ const Reports = () => {
                     <thead className="bg-slate-50 border-b border-slate-200 text-sm text-slate-600 uppercase tracking-wider">
                       <tr>
                         <th className="p-4 font-semibold whitespace-nowrap">S.NO</th>
+                        <th className="p-4 font-semibold whitespace-nowrap">BILL NO</th>
                         <th className="p-4 font-semibold whitespace-nowrap">DATE</th>
                         {!statement.customer && (
                           <th className="p-4 font-semibold whitespace-nowrap">CUSTOMER</th>
@@ -323,12 +327,14 @@ const Reports = () => {
                         <th className="p-4 font-semibold whitespace-nowrap text-right">AMOUNT</th>
                         <th className="p-4 font-semibold whitespace-nowrap text-right">PASS</th>
                         <th className="p-4 font-semibold whitespace-nowrap text-right">TOTAL</th>
+                        <th className="p-4 font-semibold whitespace-nowrap text-right">ALLOCATED</th>
+                        <th className="p-4 font-semibold whitespace-nowrap text-right">PENDING</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100">
                       {statement.rows.length === 0 ? (
                         <tr>
-                          <td colSpan={!statement.customer ? "10" : "9"} className="p-8 text-center text-slate-500">
+                          <td colSpan={!statement.customer ? "13" : "12"} className="p-8 text-center text-slate-500">
                             No records found for this date range.
                           </td>
                         </tr>
@@ -336,6 +342,7 @@ const Reports = () => {
                         statement.rows.map((r) => (
                           <tr key={`${r.sno}-${r.date}-${r.vehicle}`} className="hover:bg-slate-50 transition">
                             <td className="p-4 text-slate-700 font-medium whitespace-nowrap">{r.sno}</td>
+                            <td className="p-4 text-slate-700 font-semibold whitespace-nowrap">{r.billNumber}</td>
                             <td className="p-4 text-slate-700 whitespace-nowrap">{r.date}</td>
                             {!statement.customer && (
                               <td className="p-4 text-slate-800 font-semibold whitespace-nowrap">{r.customerName || ''}</td>
@@ -347,6 +354,8 @@ const Reports = () => {
                             <td className="p-4 text-right text-slate-700 font-medium whitespace-nowrap">{r.amount}</td>
                             <td className="p-4 text-right text-slate-700 font-medium whitespace-nowrap">{r.pass}</td>
                             <td className="p-4 text-right text-slate-900 font-bold whitespace-nowrap">{r.total}</td>
+                            <td className="p-4 text-right text-emerald-700 font-bold whitespace-nowrap">₹{Number(r.allocatedAmount).toLocaleString()}</td>
+                            <td className={`p-4 text-right font-bold whitespace-nowrap ${Number(r.pendingAmount) > 0 ? 'text-rose-600' : 'text-slate-500'}`}>₹{Number(r.pendingAmount).toLocaleString()}</td>
                           </tr>
                         ))
                       )}
