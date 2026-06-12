@@ -3,8 +3,6 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../AuthContext';
 import logoUrl from '../assets/dark KBM.png';
 
-const REDIRECT_DELAY_MS = 2500;
-
 const Landing = () => {
   const navigate = useNavigate();
   const { user, loading } = useAuth();
@@ -16,11 +14,7 @@ const Landing = () => {
       return;
     }
 
-    const timer = setTimeout(() => {
-      navigate('/login', { replace: true });
-    }, REDIRECT_DELAY_MS);
-
-    return () => clearTimeout(timer);
+    navigate('/login', { replace: true });
   }, [user, loading, navigate]);
 
   const goToLogin = () => {
