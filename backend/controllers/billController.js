@@ -5,6 +5,7 @@ import Payment from '../models/Payment.js';
 import Expense from '../models/Expense.js';
 import { normalizeVehicleNumber, validateVehicleNumber } from '../utils/vehicleNumber.js';
 import { permanentlyDeleteBill as purgeBill } from '../services/purgeService.js';
+import { recordPayment, recalculateCustomerBalances } from '../services/paymentService.js';
 
 const normalizeVehicle = normalizeVehicleNumber;
 
@@ -24,7 +25,28 @@ export const getBills = async (req, res, next) => {
       if (endDate) filter.date.$lte = new Date(endDate);
     }
     if (customerId) filter.customer = customerId;
-    if (status) filter.paymentStatus = status;
+    
+    // Support virtual status filter
+    if (status) {
+      if (status === 'Pending') {
+        // Pending: totalAmount + passAmount > allocatedAmount
+        filter.$expr = {
+          $gt: [
+            { $add: ['$totalAmount', { $ifNull: ['$passAmount', 0] }] },
+            { $ifNull: ['$allocatedAmount', 0] }
+          ]
+        };
+      } else if (status === 'Paid') {
+        // Paid: totalAmount + passAmount <= allocatedAmount
+        filter.$expr = {
+          $lte: [
+            { $add: ['$totalAmount', { $ifNull: ['$passAmount', 0] }] },
+            { $ifNull: ['$allocatedAmount', 0] }
+          ]
+        };
+      }
+    }
+
     if (search) {
       filter.$or = [
         { customerNameSnapshot: new RegExp(search, 'i') },
@@ -49,7 +71,21 @@ export const getBillById = async (req, res, next) => {
       throw new Error('Bill not found');
     }
 
-    const payments = await Payment.find({ bill: bill._id }).sort({ date: -1 });
+    // Retrieve payments that adjusted this bill
+    const rawPayments = await Payment.find({ 'allocationDetails.billId': bill._id }).sort({ paymentDate: -1 });
+    
+    // Map payments to match the expected format on the frontend
+    const payments = rawPayments.map((p) => {
+      const allocation = p.allocationDetails.find((d) => d.billId.toString() === bill._id.toString());
+      return {
+        _id: p._id,
+        amount: allocation ? allocation.allocatedAmount : p.amount,
+        date: p.paymentDate,
+        method: p.receivedBy || 'Cash',
+        note: p.notes
+      };
+    });
+
     res.json({ ...bill.toObject(), payments });
   } catch (err) {
     next(err);
@@ -120,9 +156,7 @@ export const createBill = async (req, res, next) => {
       pricePerUnit: effectivePrice,
       totalAmount,
       passAmount: permissionCost,
-      paymentStatus: 'Pending',
-      paidAmount: 0,
-      pendingAmount: grandTotal,
+      allocatedAmount: 0,
       isBackdated
     });
 
@@ -177,18 +211,16 @@ export const updateBill = async (req, res, next) => {
     if (passAmount != null) bill.passAmount = Number(passAmount) || 0;
 
     bill.totalAmount = bill.quantity * bill.pricePerUnit;
-    const grandTotal = bill.totalAmount + (Number(bill.passAmount) || 0);
-    bill.pendingAmount = grandTotal - bill.paidAmount;
-    if (bill.pendingAmount <= 0) {
-      bill.paymentStatus = 'Paid';
-      bill.pendingAmount = 0;
-    } else if (bill.paidAmount > 0) {
-      bill.paymentStatus = 'Partially Paid';
-    } else {
-      bill.paymentStatus = 'Pending';
+    
+    // Save bill and trigger recalculation of allocations
+    await bill.save();
+    
+    if (bill.customer) {
+      await recalculateCustomerBalances(bill.customer);
     }
 
-    const updated = await bill.save();
+    const updated = await Bill.findById(bill._id);
+
     res.json({
       ...updated.toObject(),
       auditDetails: `Edited bill ${updated.billNumber} for ${updated.customerNameSnapshot} dated ${updated.date.toISOString().split('T')[0]}`
@@ -207,6 +239,10 @@ export const deleteBill = async (req, res, next) => {
     }
     bill.isDeleted = true;
     await bill.save();
+
+    if (bill.customer) {
+      await recalculateCustomerBalances(bill.customer);
+    }
 
     res.json({
       message: 'Bill removed',
@@ -227,6 +263,10 @@ export const restoreBill = async (req, res, next) => {
 
     bill.isDeleted = false;
     await bill.save();
+
+    if (bill.customer) {
+      await recalculateCustomerBalances(bill.customer);
+    }
 
     res.json({
       message: 'Bill restored',
@@ -252,34 +292,19 @@ export const addPaymentToBill = async (req, res, next) => {
       return res.status(400).json({ message: 'amount must be greater than 0' });
     }
 
-    const grandTotal = bill.totalAmount + (Number(bill.passAmount) || 0);
-    const pendingBefore = grandTotal - bill.paidAmount;
-    if (received - pendingBefore > 1e-6) {
-      return res.status(400).json({ message: 'Amount exceeds pending amount' });
-    }
-
-    const payment = await Payment.create({
-      bill: bill._id,
+    // Call customer-level FIFO payment allocation
+    const payment = await recordPayment({
+      customerId: bill.customer,
       amount: received,
       date: date ? new Date(date) : new Date(),
-      method,
-      note
+      notes: note || '',
+      receivedBy: req.user?.name || method || ''
     });
 
-    bill.paidAmount += received;
-    bill.pendingAmount = grandTotal - bill.paidAmount;
-    if (bill.pendingAmount <= 0) {
-      bill.paymentStatus = 'Paid';
-      bill.pendingAmount = 0;
-    } else if (bill.paidAmount > 0) {
-      bill.paymentStatus = 'Partially Paid';
-    } else {
-      bill.paymentStatus = 'Pending';
-    }
-    await bill.save();
+    const updatedBill = await Bill.findById(bill._id);
 
     res.status(201).json({
-      bill,
+      bill: updatedBill,
       payment,
       auditDetails: `Recorded payment of ${received} for ${bill.customerNameSnapshot} (${bill.vehicleNumber || bill.billNumber})`
     });
@@ -307,7 +332,7 @@ export const getTodaySummary = async (req, res, next) => {
 
     const todayIncome = todayBills.reduce((sum, b) => sum + b.totalAmount + (Number(b.passAmount) || 0), 0);
     const todayExpensesTotal = todayExpenses.reduce((sum, e) => sum + e.amount, 0);
-    const pendingPayments = todayBills.reduce((sum, b) => sum + b.pendingAmount, 0);
+    const pendingPayments = todayBills.reduce((sum, b) => sum + (b.totalAmount + (b.passAmount || 0) - (b.allocatedAmount || 0)), 0);
 
     res.json({
       todayIncome,
@@ -339,3 +364,4 @@ export const permanentDeleteBill = async (req, res, next) => {
     next(err);
   }
 };
+

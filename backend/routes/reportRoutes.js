@@ -4,7 +4,12 @@ import {
   getMonthlyIncome,
   getExpensesReport,
   getProfitReport,
-  getGeneralStatement
+  getGeneralStatement,
+  getReportDashboard,
+  getOutstandingReport,
+  getPaymentReport,
+  getPartialPaymentReport,
+  getCustomerStatementReport
 } from '../controllers/reportController.js';
 
 const router = express.Router();
@@ -15,5 +20,12 @@ router.get('/expenses', getExpensesReport);
 router.get('/profit', getProfitReport);
 router.get('/summary', getGeneralStatement);
 
+router.get('/dashboard', getReportDashboard);
+router.get('/outstanding', getOutstandingReport);
+router.get('/payments', getPaymentReport);
+router.get('/partial-payments', getPartialPaymentReport);
+router.get('/customer-statement/:customerId', getCustomerStatementReport);
+
 export default router;
+
 

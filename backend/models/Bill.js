@@ -20,18 +20,32 @@ const billSchema = new mongoose.Schema(
     // Govt permission fee ("PASS") added to each line item.
     passAmount: { type: Number, default: 0 },
 
-    paymentStatus: {
-      type: String,
-      enum: ['Pending', 'Partially Paid', 'Paid'],
-      default: 'Pending'
-    },
-    paidAmount: { type: Number, default: 0 },
-    pendingAmount: { type: Number, required: true },
+    allocatedAmount: { type: Number, default: 0 },
     isDeleted: { type: Boolean, default: false }
   },
-  { timestamps: true }
+  {
+    timestamps: true,
+    toJSON: { virtuals: true },
+    toObject: { virtuals: true }
+  }
 );
+
+// Virtual for pending amount: (totalAmount + passAmount) - allocatedAmount
+billSchema.virtual('pendingAmount').get(function () {
+  const grandTotal = this.totalAmount + (this.passAmount || 0);
+  return Math.max(0, grandTotal - (this.allocatedAmount || 0));
+});
+
+// Virtual for paidAmount for backward-compatibility
+billSchema.virtual('paidAmount').get(function () {
+  return this.allocatedAmount || 0;
+});
+
+// Indexes for performance optimization
+billSchema.index({ customer: 1, isDeleted: 1 });
+billSchema.index({ date: 1 });
 
 const Bill = mongoose.model('Bill', billSchema);
 export default Bill;
+
 

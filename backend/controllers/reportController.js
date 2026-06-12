@@ -1,6 +1,7 @@
 import Bill from '../models/Bill.js';
 import Expense from '../models/Expense.js';
 import Customer from '../models/Customer.js';
+import Payment from '../models/Payment.js';
 
 const pad2 = (n) => String(n).padStart(2, '0');
 
@@ -239,4 +240,343 @@ export const getProfitReport = async (req, res, next) => {
     next(err);
   }
 };
+
+const parseDateRange = (query) => {
+  const { filter, startDate, endDate } = query;
+  const now = new Date();
+  let start = new Date();
+  let end = new Date();
+
+  if (filter === 'today') {
+    start.setHours(0, 0, 0, 0);
+    end.setHours(23, 59, 59, 999);
+  } else if (filter === 'week') {
+    // Current week (starting Sunday)
+    const day = now.getDay();
+    start.setDate(now.getDate() - day);
+    start.setHours(0, 0, 0, 0);
+    
+    const resetNow = new Date();
+    end = new Date(resetNow);
+    end.setHours(23, 59, 59, 999);
+  } else if (filter === 'month') {
+    start = new Date(now.getFullYear(), now.getMonth(), 1);
+    end = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999);
+  } else if (filter === 'custom' || (startDate && endDate)) {
+    start = new Date(startDate || now);
+    start.setHours(0, 0, 0, 0);
+    end = new Date(endDate || now);
+    end.setHours(23, 59, 59, 999);
+  } else {
+    // Default to this month
+    start = new Date(now.getFullYear(), now.getMonth(), 1);
+    end = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999);
+  }
+
+  return { start, end };
+};
+
+export const getReportDashboard = async (req, res, next) => {
+  try {
+    const { start, end } = parseDateRange(req.query);
+
+    // Total bills generated & total amount billed in date range
+    const billStats = await Bill.aggregate([
+      { $match: { isDeleted: false, date: { $gte: start, $lte: end } } },
+      {
+        $group: {
+          _id: null,
+          count: { $sum: 1 },
+          totalBilled: { $sum: { $add: ['$totalAmount', { $ifNull: ['$passAmount', 0] }] } }
+        }
+      }
+    ]);
+
+    // Total payments received in date range
+    const paymentStats = await Payment.aggregate([
+      { $match: { paymentDate: { $gte: start, $lte: end } } },
+      {
+        $group: {
+          _id: null,
+          totalReceived: { $sum: '$amount' }
+        }
+      }
+    ]);
+
+    // Total active customers
+    const totalCustomers = await Customer.countDocuments({ isDeleted: false });
+
+    // Total outstanding (billed - paid up to 'end' date)
+    const allBills = await Bill.find({ isDeleted: false, date: { $lte: end } });
+    const allPayments = await Payment.find({ paymentDate: { $lte: end } });
+
+    const customerBalances = {};
+    for (const b of allBills) {
+      if (b.customer) {
+        const cid = b.customer.toString();
+        customerBalances[cid] = (customerBalances[cid] || 0) + (b.totalAmount + (b.passAmount || 0));
+      }
+    }
+    for (const p of allPayments) {
+      if (p.customerId) {
+        const cid = p.customerId.toString();
+        customerBalances[cid] = (customerBalances[cid] || 0) - p.amount;
+      }
+    }
+
+    let totalOutstandingAmount = 0;
+    let customersWithOutstanding = 0;
+    for (const cid in customerBalances) {
+      const bal = customerBalances[cid];
+      if (bal > 1e-4) {
+        totalOutstandingAmount += bal;
+        customersWithOutstanding++;
+      }
+    }
+
+    res.json({
+      totalBillsGenerated: billStats[0]?.count || 0,
+      totalAmountBilled: billStats[0]?.totalBilled || 0,
+      totalPaymentsReceived: paymentStats[0]?.totalReceived || 0,
+      totalOutstandingAmount,
+      totalCustomers,
+      customersWithOutstandingBalances: customersWithOutstanding
+    });
+  } catch (err) {
+    next(err);
+  }
+};
+
+export const getOutstandingReport = async (req, res, next) => {
+  try {
+    const { start, end } = parseDateRange(req.query);
+
+    const customers = await Customer.find({ isDeleted: false });
+    const billsInRange = await Bill.find({ isDeleted: false, date: { $gte: start, $lte: end } });
+    const paymentsInRange = await Payment.find({ paymentDate: { $gte: start, $lte: end } });
+
+    const overallBills = await Bill.find({ isDeleted: false, date: { $lte: end } });
+    const overallPayments = await Payment.find({ paymentDate: { $lte: end } });
+
+    const inRangeBilled = {};
+    const inRangePaid = {};
+    const overallBilled = {};
+    const overallPaid = {};
+    const lastPaymentDates = {};
+
+    for (const b of billsInRange) {
+      if (b.customer) {
+        const cid = b.customer.toString();
+        inRangeBilled[cid] = (inRangeBilled[cid] || 0) + (b.totalAmount + (b.passAmount || 0));
+      }
+    }
+    for (const p of paymentsInRange) {
+      if (p.customerId) {
+        const cid = p.customerId.toString();
+        inRangePaid[cid] = (inRangePaid[cid] || 0) + p.amount;
+      }
+    }
+    for (const b of overallBills) {
+      if (b.customer) {
+        const cid = b.customer.toString();
+        overallBilled[cid] = (overallBilled[cid] || 0) + (b.totalAmount + (b.passAmount || 0));
+      }
+    }
+    for (const p of overallPayments) {
+      if (p.customerId) {
+        const cid = p.customerId.toString();
+        overallPaid[cid] = (overallPaid[cid] || 0) + p.amount;
+        
+        const pdate = new Date(p.paymentDate);
+        if (!lastPaymentDates[cid] || pdate > lastPaymentDates[cid]) {
+          lastPaymentDates[cid] = pdate;
+        }
+      }
+    }
+
+    const report = customers.map((c) => {
+      const cid = c._id.toString();
+      const billed = overallBilled[cid] || 0;
+      const paid = overallPaid[cid] || 0;
+      const outstanding = Math.max(0, billed - paid);
+
+      return {
+        customerId: cid,
+        customerName: c.name,
+        phone: c.phone,
+        totalBillsAmount: inRangeBilled[cid] || 0,
+        totalPaidAmount: inRangePaid[cid] || 0,
+        outstandingBalance: outstanding,
+        lastPaymentDate: lastPaymentDates[cid] || null
+      };
+    });
+
+    res.json(report);
+  } catch (err) {
+    next(err);
+  }
+};
+
+export const getPaymentReport = async (req, res, next) => {
+  try {
+    const { start, end } = parseDateRange(req.query);
+
+    const payments = await Payment.find({ paymentDate: { $gte: start, $lte: end } })
+      .populate('customerId', 'name')
+      .sort({ paymentDate: -1 });
+
+    const report = payments.map((p) => ({
+      paymentNumber: p.paymentNumber,
+      paymentDate: p.paymentDate,
+      customerId: p.customerId?._id,
+      customerName: p.customerId?.name || 'Unknown',
+      amountPaid: p.amount,
+      receivedBy: p.receivedBy,
+      notes: p.notes,
+      outstandingBalanceAfterPayment: p.outstandingBalanceAfterPayment,
+      allocationDetails: p.allocationDetails.map((d) => ({
+        billId: d.billId,
+        billNumber: d.billNumber,
+        allocatedAmount: d.allocatedAmount
+      }))
+    }));
+
+    res.json(report);
+  } catch (err) {
+    next(err);
+  }
+};
+
+export const getPartialPaymentReport = async (req, res, next) => {
+  try {
+    const { start, end } = parseDateRange(req.query);
+
+    const payments = await Payment.find({ paymentDate: { $gte: start, $lte: end } })
+      .populate('customerId', 'name')
+      .sort({ paymentDate: -1 });
+
+    const report = payments.map((p) => {
+      const billsAdjusted = p.allocationDetails.map((d) => d.billNumber).join(', ');
+      const allocatedPerBill = p.allocationDetails.map((d) => `${d.billNumber}: ₹${d.allocatedAmount}`).join(', ');
+
+      return {
+        paymentDate: p.paymentDate,
+        customerName: p.customerId?.name || 'Unknown',
+        paymentAmount: p.amount,
+        billsAdjusted,
+        allocatedAmountPerBill: allocatedPerBill,
+        remainingOutstanding: p.outstandingBalanceAfterPayment
+      };
+    });
+
+    res.json(report);
+  } catch (err) {
+    next(err);
+  }
+};
+
+export const getCustomerStatementReport = async (req, res, next) => {
+  try {
+    const customerId = req.params.customerId;
+    const { start, end } = parseDateRange(req.query);
+
+    const customer = await Customer.findById(customerId);
+    if (!customer || customer.isDeleted) {
+      return res.status(404).json({ message: 'Customer not found' });
+    }
+
+    // Bills and Payments in range
+    const bills = await Bill.find({ customer: customerId, isDeleted: false, date: { $gte: start, $lte: end } }).sort({ date: 1 });
+    const payments = await Payment.find({ customerId, paymentDate: { $gte: start, $lte: end } }).sort({ paymentDate: 1 });
+
+    // Ledger (always compute running balance cumulatively from the beginning)
+    const allBills = await Bill.find({ customer: customerId, isDeleted: false }).sort({ date: 1, createdAt: 1 });
+    const allPayments = await Payment.find({ customerId }).sort({ paymentDate: 1, createdAt: 1 });
+
+    const ledgerEntries = [];
+    for (const b of allBills) {
+      ledgerEntries.push({
+        date: b.date,
+        type: 'Bill Created',
+        reference: b.billNumber,
+        debit: b.totalAmount + (b.passAmount || 0),
+        credit: 0,
+        createdAt: b.createdAt
+      });
+    }
+    for (const p of allPayments) {
+      ledgerEntries.push({
+        date: p.paymentDate,
+        type: 'Payment Received',
+        reference: p.paymentNumber,
+        debit: 0,
+        credit: p.amount,
+        createdAt: p.createdAt
+      });
+    }
+
+    ledgerEntries.sort((a, b) => {
+      const dateA = new Date(a.date).getTime();
+      const dateB = new Date(b.date).getTime();
+      if (dateA !== dateB) return dateA - dateB;
+      if (a.type !== b.type) return a.type === 'Bill Created' ? -1 : 1;
+      return new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
+    });
+
+    let runningBal = 0;
+    let ledger = ledgerEntries.map((e) => {
+      runningBal += e.debit - e.credit;
+      return {
+        date: e.date,
+        reference: e.reference,
+        debit: e.debit,
+        credit: e.credit,
+        balance: runningBal
+      };
+    });
+
+    // Filter ledger to date range
+    const startTime = start.getTime();
+    const endTime = end.getTime();
+    ledger = ledger.filter((item) => {
+      const time = new Date(item.date).getTime();
+      return time >= startTime && time <= endTime;
+    });
+
+    // Summary calculations (within range)
+    const totalBillsAmount = bills.reduce((sum, b) => sum + b.totalAmount + (b.passAmount || 0), 0);
+    const totalPaidAmount = payments.reduce((sum, p) => sum + p.amount, 0);
+    
+    // Overall cumulative outstanding balance up to 'end'
+    const cumulativeBilled = allBills.filter((b) => new Date(b.date).getTime() <= endTime).reduce((sum, b) => sum + b.totalAmount + (b.passAmount || 0), 0);
+    const cumulativePaid = allPayments.filter((p) => new Date(p.paymentDate).getTime() <= endTime).reduce((sum, p) => sum + p.amount, 0);
+    const outstandingBalance = Math.max(0, cumulativeBilled - cumulativePaid);
+
+    res.json({
+      customer,
+      bills: bills.map((b) => ({
+        billNumber: b.billNumber,
+        date: b.date,
+        totalAmount: b.totalAmount + (b.passAmount || 0),
+        allocatedAmount: b.allocatedAmount,
+        pendingAmount: b.pendingAmount
+      })),
+      payments: payments.map((p) => ({
+        paymentNumber: p.paymentNumber,
+        paymentDate: p.paymentDate,
+        amountPaid: p.amount,
+        notes: p.notes
+      })),
+      ledger,
+      summary: {
+        totalBillsAmount,
+        totalPaidAmount,
+        outstandingBalance
+      }
+    });
+  } catch (err) {
+    next(err);
+  }
+};
+
 

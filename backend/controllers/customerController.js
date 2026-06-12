@@ -121,47 +121,161 @@ export const addCustomerVehicle = async (req, res, next) => {
 
 export const getCustomerHistory = async (req, res, next) => {
   try {
-    const customer = await Customer.findById(req.params.id);
+    const customerId = req.params.id;
+    const customer = await Customer.findById(customerId);
     if (!customer || customer.isDeleted) {
       return res.status(404).json({ message: 'Customer not found' });
     }
 
     const { startDate, endDate } = req.query;
-    const filter = { customer: req.params.id, isDeleted: false };
+    const billFilter = { customer: customerId, isDeleted: false };
+    const paymentFilter = { customerId };
 
     if (startDate || endDate) {
-      filter.date = {};
+      billFilter.date = {};
+      paymentFilter.paymentDate = {};
       if (startDate) {
         const start = new Date(startDate);
         start.setHours(0, 0, 0, 0);
-        filter.date.$gte = start;
+        billFilter.date.$gte = start;
+        paymentFilter.paymentDate.$gte = start;
       }
       if (endDate) {
         const end = new Date(endDate);
         end.setHours(23, 59, 59, 999);
-        filter.date.$lte = end;
+        billFilter.date.$lte = end;
+        paymentFilter.paymentDate.$lte = end;
       }
     }
 
-    const bills = await Bill.find(filter).sort({ date: -1 });
-    const payments = await Payment.find({ bill: { $in: bills.map((bill) => bill._id) } }).sort({ date: -1 });
-    const paymentsByBill = payments.reduce((acc, payment) => {
-      const id = payment.bill.toString();
-      acc[id] = acc[id] || [];
-      acc[id].push(payment);
-      return acc;
-    }, {});
+    // 1. Fetch bills and payments matching filter
+    const bills = await Bill.find(billFilter).sort({ date: -1 });
+    const payments = await Payment.find(paymentFilter).sort({ paymentDate: -1 });
 
-    const rows = bills.map((bill) => ({
-      ...bill.toObject(),
-      payments: paymentsByBill[bill._id.toString()] || []
-    }));
+    const customerObjId = new mongoose.Types.ObjectId(customerId);
+    const customerIdMatch = { $in: [customerObjId, customerId] };
 
-    const totalAmount = bills.reduce((sum, bill) => sum + bill.totalAmount + (Number(bill.passAmount) || 0), 0);
-    const paidAmount = bills.reduce((sum, bill) => sum + (Number(bill.paidAmount) || 0), 0);
-    const balance = bills.reduce((sum, bill) => sum + (Number(bill.pendingAmount) || 0), 0);
+    // 2. Aggregate stats (within the selected range)
+    const billMatch = { customer: customerIdMatch, isDeleted: false };
+    const paymentMatch = { customerId: customerIdMatch };
+    if (startDate || endDate) {
+      billMatch.date = billFilter.date;
+      paymentMatch.paymentDate = paymentFilter.paymentDate;
+    }
 
-    res.json({ bills: rows, totals: { totalAmount, paidAmount, balance } });
+    const billAgg = await Bill.aggregate([
+      { $match: billMatch },
+      {
+        $group: {
+          _id: null,
+          totalBillsAmount: { $sum: { $add: ['$totalAmount', { $ifNull: ['$passAmount', 0] }] } },
+          totalBillsCount: { $sum: 1 },
+          lastBillDate: { $max: '$date' }
+        }
+      }
+    ]);
+
+    const paymentAgg = await Payment.aggregate([
+      { $match: paymentMatch },
+      {
+        $group: {
+          _id: null,
+          totalPaymentsAmount: { $sum: '$amount' },
+          lastPaymentDate: { $max: '$paymentDate' }
+        }
+      }
+    ]);
+
+    // Overall outstanding (cumulative of all time, ignoring date filter)
+    const overallBillAgg = await Bill.aggregate([
+      { $match: { customer: customerIdMatch, isDeleted: false } },
+      { $group: { _id: null, total: { $sum: { $add: ['$totalAmount', { $ifNull: ['$passAmount', 0] }] } } }
+    ]);
+    const overallPaymentAgg = await Payment.aggregate([
+      { $match: { customerId: customerIdMatch } },
+      { $group: { _id: null, total: { $sum: '$amount' } } }
+    ]);
+
+    const bStats = billAgg[0] || { totalBillsAmount: 0, totalBillsCount: 0, lastBillDate: null };
+    const pStats = paymentAgg[0] || { totalPaymentsAmount: 0, lastPaymentDate: null };
+
+    const overallBilled = overallBillAgg[0]?.total || 0;
+    const overallPaid = overallPaymentAgg[0]?.total || 0;
+    const totalOutstandingAmount = Math.max(0, overallBilled - overallPaid);
+
+    const summary = {
+      totalBillsAmount: bStats.totalBillsAmount,
+      totalPaidAmount: pStats.totalPaymentsAmount,
+      totalOutstandingAmount,
+      totalBillsCount: bStats.totalBillsCount,
+      lastBillDate: bStats.lastBillDate,
+      lastPaymentDate: pStats.lastPaymentDate
+    };
+
+    // 3. Generate running ledger (always computed cumulatively)
+    const allBillsForLedger = await Bill.find({ customer: customerId, isDeleted: false }).sort({ date: 1, createdAt: 1 });
+    const allPaymentsForLedger = await Payment.find({ customerId }).sort({ paymentDate: 1, createdAt: 1 });
+
+    const ledgerEntries = [];
+    for (const b of allBillsForLedger) {
+      ledgerEntries.push({
+        date: b.date,
+        type: 'Bill Created',
+        reference: b.billNumber,
+        debit: b.totalAmount + (b.passAmount || 0),
+        credit: 0,
+        createdAt: b.createdAt
+      });
+    }
+    for (const p of allPaymentsForLedger) {
+      ledgerEntries.push({
+        date: p.paymentDate,
+        type: 'Payment Received',
+        reference: p.paymentNumber,
+        debit: 0,
+        credit: p.amount,
+        createdAt: p.createdAt
+      });
+    }
+
+    ledgerEntries.sort((a, b) => {
+      const dateA = new Date(a.date).getTime();
+      const dateB = new Date(b.date).getTime();
+      if (dateA !== dateB) return dateA - dateB;
+      if (a.type !== b.type) return a.type === 'Bill Created' ? -1 : 1;
+      return new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
+    });
+
+    let runningBal = 0;
+    let ledger = ledgerEntries.map((e) => {
+      runningBal += e.debit - e.credit;
+      return {
+        date: e.date,
+        transactionType: e.type,
+        referenceNumber: e.reference,
+        debit: e.debit,
+        credit: e.credit,
+        runningBalance: runningBal
+      };
+    });
+
+    // Filter ledger if date filters are active
+    if (startDate || endDate) {
+      const start = startDate ? new Date(startDate).setHours(0, 0, 0, 0) : 0;
+      const end = endDate ? new Date(endDate).setHours(23, 59, 59, 999) : Infinity;
+      ledger = ledger.filter((item) => {
+        const time = new Date(item.date).getTime();
+        return time >= start && time <= end;
+      });
+    }
+
+    res.json({
+      customer,
+      summary,
+      bills,
+      payments,
+      ledger
+    });
   } catch (err) {
     next(err);
   }

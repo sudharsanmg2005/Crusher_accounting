@@ -2,8 +2,10 @@ import Customer from '../models/Customer.js';
 import Employee from '../models/Employee.js';
 import Attendance from '../models/Attendance.js';
 import Bill from '../models/Bill.js';
+import Payment from '../models/Payment.js';
 import { findActiveByPhone } from '../utils/phone.js';
 import { normalizeVehicleNumber } from '../utils/vehicleNumber.js';
+import { recalculateCustomerBalances } from './paymentService.js';
 
 const buildAuditPayload = (recordType, phoneNumber, actionTaken, details) => ({
   auditDetails: details,
@@ -139,6 +141,12 @@ export const restoreCustomerRecord = async (backupId, action = 'restore') => {
       // Update customerNameSnapshot for all bills of the active customer to the merged name
       await Bill.updateMany({ customer: existing._id }, { customerNameSnapshot: existing.name });
 
+      // Update all payments belonging to the backup customer to reference the active customer
+      await Payment.updateMany({ customerId: backup._id }, { customerId: existing._id });
+
+      // Re-calculate FIFO allocations and outstanding balances for the merged customer
+      await recalculateCustomerBalances(existing._id);
+
       return {
         status: 'Restored',
         message: 'Merged backup into existing customer',
@@ -157,8 +165,17 @@ export const restoreCustomerRecord = async (backupId, action = 'restore') => {
     if (action === 'replace') {
       existing.isDeleted = true;
       await existing.save();
+      
       backup.isDeleted = false;
       await backup.save();
+
+      // Update bills and payments belonging to the replaced active customer to reference the backup
+      await Bill.updateMany({ customer: existing._id }, { customer: backup._id });
+      await Payment.updateMany({ customerId: existing._id }, { customerId: backup._id });
+
+      // Re-calculate FIFO allocations and outstanding balances for the active customer
+      await recalculateCustomerBalances(backup._id);
+
       return {
         status: 'Restored',
         message: 'Replaced current customer with backup record',
@@ -191,6 +208,10 @@ export const restoreCustomerRecord = async (backupId, action = 'restore') => {
 
   backup.isDeleted = false;
   await backup.save();
+
+  // Re-calculate balances for the restored customer
+  await recalculateCustomerBalances(backup._id);
+
   return {
     status: 'Restored',
     message: 'Customer restored',

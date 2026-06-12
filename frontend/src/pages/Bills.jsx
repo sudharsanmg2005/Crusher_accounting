@@ -33,8 +33,10 @@ const Bills = () => {
   
   // State for recording a payment
   const [paymentModalOpen, setPaymentModalOpen] = useState(false);
-  const [currentBillId, setCurrentBillId] = useState(null);
+  const [currentBill, setCurrentBill] = useState(null);
   const [paymentAmount, setPaymentAmount] = useState('');
+  const [paymentNote, setPaymentNote] = useState('');
+  const [paymentReceivedBy, setPaymentReceivedBy] = useState('');
 
   const [formData, setFormData] = useState(emptyForm());
   const [editFormData, setEditFormData] = useState({ vehicleNumber: '', quantity: '', quantityUnit: 'unit', pricePerUnit: '' });
@@ -50,7 +52,7 @@ const Bills = () => {
     mode: 'date_newest',
     search: '',
     customerId: '',
-    status: '',
+    status: '', // '' = all, 'Outstanding' = pending > 0, 'Settled' = pending === 0
     particularDate: '',
     startDate: '',
     endDate: '',
@@ -81,7 +83,7 @@ const Bills = () => {
 
     if (search) {
       result = result.filter((bill) =>
-        [bill.customerNameSnapshot, bill.vehicleNumber, bill.materialNameSnapshot]
+        [bill.customerNameSnapshot, bill.vehicleNumber, bill.materialNameSnapshot, bill.billNumber]
           .filter(Boolean)
           .some((value) => value.toLowerCase().includes(search))
       );
@@ -92,7 +94,11 @@ const Bills = () => {
     }
 
     if (filters.status) {
-      result = result.filter((bill) => bill.paymentStatus === filters.status);
+      if (filters.status === 'Outstanding') {
+        result = result.filter((bill) => bill.pendingAmount > 0);
+      } else if (filters.status === 'Settled') {
+        result = result.filter((bill) => bill.pendingAmount === 0);
+      }
     }
 
     if (filters.mode === 'particular_date' && filters.particularDate) {
@@ -140,7 +146,7 @@ const Bills = () => {
     return filteredBills.reduce(
       (acc, bill) => {
         acc.total += Number(bill.totalAmount || 0) + Number(bill.passAmount || 0);
-        acc.paid += Number(bill.paidAmount || 0);
+        acc.paid += Number(bill.allocatedAmount || 0);
         acc.pending += Number(bill.pendingAmount || 0);
         return acc;
       },
@@ -272,11 +278,25 @@ const Bills = () => {
 
   const handlePaymentSubmit = async (e) => {
     e.preventDefault();
+    const amount = Number(paymentAmount);
+    if (!amount || amount <= 0) {
+      alert('Please enter a valid payment amount');
+      return;
+    }
+    
     try {
-      await api.post(`/bills/${currentBillId}/pay`, { amount: Number(paymentAmount) });
+      // Call endpoint. Backend will execute FIFO allocation for the customer
+      await api.post(`/bills/${currentBill._id}/pay`, { 
+        amount,
+        note: paymentNote,
+        method: paymentReceivedBy
+      });
+      
       setPaymentModalOpen(false);
       setPaymentAmount('');
-      setCurrentBillId(null);
+      setPaymentNote('');
+      setPaymentReceivedBy('');
+      setCurrentBill(null);
       fetchData();
     } catch (error) {
       console.error('Error processing payment', error);
@@ -299,8 +319,10 @@ const Bills = () => {
   };
 
   const openPaymentModal = (bill) => {
-    setCurrentBillId(bill._id);
+    setCurrentBill(bill);
     setPaymentAmount(bill.pendingAmount.toString());
+    setPaymentNote('');
+    setPaymentReceivedBy(user?.name || '');
     setPaymentModalOpen(true);
   };
 
@@ -339,12 +361,11 @@ const Bills = () => {
     }
   };
 
-  const getStatusColor = (status) => {
-    switch(status) {
-      case 'Paid': return 'bg-green-100 text-green-800 border-green-200';
-      case 'Partially Paid': return 'bg-orange-100 text-orange-800 border-orange-200';
-      default: return 'bg-red-100 text-red-800 border-red-200';
+  const getStatusColor = (pendingAmount) => {
+    if (pendingAmount > 0) {
+      return 'bg-rose-100 text-rose-800 border-rose-200';
     }
+    return 'bg-green-100 text-green-800 border-green-200';
   };
 
   return (
@@ -379,10 +400,9 @@ const Bills = () => {
               {customers.map((customer) => <option key={customer._id} value={customer._id}>{customer.name}</option>)}
             </select>
             <select value={filters.status} onChange={(e) => setFilters((prev) => ({ ...prev, status: e.target.value }))} className="border border-slate-300 rounded-lg p-2 text-sm bg-white focus:ring-2 focus:ring-blue-500 outline-none">
-              <option value="">All payment status</option>
-              <option value="Pending">Pending</option>
-              <option value="Partially Paid">Partially Paid</option>
-              <option value="Paid">Paid</option>
+              <option value="">All outstanding / settled</option>
+              <option value="Outstanding">Outstanding</option>
+              <option value="Settled">Settled</option>
             </select>
             <select value={filters.mode} onChange={(e) => setFilters((prev) => ({ ...prev, mode: e.target.value }))} className="border border-slate-300 rounded-lg p-2 text-sm bg-white focus:ring-2 focus:ring-blue-500 outline-none">
               <option value="date_newest">Date: newest first</option>
@@ -413,8 +433,8 @@ const Bills = () => {
           <div className="flex flex-wrap gap-3 text-sm">
             <span className="bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 font-semibold text-slate-700">Bills: {filteredBills.length}</span>
             <span className="bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 font-semibold text-slate-700">Total: ₹{filteredTotals.total.toLocaleString()}</span>
-            <span className="bg-emerald-50 border border-emerald-200 rounded-lg px-3 py-2 font-semibold text-emerald-700">Paid: ₹{filteredTotals.paid.toLocaleString()}</span>
-            <span className="bg-red-50 border border-red-200 rounded-lg px-3 py-2 font-semibold text-red-700">Pending: ₹{filteredTotals.pending.toLocaleString()}</span>
+            <span className="bg-emerald-50 border border-emerald-200 rounded-lg px-3 py-2 font-semibold text-emerald-700">Allocated: ₹{filteredTotals.paid.toLocaleString()}</span>
+            <span className="bg-red-50 border border-red-200 rounded-lg px-3 py-2 font-semibold text-red-700">Outstanding: ₹{filteredTotals.pending.toLocaleString()}</span>
           </div>
         </div>
         {loading ? (
@@ -432,7 +452,8 @@ const Bills = () => {
                   <th className="p-4 font-semibold whitespace-nowrap">Vehicle No.</th>
                   <th className="p-4 font-semibold whitespace-nowrap">Material (Qty)</th>
                   <th className="p-4 font-semibold whitespace-nowrap">Total (₹)</th>
-                  <th className="p-4 font-semibold whitespace-nowrap">Pending (₹)</th>
+                  <th className="p-4 font-semibold whitespace-nowrap">Allocated (₹)</th>
+                  <th className="p-4 font-semibold whitespace-nowrap">Outstanding (₹)</th>
                   <th className="p-4 font-semibold text-center whitespace-nowrap">Status</th>
                   <th className="p-4 font-semibold text-right">Actions</th>
                 </tr>
@@ -467,10 +488,11 @@ const Bills = () => {
                       <td className="p-4 font-bold text-slate-800">
                         ₹{(Number(bill.totalAmount) + Number(bill.passAmount || 0)).toLocaleString()}
                       </td>
+                      <td className="p-4 text-slate-600">₹{(bill.allocatedAmount || 0).toLocaleString()}</td>
                       <td className="p-4 font-semibold text-red-600">₹{bill.pendingAmount.toLocaleString()}</td>
                       <td className="p-4 text-center">
-                        <span className={`px-2.5 py-1 rounded-full text-xs font-semibold border ${getStatusColor(bill.paymentStatus)}`}>
-                          {bill.paymentStatus}
+                        <span className={`px-2.5 py-1 rounded-full text-xs font-semibold border ${getStatusColor(bill.pendingAmount)}`}>
+                          {bill.pendingAmount > 0 ? 'Outstanding' : 'Settled'}
                         </span>
                       </td>
                       <td className="p-4 text-right space-x-2 whitespace-nowrap">
@@ -490,7 +512,7 @@ const Bills = () => {
                             <EditIcon className="h-5 w-5" />
                           </button>
                         )}
-                        {canWrite && bill.paymentStatus !== 'Paid' && (
+                        {canWrite && bill.pendingAmount > 0 && (
                           <button 
                             onClick={() => openPaymentModal(bill)} 
                             className="text-blue-600 hover:text-blue-800 hover:bg-blue-50 p-2 rounded-lg transition-colors inline-flex items-center"
@@ -515,26 +537,30 @@ const Bills = () => {
                         <td colSpan="10" className="p-6">
                           <div className="bg-white rounded-lg border border-slate-200 overflow-hidden">
                             <div className="bg-slate-100 px-4 py-3 border-b border-slate-200">
-                              <h3 className="font-semibold text-slate-800">Payment History</h3>
+                              <h3 className="font-semibold text-slate-800">Payments Applied to this Bill</h3>
                             </div>
                             {paymentHistory[bill._id] && paymentHistory[bill._id].length > 0 ? (
                               <div className="overflow-auto">
                                 <table className="w-full text-sm">
                                   <thead>
                                     <tr className="border-b border-slate-200 bg-slate-50 text-xs text-slate-600 uppercase">
+                                      <th className="p-3 text-left font-semibold">Payment Number</th>
                                       <th className="p-3 text-left font-semibold">Date</th>
-                                      <th className="p-3 text-right font-semibold">Amount (₹)</th>
+                                      <th className="p-3 text-right font-semibold">Amount Applied (₹)</th>
+                                      <th className="p-3 text-left font-semibold">Notes</th>
                                     </tr>
                                   </thead>
                                   <tbody className="divide-y divide-slate-100">
                                     {paymentHistory[bill._id].map((payment, idx) => {
-                                      const { date } = formatDateTime(payment.paymentDate || payment.date);
+                                      const { date } = formatDateTime(payment.date || payment.paymentDate);
                                       return (
-                                      <tr key={idx} className="hover:bg-slate-50">
-                                        <td className="p-3 text-slate-600">{date}</td>
-                                        <td className="p-3 text-right font-semibold text-green-600">₹{Number(payment.amount).toLocaleString()}</td>
-                                      </tr>
-                                    );
+                                        <tr key={idx} className="hover:bg-slate-50">
+                                          <td className="p-3 font-semibold text-slate-700">{payment.paymentNumber || '—'}</td>
+                                          <td className="p-3 text-slate-600">{date}</td>
+                                          <td className="p-3 text-right font-semibold text-green-600">₹{Number(payment.amount).toLocaleString()}</td>
+                                          <td className="p-3 text-slate-500 italic">{payment.note || payment.notes || '—'}</td>
+                                        </tr>
+                                      );
                                     })}
                                   </tbody>
                                 </table>
@@ -794,30 +820,76 @@ const Bills = () => {
       )}
 
       {/* Record Payment Modal */}
-      {paymentModalOpen && (
+      {paymentModalOpen && currentBill && (
         <div className="fixed inset-0 bg-slate-900/50 flex items-center justify-center p-4 z-50 animate-in fade-in duration-200">
           <div className="bg-white rounded-xl shadow-2xl w-full max-w-sm overflow-hidden flex flex-col">
             <div className="p-5 border-b border-slate-100 flex justify-between items-center bg-blue-50">
               <h2 className="text-xl font-bold text-blue-900">Record Payment</h2>
-              <button onClick={() => setPaymentModalOpen(false)} className="text-blue-400 hover:text-blue-600 text-2xl leading-none">&times;</button>
+              <button onClick={() => { setPaymentModalOpen(false); setCurrentBill(null); }} className="text-blue-400 hover:text-blue-600 text-2xl leading-none font-bold">&times;</button>
             </div>
             
             <form onSubmit={handlePaymentSubmit} className="p-6 space-y-4">
+              <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 text-xs space-y-1">
+                <div className="flex justify-between">
+                  <span className="text-slate-500 font-semibold">Customer:</span>
+                  <span className="font-bold text-slate-800">{currentBill.customerNameSnapshot}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-slate-500 font-semibold">Bill Number:</span>
+                  <span className="font-bold text-slate-800">{currentBill.billNumber}</span>
+                </div>
+                <div className="flex justify-between mt-2 pt-2 border-t border-slate-200">
+                  <span className="text-rose-500 font-bold">Bill Outstanding:</span>
+                  <span className="font-bold text-rose-600">₹{currentBill.pendingAmount.toLocaleString()}</span>
+                </div>
+                <div className="text-[10px] text-slate-400 mt-2 italic">
+                  Note: Payment will be allocated to this customer's oldest outstanding bills in FIFO order.
+                </div>
+              </div>
+
               <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">Amount Receiving (₹) *</label>
+                <label className="block text-sm font-semibold text-slate-700 mb-1">Amount Receiving (₹) *</label>
                 <div className="relative">
-                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500">₹</span>
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500 font-bold">₹</span>
                   <input 
-                    type="number" required value={paymentAmount} onChange={(e) => setPaymentAmount(e.target.value)} min="1" step="1"
+                    type="number" 
+                    required 
+                    value={paymentAmount} 
+                    onChange={(e) => setPaymentAmount(e.target.value)} 
+                    min="1" 
+                    step="0.01"
                     className="w-full text-lg font-bold border border-slate-300 rounded-lg p-3 pl-8 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition"
                   />
                 </div>
               </div>
+
+              <div>
+                <label className="block text-sm font-semibold text-slate-700 mb-1">Received By</label>
+                <input 
+                  type="text" 
+                  value={paymentReceivedBy} 
+                  onChange={(e) => setPaymentReceivedBy(e.target.value)}
+                  className="w-full border border-slate-300 rounded-lg p-2.5 focus:ring-2 focus:ring-blue-500 outline-none text-sm bg-white text-slate-800"
+                  placeholder="Cashier or Employee name"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-semibold text-slate-700 mb-1">Notes</label>
+                <textarea 
+                  rows="2" 
+                  value={paymentNote} 
+                  onChange={(e) => setPaymentNote(e.target.value)}
+                  className="w-full border border-slate-300 rounded-lg p-2.5 focus:ring-2 focus:ring-blue-500 outline-none text-sm bg-white text-slate-800"
+                  placeholder="E.g. Received cash, cheque etc."
+                />
+              </div>
+
               <div className="pt-4 flex justify-end space-x-3 border-t border-slate-100">
-                <button type="button" onClick={() => setPaymentModalOpen(false)} className="px-4 py-2 text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-lg font-medium transition">
+                <button type="button" onClick={() => { setPaymentModalOpen(false); setCurrentBill(null); }} className="px-4 py-2 text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-lg font-semibold text-sm transition">
                   Cancel
                 </button>
-                <button type="submit" className="px-5 py-2 bg-green-600 text-white rounded-lg font-medium hover:bg-green-700 transition shadow-md">
+                <button type="submit" className="px-5 py-2 bg-green-600 text-white rounded-lg font-semibold text-sm hover:bg-green-700 transition shadow-md">
                   Confirm Payment
                 </button>
               </div>
@@ -845,9 +917,9 @@ const Bills = () => {
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">Phone Number (optional, 10 digits)</label>
+                <label className="block text-sm font-medium text-slate-700 mb-1">Phone Number * (10 digits)</label>
                 <input 
-                  type="tel" value={newCustomerData.phone} onChange={(e) => setNewCustomerData({...newCustomerData, phone: e.target.value.replace(/\D/g, '').slice(0, 10)})}
+                  type="tel" required value={newCustomerData.phone} onChange={(e) => setNewCustomerData({...newCustomerData, phone: e.target.value.replace(/\D/g, '').slice(0, 10)})}
                   className="w-full border border-slate-300 rounded-lg p-2.5 focus:ring-2 focus:ring-green-500 focus:border-green-500 outline-none transition"
                   placeholder="9876543210"
                   maxLength={10}

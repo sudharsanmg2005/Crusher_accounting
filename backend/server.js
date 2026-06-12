@@ -19,6 +19,8 @@ import employeeRoutes from './routes/employeeRoutes.js';
 import restoreManagementRoutes from './routes/restoreManagementRoutes.js';
 import loadRoutes from './routes/loadRoutes.js';
 import buyerRoutes from './routes/buyerRoutes.js';
+import paymentRoutes from './routes/paymentRoutes.js';
+import { migrateOldPayments } from './services/paymentService.js';
 
 dotenv.config();
 
@@ -32,7 +34,13 @@ if (isProduction) {
   app.set('trust proxy', 1);
 }
 
-connectDB();
+connectDB().then(async () => {
+  try {
+    await migrateOldPayments();
+  } catch (err) {
+    console.error('Database migration failed on startup:', err);
+  }
+});
 
 const resolveCors = () => {
   const configured = process.env.CORS_ORIGIN?.trim();
@@ -66,6 +74,7 @@ app.use('/api/employees', requireAuth, requireAdmin, auditWrites, employeeRoutes
 app.use('/api/restore-management', requireAuth, requireAdmin, auditWrites, restoreManagementRoutes);
 app.use('/api/loads', requireAuth, requireAdmin, auditWrites, loadRoutes);
 app.use('/api/buyers', requireAuth, requireAdmin, auditWrites, buyerRoutes);
+app.use('/api/payments', requireAuth, requireAdmin, auditWrites, paymentRoutes);
 
 if (isProduction) {
   const frontendDist = path.join(__dirname, '../frontend/dist');
