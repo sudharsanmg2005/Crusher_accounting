@@ -159,7 +159,7 @@ const SuperAdminDashboard = () => {
       filterRecords(liveBills, liveFilters, {
         getDate: (bill) => bill.date,
         getSearchText: (bill) =>
-          [bill.customerNameSnapshot, bill.vehicleNumber, bill.materialNameSnapshot, bill.billNumber]
+          [bill.customerNameSnapshot, bill.vehicleNumber, bill.materialNameSnapshot]
             .filter(Boolean)
             .join(' '),
         getCustomerId: (bill) => bill.customer,
@@ -258,7 +258,7 @@ const SuperAdminDashboard = () => {
             filters={liveFilters}
             onChange={setLiveFilters}
             customers={businessRecords.customers}
-            searchPlaceholder="Customer, vehicle, material, bill no."
+            searchPlaceholder="Customer, vehicle, material"
             statusOptions={[
               { value: 'Pending', label: 'Pending' },
               { value: 'Partially Paid', label: 'Partially Paid' },

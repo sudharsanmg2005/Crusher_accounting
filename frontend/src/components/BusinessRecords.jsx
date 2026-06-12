@@ -60,7 +60,7 @@ const BusinessRecords = ({ records, filters, onFiltersChange, onRefresh }) => {
       filterRecords(records.bills, filters, {
         getDate: (item) => item.date,
         getSearchText: (item) =>
-          [item.customerNameSnapshot, item.vehicleNumber, item.materialNameSnapshot, item.billNumber]
+          [item.customerNameSnapshot, item.vehicleNumber, item.materialNameSnapshot]
             .filter(Boolean)
             .join(' '),
         getCustomerId: (item) => item.customer,

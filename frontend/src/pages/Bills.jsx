@@ -32,6 +32,14 @@ const Bills = () => {
   const [editingBill, setEditingBill] = useState(null);
   const [formData, setFormData] = useState(emptyForm());
   const [editFormData, setEditFormData] = useState({ vehicleNumber: '', quantity: '', quantityUnit: 'unit', pricePerUnit: '' });
+  
+  // State for payment editing/deleting
+  const [editPaymentModalOpen, setEditPaymentModalOpen] = useState(false);
+  const [editingPayment, setEditingPayment] = useState(null);
+  const [editPaymentAmount, setEditPaymentAmount] = useState('');
+  const [editPaymentDate, setEditPaymentDate] = useState('');
+  const [editPaymentNote, setEditPaymentNote] = useState('');
+  const [editPaymentReceivedBy, setEditPaymentReceivedBy] = useState('');
 
   // State for creating new customer
   const [isCreateCustomerOpen, setIsCreateCustomerOpen] = useState(false);
@@ -75,7 +83,7 @@ const Bills = () => {
 
     if (search) {
       result = result.filter((bill) =>
-        [bill.customerNameSnapshot, bill.vehicleNumber, bill.materialNameSnapshot, bill.billNumber]
+        [bill.customerNameSnapshot, bill.vehicleNumber, bill.materialNameSnapshot]
           .filter(Boolean)
           .some((value) => value.toLowerCase().includes(search))
       );
@@ -317,6 +325,74 @@ const Bills = () => {
     }
   };
 
+  const refreshPaymentHistory = async (billId) => {
+    try {
+      const response = await api.get(`/bills/${billId}`);
+      const bill = response.data;
+      setPaymentHistory(prev => ({...prev, [billId]: bill.payments || []}));
+    } catch (error) {
+      console.error('Error refreshing payment history', error);
+    }
+  };
+
+  const openEditPaymentModal = (pay) => {
+    setEditingPayment(pay);
+    // Use fullAmount if available, fallback to amount (which is the allocated portion)
+    setEditPaymentAmount((pay.fullAmount ?? pay.amount).toString());
+    const dateStr = pay.date || pay.paymentDate ? new Date(pay.date || pay.paymentDate).toISOString().split('T')[0] : '';
+    setEditPaymentDate(dateStr);
+    setEditPaymentNote(pay.note || pay.notes || '');
+    setEditPaymentReceivedBy(pay.method || pay.receivedBy || '');
+    setEditPaymentModalOpen(true);
+  };
+
+  const handleEditPaymentSubmit = async (e) => {
+    e.preventDefault();
+    const amount = Number(editPaymentAmount);
+    if (!amount || amount <= 0) {
+      alert('Please enter a valid payment amount');
+      return;
+    }
+    try {
+      await api.put(`/payments/${editingPayment._id}`, {
+        amount,
+        date: editPaymentDate,
+        notes: editPaymentNote,
+        receivedBy: editPaymentReceivedBy
+      });
+      setEditPaymentModalOpen(false);
+      setEditingPayment(null);
+      await fetchData();
+      if (expandedBillId) {
+        await refreshPaymentHistory(expandedBillId);
+      }
+    } catch (error) {
+      console.error('Error updating payment', error);
+      alert('Error updating payment: ' + (error.response?.data?.message || 'Unknown error'));
+    }
+  };
+
+  const handleDeletePayment = async (pay) => {
+    const ok = await confirm({
+      title: 'Delete Payment',
+      message: `Are you sure you want to delete payment ${pay.paymentNumber || ''} of ₹${pay.amount.toLocaleString()}? This will recalculate customer balances.`,
+      confirmText: 'Delete',
+      tone: 'danger'
+    });
+    if (ok) {
+      try {
+        await api.delete(`/payments/${pay._id}`);
+        await fetchData();
+        if (expandedBillId) {
+          await refreshPaymentHistory(expandedBillId);
+        }
+      } catch (error) {
+        console.error('Error deleting payment', error);
+        alert('Error deleting payment: ' + (error.response?.data?.message || 'Unknown error'));
+      }
+    }
+  };
+
   const getStatusColor = (pendingAmount) => {
     if (pendingAmount > 0) {
       return 'bg-rose-100 text-rose-800 border-rose-200';
@@ -495,6 +571,7 @@ const Bills = () => {
                                       <th className="p-3 text-left font-semibold">Date</th>
                                       <th className="p-3 text-right font-semibold">Amount Applied (₹)</th>
                                       <th className="p-3 text-left font-semibold">Notes</th>
+                                      {canWrite && <th className="p-3 text-right font-semibold">Actions</th>}
                                     </tr>
                                   </thead>
                                   <tbody className="divide-y divide-slate-100">
@@ -506,6 +583,24 @@ const Bills = () => {
                                           <td className="p-3 text-slate-600">{date}</td>
                                           <td className="p-3 text-right font-semibold text-green-600">₹{Number(payment.amount).toLocaleString()}</td>
                                           <td className="p-3 text-slate-500 italic">{payment.note || payment.notes || '—'}</td>
+                                          {canWrite && (
+                                            <td className="p-3 text-right space-x-2 whitespace-nowrap">
+                                              <button 
+                                                onClick={() => openEditPaymentModal(payment)} 
+                                                className="text-blue-600 hover:text-blue-800 hover:bg-blue-50 p-1.5 rounded-lg transition-colors inline-flex items-center" 
+                                                title="Edit Payment"
+                                              >
+                                                <EditIcon className="h-4 w-4" />
+                                              </button>
+                                              <button 
+                                                onClick={() => handleDeletePayment(payment)} 
+                                                className="text-red-600 hover:text-red-800 hover:bg-red-50 p-1.5 rounded-lg transition-colors inline-flex items-center" 
+                                                title="Delete Payment"
+                                              >
+                                                <TrashIcon className="h-4 w-4" />
+                                              </button>
+                                            </td>
+                                          )}
                                         </tr>
                                       );
                                     })}
@@ -807,6 +902,53 @@ const Bills = () => {
                 </button>
                 <button type="submit" className="px-5 py-2 bg-green-600 text-white rounded-lg font-medium hover:bg-green-700 transition shadow-md">
                   Create Customer
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+      {/* Edit Payment Modal */}
+      {editPaymentModalOpen && editingPayment && (
+        <div className="fixed inset-0 bg-slate-900/50 flex items-center justify-center p-4 z-50 animate-in fade-in duration-200">
+          <div className="bg-white rounded-xl shadow-2xl w-full max-w-md overflow-hidden">
+            <div className="p-5 border-b border-slate-100 flex justify-between items-center bg-blue-50">
+              <h2 className="text-xl font-bold text-blue-900">Edit Payment Details</h2>
+              <button onClick={() => setEditPaymentModalOpen(false)} className="text-blue-400 hover:text-blue-600 text-2xl leading-none">&times;</button>
+            </div>
+            
+            <form onSubmit={handleEditPaymentSubmit} className="p-6 space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">Payment Number</label>
+                <input type="text" disabled value={editingPayment.paymentNumber || '—'} className="w-full border border-slate-200 rounded-lg p-2.5 bg-slate-50 text-slate-400 outline-none cursor-not-allowed text-sm" />
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">Payment Date *</label>
+                <input type="date" required value={editPaymentDate} onChange={(e) => setEditPaymentDate(e.target.value)} className="w-full border border-slate-300 rounded-lg p-2.5 text-sm" />
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">Total Payment Amount (₹) *</label>
+                <input type="number" required min="1" step="0.01" value={editPaymentAmount} onChange={(e) => setEditPaymentAmount(e.target.value)} className="w-full border border-slate-300 rounded-lg p-2.5 text-sm font-semibold text-slate-900" />
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">Received By</label>
+                <input type="text" value={editPaymentReceivedBy} onChange={(e) => setEditPaymentReceivedBy(e.target.value)} className="w-full border border-slate-300 rounded-lg p-2.5 text-sm" placeholder="e.g. cashier name" />
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">Notes</label>
+                <textarea rows="3" value={editPaymentNote} onChange={(e) => setEditPaymentNote(e.target.value)} className="w-full border border-slate-300 rounded-lg p-2.5 text-sm" placeholder="Add details or references..."></textarea>
+              </div>
+              
+              <div className="pt-4 flex justify-end space-x-3 border-t border-slate-100">
+                <button type="button" onClick={() => setEditPaymentModalOpen(false)} className="px-4 py-2 text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-lg font-medium transition text-sm">
+                  Cancel
+                </button>
+                <button type="submit" className="px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition shadow-md text-sm">
+                  Save Changes
                 </button>
               </div>
             </form>

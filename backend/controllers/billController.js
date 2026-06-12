@@ -80,9 +80,11 @@ export const getBillById = async (req, res, next) => {
       return {
         _id: p._id,
         amount: allocation ? allocation.allocatedAmount : p.amount,
+        fullAmount: p.amount,
+        paymentNumber: p.paymentNumber,
         date: p.paymentDate,
         method: p.receivedBy || 'Cash',
-        note: p.notes
+        note: p.notes || p.note
       };
     });
 

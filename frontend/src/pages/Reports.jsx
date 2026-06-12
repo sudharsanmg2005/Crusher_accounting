@@ -314,7 +314,6 @@ const Reports = () => {
                     <thead className="bg-slate-50 border-b border-slate-200 text-sm text-slate-600 uppercase tracking-wider">
                       <tr>
                         <th className="p-4 font-semibold whitespace-nowrap">S.NO</th>
-                        <th className="p-4 font-semibold whitespace-nowrap">BILL NO</th>
                         <th className="p-4 font-semibold whitespace-nowrap">DATE</th>
                         {!statement.customer && (
                           <th className="p-4 font-semibold whitespace-nowrap">CUSTOMER</th>
@@ -333,7 +332,7 @@ const Reports = () => {
                     <tbody className="divide-y divide-slate-100">
                       {statement.rows.length === 0 ? (
                         <tr>
-                          <td colSpan={!statement.customer ? "13" : "12"} className="p-8 text-center text-slate-500">
+                          <td colSpan={!statement.customer ? "12" : "11"} className="p-8 text-center text-slate-500">
                             No records found for this date range.
                           </td>
                         </tr>
@@ -341,7 +340,6 @@ const Reports = () => {
                         statement.rows.map((r) => (
                           <tr key={`${r.sno}-${r.date}-${r.vehicle}`} className="hover:bg-slate-50 transition">
                             <td className="p-4 text-slate-700 font-medium whitespace-nowrap">{r.sno}</td>
-                            <td className="p-4 text-slate-700 font-semibold whitespace-nowrap">{r.billNumber}</td>
                             <td className="p-4 text-slate-700 whitespace-nowrap">{r.date}</td>
                             {!statement.customer && (
                               <td className="p-4 text-slate-800 font-semibold whitespace-nowrap">{r.customerName || ''}</td>

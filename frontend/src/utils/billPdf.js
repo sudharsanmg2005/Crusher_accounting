@@ -112,5 +112,5 @@ export const downloadBillPdf = (bill) => {
   doc.setTextColor(148, 163, 184); // slate-400
   doc.text('Thank you for your business!', pageWidth / 2, 200, { align: 'center' });
 
-  doc.save(`Bill-${bill.billNumber || bill._id?.slice(-6) || 'invoice'}.pdf`);
+  doc.save(`Bill-${(bill.customerNameSnapshot || 'invoice').replace(/\s+/g, '_')}-${dateStr.replace(/\//g, '_')}.pdf`);
 };

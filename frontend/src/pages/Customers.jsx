@@ -684,7 +684,6 @@ const Customers = () => {
                       <table className="w-full text-left border-collapse text-sm">
                         <thead className="bg-slate-50 border-b border-slate-200 text-slate-500 font-semibold">
                           <tr>
-                            <th className="p-3">Bill No</th>
                             <th className="p-3">Date</th>
                             <th className="p-3 text-right">Total</th>
                             <th className="p-3 text-right">Pending</th>
@@ -693,7 +692,6 @@ const Customers = () => {
                         <tbody className="divide-y divide-slate-100">
                           {customerDetails.bills?.slice(0, 5).map((bill) => (
                             <tr key={bill._id} className="hover:bg-slate-50">
-                              <td className="p-3 font-semibold text-slate-700">{bill.billNumber}</td>
                               <td className="p-3 text-slate-500">{formatDateTime(bill.date).date}</td>
                               <td className="p-3 text-right font-medium text-slate-800">₹{(bill.totalAmount + (bill.passAmount || 0)).toLocaleString()}</td>
                               <td className={`p-3 text-right font-bold ${bill.pendingAmount > 0 ? 'text-rose-600' : 'text-slate-500'}`}>
@@ -703,7 +701,7 @@ const Customers = () => {
                           ))}
                           {(!customerDetails.bills || customerDetails.bills.length === 0) && (
                             <tr>
-                              <td colSpan={4} className="p-8 text-center text-slate-400">No bills found</td>
+                              <td colSpan={3} className="p-8 text-center text-slate-400">No bills found</td>
                             </tr>
                           )}
                         </tbody>
@@ -725,6 +723,7 @@ const Customers = () => {
                             <th className="p-3">Date</th>
                             <th className="p-3 text-right">Amount</th>
                             <th className="p-3">Received By</th>
+                            {canWrite && <th className="p-3 text-right">Actions</th>}
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-100">
@@ -734,11 +733,29 @@ const Customers = () => {
                               <td className="p-3 text-slate-500">{formatDateTime(pay.paymentDate).date}</td>
                               <td className="p-3 text-right font-bold text-emerald-700">₹{pay.amount.toLocaleString()}</td>
                               <td className="p-3 text-slate-600">{pay.receivedBy || '—'}</td>
+                              {canWrite && (
+                                <td className="p-3 text-right space-x-2 whitespace-nowrap">
+                                  <button 
+                                    onClick={() => openEditPaymentModal(pay)} 
+                                    className="text-blue-600 hover:text-blue-800 hover:bg-blue-50 p-1.5 rounded-lg transition-colors inline-flex items-center" 
+                                    title="Edit Payment"
+                                  >
+                                    <EditIcon className="h-4 w-4" />
+                                  </button>
+                                  <button 
+                                    onClick={() => handleDeletePayment(pay)} 
+                                    className="text-red-600 hover:text-red-800 hover:bg-red-50 p-1.5 rounded-lg transition-colors inline-flex items-center" 
+                                    title="Delete Payment"
+                                  >
+                                    <TrashIcon className="h-4 w-4" />
+                                  </button>
+                                </td>
+                              )}
                             </tr>
                           ))}
                           {(!customerDetails.payments || customerDetails.payments.length === 0) && (
                             <tr>
-                              <td colSpan={4} className="p-8 text-center text-slate-400">No payments found</td>
+                              <td colSpan={canWrite ? 5 : 4} className="p-8 text-center text-slate-400">No payments found</td>
                             </tr>
                           )}
                         </tbody>
@@ -747,14 +764,12 @@ const Customers = () => {
                   </div>
                 </div>
               )}
-
               {/* BILLS TAB */}
               {activeTab === 'bills' && (
                 <div className="border border-slate-200 rounded-xl overflow-hidden">
                   <table className="w-full text-left border-collapse text-sm">
                     <thead className="bg-slate-50 border-b border-slate-200 text-slate-500 font-semibold">
                       <tr>
-                        <th className="p-4">Bill Number</th>
                         <th className="p-4">Date</th>
                         <th className="p-4">Vehicle</th>
                         <th className="p-4">Material</th>
@@ -768,7 +783,6 @@ const Customers = () => {
                         const hasPending = bill.pendingAmount > 0;
                         return (
                           <tr key={bill._id} className={`hover:bg-slate-50/80 transition ${hasPending ? 'bg-rose-50/20' : ''}`}>
-                            <td className="p-4 font-semibold text-slate-800">{bill.billNumber}</td>
                             <td className="p-4 text-slate-500">{formatDateTime(bill.date).date}</td>
                             <td className="p-4 text-slate-600 font-mono text-xs">{bill.vehicleNumber || '—'}</td>
                             <td className="p-4 text-slate-600">{bill.materialNameSnapshot}</td>
@@ -782,7 +796,7 @@ const Customers = () => {
                       })}
                       {(!customerDetails.bills || customerDetails.bills.length === 0) && (
                         <tr>
-                          <td colSpan={7} className="p-8 text-center text-slate-400">No bills found for the selected period</td>
+                          <td colSpan={6} className="p-8 text-center text-slate-400">No bills found for the selected period</td>
                         </tr>
                       )}
                     </tbody>
@@ -855,8 +869,6 @@ const Customers = () => {
                                     <div className="flex flex-wrap gap-4">
                                       {pay.allocationDetails?.map((alloc, idx) => (
                                         <div key={idx} className="bg-white border border-slate-200/80 rounded-lg p-2.5 shadow-sm text-xs font-mono">
-                                          <div className="text-slate-400 text-[10px] uppercase font-bold mb-1">Bill Number</div>
-                                          <div className="font-bold text-slate-700 mb-2">{alloc.billNumber}</div>
                                           <div className="text-slate-400 text-[10px] uppercase font-bold mb-1">Allocated</div>
                                           <div className="font-bold text-emerald-600">₹{alloc.allocatedAmount.toLocaleString()}</div>
                                         </div>

@@ -507,7 +507,7 @@ export const getCustomerStatementReport = async (req, res, next) => {
       ledgerEntries.push({
         date: b.date,
         type: 'Bill Created',
-        reference: b.billNumber,
+        reference: '—',
         debit: b.totalAmount + (b.passAmount || 0),
         credit: 0,
         createdAt: b.createdAt
