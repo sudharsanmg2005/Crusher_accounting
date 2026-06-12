@@ -293,9 +293,17 @@ const LoadManagement = () => {
     const selectedBuyer = buyers.find((b) => b._id === selectedBuyerId);
     const buyerName = selectedBuyer ? selectedBuyer.name : '';
 
-    const titleText = buyerName
-      ? `${buyerName.toUpperCase()} LOAD STATEMENT${selectedQuarryName ? ` - ${selectedQuarryName.toUpperCase()}` : ''}`
-      : `LOAD MANAGEMENT REPORT${selectedQuarryName ? ` - ${selectedQuarryName.toUpperCase()}` : ''}`;
+    let titleParts = [];
+    if (buyerName) {
+      titleParts.push(buyerName.toUpperCase());
+    }
+    if (selectedQuarryName) {
+      titleParts.push(selectedQuarryName.toUpperCase());
+    }
+
+    const titleText = titleParts.length > 0
+      ? `${titleParts.join(' - ')} LOAD STATEMENT`
+      : 'LOAD MANAGEMENT REPORT';
 
     centerText(titleText, 19, 12, 'bold');
 
@@ -385,10 +393,20 @@ const LoadManagement = () => {
       .replaceAll('/', '-')
       .replaceAll('.', '-');
     
-    const quarrySlug = selectedQuarryName ? `_${selectedQuarryName.replaceAll(' ', '_').replaceAll('/', '-')}` : '';
-    const fileSlug = buyerName 
-      ? `${buyerName.replaceAll(' ', '_').replaceAll('/', '-')}_statement${quarrySlug}` 
-      : `Load_Report${quarrySlug}`;
+    let nameParts = [];
+    if (buyerName) {
+      nameParts.push(buyerName.replaceAll(' ', '_').replaceAll('/', '-'));
+    }
+    if (selectedQuarryName) {
+      nameParts.push(selectedQuarryName.replaceAll(' ', '_').replaceAll('/', '-'));
+    }
+
+    let fileSlug = '';
+    if (nameParts.length > 0) {
+      fileSlug = nameParts.join('_') + '_statement';
+    } else {
+      fileSlug = 'Load_Report';
+    }
 
     doc.save(`${fileSlug}_${rangeSlug}.pdf`);
   };
