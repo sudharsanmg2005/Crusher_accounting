@@ -718,7 +718,7 @@ const Bills = () => {
                   <label className="block text-xs font-semibold text-slate-500 uppercase">Quantity *</label>
                   <div className="flex gap-1.5 mt-1">
                     <input 
-                      type="number" name="quantity" required value={formData.quantity} onChange={handleChange} min="0.1" step="0.1"
+                      type="number" name="quantity" required value={formData.quantity} onChange={handleChange} min="0.1" step="0.01"
                       className="w-2/3 border border-slate-300 rounded-lg p-2 focus:ring-2 focus:ring-blue-500 outline-none transition text-sm"
                       placeholder="e.g. 15.5"
                     />
@@ -749,7 +749,7 @@ const Bills = () => {
                     value={formData.manualPrice}
                     onChange={handleChange}
                     min="0"
-                    step="0.1"
+                    step="0.01"
                     className="w-full mt-1 border border-slate-300 rounded-lg p-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition disabled:bg-slate-50 disabled:text-slate-400 disabled:border-slate-200"
                     placeholder={formData.useManualPrice ? "Price per unit/ton" : "Disabled"}
                   />
@@ -838,7 +838,7 @@ const Bills = () => {
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block text-sm font-medium text-slate-700 mb-1">Quantity</label>
-                  <input type="number" min="0.1" step="0.1" required value={editFormData.quantity} onChange={(e) => setEditFormData({ ...editFormData, quantity: e.target.value })} className="w-full border border-slate-300 rounded-lg p-2.5" />
+                  <input type="number" min="0.1" step="0.01" required value={editFormData.quantity} onChange={(e) => setEditFormData({ ...editFormData, quantity: e.target.value })} className="w-full border border-slate-300 rounded-lg p-2.5" />
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-slate-700 mb-1">Unit</label>
@@ -850,7 +850,7 @@ const Bills = () => {
               </div>
               <div>
                 <label className="block text-sm font-medium text-slate-700 mb-1">Price per {editFormData.quantityUnit}</label>
-                <input type="number" min="0" step="0.1" required value={editFormData.pricePerUnit} onChange={(e) => setEditFormData({ ...editFormData, pricePerUnit: e.target.value })} className="w-full border border-slate-300 rounded-lg p-2.5" />
+                <input type="number" min="0" step="0.01" required value={editFormData.pricePerUnit} onChange={(e) => setEditFormData({ ...editFormData, pricePerUnit: e.target.value })} className="w-full border border-slate-300 rounded-lg p-2.5" />
               </div>
               <div className="flex justify-end gap-3 pt-2">
                 <button type="button" onClick={() => setEditModalOpen(false)} className="px-4 py-2 bg-slate-100 rounded-lg">Cancel</button>
