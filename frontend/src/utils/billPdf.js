@@ -66,7 +66,7 @@ export const downloadBillPdf = (bill) => {
   const body = [
     [
       `Material: ${bill.materialNameSnapshot || '-'}`,
-      `${bill.quantity} ${unitLabel}${bill.quantity !== 1 ? 's' : ''}`,
+      `${Number(bill.quantity || 0).toFixed(2)} ${unitLabel}${bill.quantity !== 1 ? 's' : ''}`,
       rateLabel,
       materialTotal.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
     ],

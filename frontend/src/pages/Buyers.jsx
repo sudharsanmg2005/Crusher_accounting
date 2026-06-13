@@ -283,7 +283,7 @@ const Buyers = () => {
       r.vehicleType,
       r.quarryName || '—',
       r.price.toLocaleString(),
-      r.quantity,
+      Number(r.quantity || 0).toFixed(2),
       (r.price * r.quantity).toLocaleString(),
       (r.allocatedAmount || 0).toLocaleString(),
       (r.price * r.quantity - (r.allocatedAmount || 0)).toLocaleString()
@@ -714,7 +714,7 @@ const Buyers = () => {
                             <td className="p-4 text-slate-800 font-semibold">{load.vehicleType}</td>
                             <td className="p-4 text-slate-600">{load.quarryName || '—'}</td>
                             <td className="p-4 text-right text-slate-600">₹{load.price.toLocaleString()}</td>
-                            <td className="p-4 text-right text-slate-600">{load.quantity} {load.unitType}</td>
+                            <td className="p-4 text-right text-slate-600">{Number(load.quantity || 0).toFixed(2)} {load.unitType}</td>
                             <td className="p-4 text-right font-bold text-slate-800">₹{(load.price * load.quantity).toLocaleString()}</td>
                             <td className="p-4 text-right text-emerald-600">₹{(load.allocatedAmount || 0).toLocaleString()}</td>
                             <td className={`p-4 text-right font-bold ${hasPending ? 'text-rose-600' : 'text-slate-500'}`}>

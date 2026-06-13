@@ -328,7 +328,7 @@ const LoadManagement = () => {
       l.vehicleType,
       l.quarryName || '—',
       l.buyerNameSnapshot || '—',
-      l.quantity,
+      Number(l.quantity || 0).toFixed(2),
       l.unitType,
       l.price.toLocaleString(),
       (l.price * l.quantity).toLocaleString()
@@ -573,11 +573,11 @@ const LoadManagement = () => {
         </div>
         <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-sm flex flex-col justify-center">
           <span className="text-xs font-semibold text-slate-500 uppercase">Total Qty (Tons)</span>
-          <span className="text-xl font-bold text-slate-800 mt-1">{totals.totalTons.toLocaleString()} tons</span>
+          <span className="text-xl font-bold text-slate-800 mt-1">{totals.totalTons.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} tons</span>
         </div>
         <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-sm flex flex-col justify-center">
           <span className="text-xs font-semibold text-slate-500 uppercase">Total Qty (Units)</span>
-          <span className="text-xl font-bold text-slate-800 mt-1">{totals.totalUnits.toLocaleString()} units</span>
+          <span className="text-xl font-bold text-slate-800 mt-1">{totals.totalUnits.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} units</span>
         </div>
       </div>
 
@@ -609,7 +609,7 @@ const LoadManagement = () => {
                     <td className="p-4 text-slate-600 whitespace-nowrap">{load.quarryName || '—'}</td>
                     <td className="p-4 text-slate-600 whitespace-nowrap">{load.buyerNameSnapshot || '—'}</td>
                     <td className="p-4 text-right text-slate-600 whitespace-nowrap">₹{load.price.toLocaleString()}</td>
-                    <td className="p-4 text-right text-slate-600 whitespace-nowrap font-mono">{load.quantity} <span className="text-xs text-slate-400 font-sans">{load.unitType}</span></td>
+                    <td className="p-4 text-right text-slate-600 whitespace-nowrap font-mono">{Number(load.quantity || 0).toFixed(2)} <span className="text-xs text-slate-400 font-sans">{load.unitType}</span></td>
                     <td className="p-4 text-right text-slate-800 font-bold whitespace-nowrap">₹{(load.price * load.quantity).toLocaleString()}</td>
                     <td className="p-4 text-right space-x-3 whitespace-nowrap">
                       {canWrite && (

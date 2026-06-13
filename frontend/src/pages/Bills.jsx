@@ -514,7 +514,7 @@ const Bills = () => {
                       <td className="p-4 text-slate-600"><span className="bg-slate-100 px-2 py-1 rounded border border-slate-200 text-xs font-mono whitespace-nowrap">{bill.vehicleNumber || '—'}</span></td>
                       <td className="p-4 text-slate-600 text-sm">
                         <div className="font-medium text-slate-800">{bill.materialNameSnapshot}</div>
-                        <div className="text-xs text-slate-500">{bill.quantity} {bill.quantityUnit || 'unit'}s @ ₹{bill.pricePerUnit}</div>
+                        <div className="text-xs text-slate-500">{Number(bill.quantity).toFixed(2)} {bill.quantityUnit || 'unit'}s @ ₹{bill.pricePerUnit}</div>
                         {bill.isBackdated && <div className="text-xs text-amber-600 font-medium">Backdated</div>}
                       </td>
                       <td className="p-4 font-bold text-slate-800">
