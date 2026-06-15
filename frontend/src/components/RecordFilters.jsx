@@ -10,7 +10,48 @@ const RecordFilters = ({
   searchPlaceholder = 'Search records',
   summary = []
 }) => {
-  const set = (patch) => onChange((prev) => ({ ...prev, ...patch }));
+  const toYMD = (date) => {
+    const d = new Date(date);
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  };
+
+  const set = (patch) => onChange((prev) => {
+    const next = { ...prev, ...patch };
+    const todayStr = toYMD(new Date());
+
+    if (patch.hasOwnProperty('mode')) {
+      if (patch.mode === 'particular_date' && !next.particularDate) {
+        next.particularDate = todayStr;
+      } else if (patch.mode === 'month' && !next.month) {
+        next.month = todayStr.substring(0, 7);
+      } else if (patch.mode === 'week' && !next.weekStart) {
+        const d = new Date();
+        const day = d.getDay();
+        const sunday = new Date(d);
+        sunday.setDate(d.getDate() - day);
+        next.weekStart = toYMD(sunday);
+      } else if (patch.mode === 'selected_dates') {
+        if (!next.startDate) {
+          const d = new Date();
+          const firstDay = new Date(d.getFullYear(), d.getMonth(), 1);
+          next.startDate = toYMD(firstDay);
+        }
+        if (!next.endDate) {
+          next.endDate = todayStr;
+        }
+      }
+    }
+
+    if (patch.hasOwnProperty('weekStart') && patch.weekStart) {
+      const d = new Date(patch.weekStart + 'T00:00:00');
+      const day = d.getDay();
+      const sunday = new Date(d);
+      sunday.setDate(d.getDate() - day);
+      next.weekStart = toYMD(sunday);
+    }
+
+    return next;
+  });
 
   return (
     <div className="p-4 border-b border-slate-200 bg-white space-y-3">
@@ -89,48 +130,63 @@ const RecordFilters = ({
           <option value="month">Month</option>
           <option value="week">Week</option>
         </select>
-
-        {filters.mode === 'particular_date' && (
-          <input
-            type="date"
-            value={filters.particularDate}
-            onChange={(e) => set({ particularDate: e.target.value })}
-            className="border border-slate-300 rounded-lg p-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none"
-          />
-        )}
-        {filters.mode === 'month' && (
-          <input
-            type="month"
-            value={filters.month}
-            onChange={(e) => set({ month: e.target.value })}
-            className="border border-slate-300 rounded-lg p-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none"
-          />
-        )}
-        {filters.mode === 'week' && (
-          <input
-            type="date"
-            value={filters.weekStart}
-            onChange={(e) => set({ weekStart: e.target.value })}
-            className="border border-slate-300 rounded-lg p-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none"
-          />
-        )}
-        {filters.mode === 'selected_dates' && (
-          <>
-            <input
-              type="date"
-              value={filters.startDate}
-              onChange={(e) => set({ startDate: e.target.value })}
-              className="border border-slate-300 rounded-lg p-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none"
-            />
-            <input
-              type="date"
-              value={filters.endDate}
-              onChange={(e) => set({ endDate: e.target.value })}
-              className="border border-slate-300 rounded-lg p-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none"
-            />
-          </>
-        )}
       </div>
+
+      {['particular_date', 'month', 'week', 'selected_dates'].includes(filters.mode) && (
+        <div className="flex flex-wrap items-center gap-3 p-3 bg-slate-50 border border-slate-200 rounded-lg animate-in slide-in-from-top-1 duration-200">
+          {filters.mode === 'particular_date' && (
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Particular Date:</span>
+              <input
+                type="date"
+                value={filters.particularDate}
+                onChange={(e) => set({ particularDate: e.target.value })}
+                className="border border-slate-300 rounded-lg p-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none bg-white"
+              />
+            </div>
+          )}
+          {filters.mode === 'month' && (
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Select Month:</span>
+              <input
+                type="month"
+                value={filters.month}
+                onChange={(e) => set({ month: e.target.value })}
+                className="border border-slate-300 rounded-lg p-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none bg-white"
+              />
+            </div>
+          )}
+          {filters.mode === 'week' && (
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Week Start (Snaps to Sun):</span>
+              <input
+                type="date"
+                value={filters.weekStart}
+                onChange={(e) => set({ weekStart: e.target.value })}
+                className="border border-slate-300 rounded-lg p-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none bg-white"
+              />
+            </div>
+          )}
+          {filters.mode === 'selected_dates' && (
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Date Range:</span>
+              <input
+                type="date"
+                value={filters.startDate}
+                onChange={(e) => set({ startDate: e.target.value })}
+                className="border border-slate-300 rounded-lg p-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none bg-white"
+              />
+              <span className="text-slate-400 text-sm">to</span>
+              <input
+                type="date"
+                value={filters.endDate}
+                onChange={(e) => set({ endDate: e.target.value })}
+                className="border border-slate-300 rounded-lg p-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none bg-white"
+              />
+            </div>
+          )}
+        </div>
+      )}
 
       {summary.length > 0 && (
         <div className="flex flex-wrap gap-3 text-sm">

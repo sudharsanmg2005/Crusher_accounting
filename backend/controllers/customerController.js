@@ -217,7 +217,10 @@ export const getCustomerHistory = async (req, res, next) => {
       totalOutstandingAmount,
       totalBillsCount,
       lastBillDate,
-      lastPaymentDate
+      lastPaymentDate,
+      overallBilled,
+      overallPaid,
+      overallOutstanding: Math.max(0, overallBilled - overallPaid)
     };
 
     // 3. Generate running ledger (always computed cumulatively)

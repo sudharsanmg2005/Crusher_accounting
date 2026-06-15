@@ -68,7 +68,10 @@ export const filterRecords = (items, filters, options = {}) => {
   }
 
   if (filters.mode === 'week' && filters.weekStart) {
-    const start = new Date(`${filters.weekStart}T00:00:00`);
+    const d = new Date(`${filters.weekStart}T00:00:00`);
+    const day = d.getDay();
+    const start = new Date(d);
+    start.setDate(d.getDate() - day);
     const end = new Date(start);
     end.setDate(start.getDate() + 6);
     end.setHours(23, 59, 59, 999);

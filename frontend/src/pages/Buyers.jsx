@@ -68,11 +68,16 @@ const Buyers = () => {
       const lastDay = new Date(today.getFullYear(), today.getMonth() + 1, 0);
       setDateRange({ startDate: toYMD(firstDay), endDate: toYMD(lastDay) });
     } else if (reportType === 'weekly') {
-      const end = new Date(today);
-      end.setHours(0, 0, 0, 0);
-      const start = new Date(end);
-      start.setDate(start.getDate() - 6);
-      setDateRange({ startDate: toYMD(start), endDate: toYMD(end) });
+      const day = today.getDay();
+      const sunday = new Date(today);
+      sunday.setDate(today.getDate() - day);
+      const saturday = new Date(sunday);
+      saturday.setDate(sunday.getDate() + 6);
+      setDateRange({ startDate: toYMD(sunday), endDate: toYMD(saturday) });
+    } else if (reportType === 'range') {
+      const firstDay = new Date(today.getFullYear(), today.getMonth(), 1);
+      const lastDay = new Date(today.getFullYear(), today.getMonth() + 1, 0);
+      setDateRange({ startDate: toYMD(firstDay), endDate: toYMD(lastDay) });
     }
   }, [reportType]);
 
@@ -724,7 +729,7 @@ const Buyers = () => {
                 )}
 
                 {/* Date Filter selector in Modal */}
-                <div className="flex items-center gap-3 mt-4">
+                <div className="flex flex-col gap-2 mt-4 items-start">
                   <div>
                     <select value={reportType} onChange={(e) => setReportType(e.target.value)} className="border border-slate-300 rounded-lg px-2.5 py-1 text-xs font-semibold focus:ring-2 focus:ring-blue-500 outline-none bg-white text-slate-700">
                       <option value="monthly">This Month</option>
@@ -733,7 +738,7 @@ const Buyers = () => {
                     </select>
                   </div>
                   {reportType === 'range' && (
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2 animate-in slide-in-from-top-1 duration-150">
                       <input type="date" value={dateRange.startDate} onChange={(e) => setDateRange(prev => ({ ...prev, startDate: e.target.value }))} className="border border-slate-300 rounded-lg px-2 py-0.5 text-xs focus:ring-2 focus:ring-blue-500 outline-none text-slate-700" />
                       <span className="text-slate-400 text-xs">to</span>
                       <input type="date" value={dateRange.endDate} onChange={(e) => setDateRange(prev => ({ ...prev, endDate: e.target.value }))} className="border border-slate-300 rounded-lg px-2 py-0.5 text-xs focus:ring-2 focus:ring-blue-500 outline-none text-slate-700" />

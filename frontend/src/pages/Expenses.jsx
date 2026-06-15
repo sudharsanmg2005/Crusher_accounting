@@ -58,14 +58,20 @@ const Expenses = () => {
       return;
     }
 
+    if (reportType === 'range') {
+      setDateRange(initialMonthlyRange);
+      return;
+    }
+
     if (reportType === 'weekly') {
-      const end = new Date(today);
-      end.setHours(0, 0, 0, 0);
-      const start = new Date(end);
-      start.setDate(start.getDate() - 6);
+      const day = today.getDay();
+      const sunday = new Date(today);
+      sunday.setDate(today.getDate() - day);
+      const saturday = new Date(sunday);
+      saturday.setDate(sunday.getDate() + 6);
       setDateRange({
-        startDate: toYMD(start),
-        endDate: toYMD(end)
+        startDate: toYMD(sunday),
+        endDate: toYMD(saturday)
       });
     }
   }, [reportType, initialMonthlyRange, today]);

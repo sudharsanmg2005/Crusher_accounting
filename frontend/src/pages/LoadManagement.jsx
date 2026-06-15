@@ -4,7 +4,7 @@ import jsPDF from 'jspdf';
 import { autoTable } from 'jspdf-autotable';
 import { useConfirm } from '../components/ConfirmDialog';
 import { useAuth } from '../AuthContext';
-import { EditIcon, TrashIcon, MoneyIcon } from '../components/Icons';
+import { EditIcon, TrashIcon } from '../components/Icons';
 import { formatVehicleInput, isValidVehicleNumber } from '../utils/vehicleNumber';
 
 const toYMD = (d) => {
@@ -44,14 +44,7 @@ const LoadManagement = () => {
   const [isCreateMaterialOpen, setIsCreateMaterialOpen] = useState(false);
   const [newMaterialData, setNewMaterialData] = useState({ name: '', currentPrice: '', pricePerTon: '' });
 
-  // Record payment state
-  const [paymentModalOpen, setPaymentModalOpen] = useState(false);
-  const [paymentAmount, setPaymentAmount] = useState('');
-  const [paymentNote, setPaymentNote] = useState('');
-  const [paymentPaidBy, setPaymentPaidBy] = useState('');
-  const [paymentDate, setPaymentDate] = useState('');
-  const [paymentBuyerId, setPaymentBuyerId] = useState('');
-  const [paymentBuyerOutstanding, setPaymentBuyerOutstanding] = useState(0);
+
 
   const [formData, setFormData] = useState({
     vehicleMode: 'select',
@@ -77,11 +70,14 @@ const LoadManagement = () => {
       const monthStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}`;
       setDateRange({ startDate: initialMonthlyRange.startDate, endDate: initialMonthlyRange.endDate, particularDate: '', month: monthStr, weekStart: '' });
     } else if (reportType === 'weekly') {
-      const end = new Date(today);
-      end.setHours(0, 0, 0, 0);
-      const start = new Date(end);
-      start.setDate(start.getDate() - 6);
-      setDateRange({ startDate: toYMD(start), endDate: toYMD(end), particularDate: '', month: '', weekStart: toYMD(start) });
+      const day = today.getDay();
+      const sunday = new Date(today);
+      sunday.setDate(today.getDate() - day);
+      const saturday = new Date(sunday);
+      saturday.setDate(sunday.getDate() + 6);
+      setDateRange({ startDate: toYMD(sunday), endDate: toYMD(saturday), particularDate: '', month: '', weekStart: toYMD(sunday) });
+    } else if (reportType === 'range') {
+      setDateRange({ startDate: initialMonthlyRange.startDate, endDate: initialMonthlyRange.endDate, particularDate: '', month: '', weekStart: '' });
     }
   }, [reportType, initialMonthlyRange, today]);
 
@@ -185,12 +181,15 @@ const LoadManagement = () => {
       }
     } else if (name === 'weekStart') {
       if (value) {
-        const start = new Date(value + 'T00:00:00');
+        const d = new Date(value + 'T00:00:00');
+        const day = d.getDay();
+        const start = new Date(d);
+        start.setDate(d.getDate() - day);
         const end = new Date(start);
         end.setDate(start.getDate() + 6);
         setDateRange(prev => ({
           ...prev,
-          weekStart: value,
+          weekStart: toYMD(start),
           startDate: toYMD(start),
           endDate: toYMD(end)
         }));
@@ -349,73 +348,7 @@ const LoadManagement = () => {
     }
   };
 
-  const openPaymentModal = async (load = null) => {
-    if (load) {
-      setPaymentBuyerId(load.buyer);
-      const pending = load.price * load.quantity - (load.allocatedAmount || 0);
-      setPaymentAmount(pending.toString());
-      try {
-        const { data } = await api.get(`/buyers/${load.buyer}`);
-        setPaymentBuyerOutstanding(data.summary?.totalOutstandingAmount || 0);
-      } catch (err) {
-        console.error('Error fetching buyer outstanding', err);
-        setPaymentBuyerOutstanding(pending);
-      }
-    } else {
-      setPaymentBuyerId('');
-      setPaymentAmount('');
-      setPaymentBuyerOutstanding(0);
-    }
-    setPaymentNote('');
-    setPaymentPaidBy(user?.name || '');
-    setPaymentDate(new Date().toISOString().split('T')[0]);
-    setPaymentModalOpen(true);
-  };
 
-  const handlePaymentBuyerChange = async (buyerId) => {
-    setPaymentBuyerId(buyerId);
-    if (!buyerId) {
-      setPaymentBuyerOutstanding(0);
-      return;
-    }
-    try {
-      const { data } = await api.get(`/buyers/${buyerId}`);
-      setPaymentBuyerOutstanding(data.summary?.totalOutstandingAmount || 0);
-      setPaymentAmount(data.summary?.totalOutstandingAmount?.toString() || '');
-    } catch (err) {
-      console.error('Error fetching buyer details for payment', err);
-      setPaymentBuyerOutstanding(0);
-    }
-  };
-
-  const handlePaymentSubmit = async (e) => {
-    e.preventDefault();
-    const amount = Number(paymentAmount);
-    if (!amount || amount <= 0) {
-      alert('Please enter a valid payment amount');
-      return;
-    }
-    if (amount - paymentBuyerOutstanding > 1e-4) {
-      alert(`Payment amount (₹${amount.toLocaleString()}) cannot exceed outstanding balance (₹${paymentBuyerOutstanding.toLocaleString()})`);
-      return;
-    }
-
-    try {
-      await api.post('/buyer-payments', {
-        buyerId: paymentBuyerId,
-        amount,
-        date: paymentDate,
-        notes: paymentNote,
-        paidBy: paymentPaidBy
-      });
-      setPaymentModalOpen(false);
-      fetchLoads();
-      fetchBuyers();
-    } catch (error) {
-      console.error('Error recording payment', error);
-      alert(error.response?.data?.message || 'Error recording payment');
-    }
-  };
 
   const totals = useMemo(() => {
     return filteredLoads.reduce(
@@ -435,6 +368,21 @@ const LoadManagement = () => {
   const downloadPdf = async () => {
     const listToExport = filteredLoads;
     if (listToExport.length === 0) return;
+
+    let buyerSummary = null;
+    let buyerPayments = [];
+    if (selectedBuyerId) {
+      try {
+        const params = new URLSearchParams();
+        if (dateRange.startDate) params.append('startDate', dateRange.startDate);
+        if (dateRange.endDate) params.append('endDate', dateRange.endDate);
+        const { data } = await api.get(`/buyers/${selectedBuyerId}?${params.toString()}`);
+        buyerSummary = data.summary;
+        buyerPayments = data.payments || [];
+      } catch (err) {
+        console.error('Error fetching buyer details for PDF', err);
+      }
+    }
 
     const doc = new jsPDF();
     const pageWidth = doc.internal.pageSize.getWidth();
@@ -479,18 +427,25 @@ const LoadManagement = () => {
     doc.setDrawColor(200, 200, 200);
     doc.line(14, 29, pageWidth - 14, 29);
 
-    const head = [['S.NO', 'DATE', 'VEHICLE NUMBER', 'MATERIAL', 'BUYER NAME', 'QTY', 'UNIT TYPE', 'PRICE (Rs.)', 'TOTAL (Rs.)']];
-    const body = listToExport.map((l, idx) => [
-      idx + 1,
-      new Date(l.date).toLocaleDateString(),
-      l.vehicleNumber || '—',
-      l.quarryName || '—',
-      l.buyerNameSnapshot || '—',
-      Number(l.quantity || 0).toFixed(2),
-      l.unitType || 'tons',
-      l.price.toLocaleString(),
-      (l.price * l.quantity).toLocaleString()
-    ]);
+    const head = selectedBuyerId 
+      ? [['S.NO', 'DATE', 'VEHICLE NUMBER', 'MATERIAL', 'QTY', 'UNIT TYPE', 'PRICE (Rs.)', 'TOTAL (Rs.)']]
+      : [['S.NO', 'DATE', 'VEHICLE NUMBER', 'MATERIAL', 'BUYER NAME', 'QTY', 'UNIT TYPE', 'PRICE (Rs.)', 'TOTAL (Rs.)']];
+
+    const body = listToExport.map((l, idx) => {
+      const sNo = idx + 1;
+      const date = new Date(l.date).toLocaleDateString();
+      const vehicle = l.vehicleNumber || '—';
+      const material = l.quarryName || '—';
+      const buyerName = l.buyerNameSnapshot || '—';
+      const qty = Number(l.quantity || 0).toFixed(2);
+      const unitType = l.unitType || 'tons';
+      const price = l.price.toLocaleString();
+      const total = (l.price * l.quantity).toLocaleString();
+
+      return selectedBuyerId
+        ? [sNo, date, vehicle, material, qty, unitType, price, total]
+        : [sNo, date, vehicle, material, buyerName, qty, unitType, price, total];
+    });
 
     autoTable(doc, {
       head,
@@ -507,122 +462,208 @@ const LoadManagement = () => {
       y = 18;
     }
 
-    // Grand Totals
-    let grandBilled = 0;
-    let grandPaid = 0;
-    let grandOutstanding = 0;
+    if (selectedBuyerId && buyerSummary) {
+      const selectedBilled = buyerSummary.totalBillsAmount || 0;
+      const selectedPaid = buyerSummary.totalPaidAmount || 0;
+      const selectedOutstanding = buyerSummary.totalOutstandingAmount || 0;
 
-    // Aggregates by Buyer
-    const buyerAgg = {}; // buyerName -> { billed, paid, pending }
+      const overallBilled = buyerSummary.overallBilled || selectedBilled;
+      const overallPaid = buyerSummary.overallPaid || selectedPaid;
+      const overallOutstanding = buyerSummary.overallOutstanding || selectedOutstanding;
 
-    listToExport.forEach((l) => {
-      const billed = Number(l.price || 0) * Number(l.quantity || 0);
-      const paid = Number(l.allocatedAmount || 0);
-      const pending = Number(l.pendingAmount || 0);
+      const previousBilled = Math.max(0, overallBilled - selectedBilled);
+      const previousPaid = Math.max(0, overallPaid - selectedPaid);
+      const previousOutstanding = Math.max(0, overallOutstanding - selectedOutstanding);
 
-      grandBilled += billed;
-      grandPaid += paid;
-      grandOutstanding += pending;
-
-      const bName = l.buyerNameSnapshot || '—';
-      if (!buyerAgg[bName]) {
-        buyerAgg[bName] = { billed: 0, paid: 0, pending: 0 };
+      if (y > pageHeight - 110) {
+        doc.addPage();
+        y = 18;
       }
-      buyerAgg[bName].billed += billed;
-      buyerAgg[bName].paid += paid;
-      buyerAgg[bName].pending += pending;
-    });
 
-    const grandHead = [['SUMMARY', 'AMOUNT (Rs.)']];
-    const grandBody = [
-      ['GRAND TOTAL LOAD COST', grandBilled.toLocaleString()],
-      ['GRAND TOTAL PAID', grandPaid.toLocaleString()],
-      ['GRAND TOTAL OUTSTANDING', grandOutstanding.toLocaleString()]
-    ];
+      // 1. Selected Period Statement Table
+      const totalsHead = [['SELECTED PERIOD STATEMENT', 'AMOUNT']];
+      const totalsBody = [
+        ['TOTAL LOAD COST', `Rs. ${Number(selectedBilled).toLocaleString()}`],
+        ['TOTAL PAID', `Rs. ${Number(selectedPaid).toLocaleString()}`],
+        ['OUTSTANDING BALANCE', `Rs. ${Number(selectedOutstanding).toLocaleString()}`]
+      ];
 
-    doc.setFontSize(10);
-    doc.setFont(undefined, 'bold');
-    doc.text('Grand Summary:', 14, y - 4);
+      const leftRightMargin = 14;
+      const detailsColWidth = 85;
+      const amountColWidth = pageWidth - leftRightMargin * 2 - detailsColWidth;
+      const tableWidth = detailsColWidth + amountColWidth;
 
-    autoTable(doc, {
-      head: grandHead,
-      body: grandBody,
-      startY: y,
-      theme: 'grid',
-      styles: { fontSize: 8, cellPadding: 2 },
-      headStyles: { fillColor: [37, 99, 235], textColor: [255, 255, 255], fontStyle: 'bold' }
-    });
+      autoTable(doc, {
+        head: totalsHead,
+        body: totalsBody,
+        startY: y,
+        theme: 'grid',
+        tableWidth,
+        styles: { fontSize: 8.5, cellPadding: 2, overflow: 'linebreak' },
+        headStyles: { fillColor: [37, 99, 235], textColor: [255, 255, 255], fontStyle: 'bold' },
+        columnStyles: {
+          0: { halign: 'left', cellWidth: detailsColWidth },
+          1: { halign: 'right', cellWidth: amountColWidth }
+        },
+        margin: { left: leftRightMargin, right: leftRightMargin }
+      });
 
-    y = (doc.lastAutoTable?.finalY || y) + 12;
-    if (y > pageHeight - 65) {
-      doc.addPage();
-      y = 18;
+      y = doc.lastAutoTable.finalY + 8;
+
+      // 2. Previous Period Statement Table
+      const prevHead = [['PREVIOUS PERIOD STATEMENT', 'AMOUNT']];
+      const prevBody = [
+        ['PREVIOUS DATES TOTAL LOAD COST', `Rs. ${Number(previousBilled).toLocaleString()}`],
+        ['PREVIOUS DATES TOTAL PAID', `Rs. ${Number(previousPaid).toLocaleString()}`],
+        ['PREVIOUS DATES OUTSTANDING', `Rs. ${Number(previousOutstanding).toLocaleString()}`]
+      ];
+
+      autoTable(doc, {
+        head: prevHead,
+        body: prevBody,
+        startY: y,
+        theme: 'grid',
+        tableWidth,
+        styles: { fontSize: 8.5, cellPadding: 2, overflow: 'linebreak' },
+        headStyles: { fillColor: [100, 116, 139], textColor: [255, 255, 255], fontStyle: 'bold' },
+        columnStyles: {
+          0: { halign: 'left', cellWidth: detailsColWidth },
+          1: { halign: 'right', cellWidth: amountColWidth }
+        },
+        margin: { left: leftRightMargin, right: leftRightMargin }
+      });
+
+      y = doc.lastAutoTable.finalY + 8;
+
+      // 3. Cumulative Outstanding Summary Table
+      const cumHead = [['CUMULATIVE OUTSTANDING SUMMARY', 'AMOUNT']];
+      const cumBody = [
+        ['PREVIOUS OUTSTANDING BALANCE', `Rs. ${Number(previousOutstanding).toLocaleString()}`],
+        ['SELECTED PERIOD OUTSTANDING', `Rs. ${Number(selectedOutstanding).toLocaleString()}`],
+        ['TOTAL OUTSTANDING BALANCE', `Rs. ${Number(overallOutstanding).toLocaleString()}`]
+      ];
+
+      autoTable(doc, {
+        head: cumHead,
+        body: cumBody,
+        startY: y,
+        theme: 'grid',
+        tableWidth,
+        styles: { fontSize: 8.5, cellPadding: 2, overflow: 'linebreak' },
+        headStyles: { fillColor: [15, 23, 42], textColor: [255, 255, 255], fontStyle: 'bold' },
+        columnStyles: {
+          0: { halign: 'left', cellWidth: detailsColWidth },
+          1: { halign: 'right', cellWidth: amountColWidth }
+        },
+        margin: { left: leftRightMargin, right: leftRightMargin }
+      });
+
+      y = doc.lastAutoTable.finalY;
+    } else {
+      // General loads report summary tables
+      let grandBilled = 0;
+      let grandPaid = 0;
+      let grandOutstanding = 0;
+
+      const buyerAgg = {};
+
+      listToExport.forEach((l) => {
+        const billed = Number(l.price || 0) * Number(l.quantity || 0);
+        const paid = Number(l.allocatedAmount || 0);
+        const pending = Number(l.pendingAmount || 0);
+
+        grandBilled += billed;
+        grandPaid += paid;
+        grandOutstanding += pending;
+
+        const bName = l.buyerNameSnapshot || '—';
+        if (!buyerAgg[bName]) {
+          buyerAgg[bName] = { billed: 0, paid: 0, pending: 0 };
+        }
+        buyerAgg[bName].billed += billed;
+        buyerAgg[bName].paid += paid;
+        buyerAgg[bName].pending += pending;
+      });
+
+      const grandHead = [['GRAND SUMMARY', 'AMOUNT (Rs.)']];
+      const grandBody = [
+        ['GRAND TOTAL LOAD COST', grandBilled.toLocaleString()],
+        ['GRAND TOTAL PAID', grandPaid.toLocaleString()],
+        ['GRAND TOTAL OUTSTANDING', grandOutstanding.toLocaleString()]
+      ];
+
+      doc.setFontSize(10);
+      doc.setFont(undefined, 'bold');
+      doc.text('Grand Summary:', 14, y - 4);
+
+      autoTable(doc, {
+        head: grandHead,
+        body: grandBody,
+        startY: y,
+        theme: 'grid',
+        styles: { fontSize: 8, cellPadding: 2 },
+        headStyles: { fillColor: [37, 99, 235], textColor: [255, 255, 255], fontStyle: 'bold' }
+      });
+
+      y = (doc.lastAutoTable?.finalY || y) + 12;
+      if (y > pageHeight - 65) {
+        doc.addPage();
+        y = 18;
+      }
+
+      const buyerHead = [['BUYER NAME', 'TOTAL COST (Rs.)', 'TOTAL PAID (Rs.)', 'TOTAL OUTSTANDING (Rs.)']];
+      const buyerBody = Object.entries(buyerAgg).map(([name, data]) => [
+        name,
+        data.billed.toLocaleString(),
+        data.paid.toLocaleString(),
+        data.pending.toLocaleString()
+      ]);
+
+      doc.setFontSize(10);
+      doc.setFont(undefined, 'bold');
+      doc.text('Summary By Buyer:', 14, y - 4);
+
+      autoTable(doc, {
+        head: buyerHead,
+        body: buyerBody,
+        startY: y,
+        theme: 'grid',
+        styles: { fontSize: 8, cellPadding: 2 },
+        headStyles: { fillColor: [15, 23, 42], textColor: [255, 255, 255], fontStyle: 'bold' }
+      });
+
+      y = doc.lastAutoTable.finalY;
     }
 
-    const buyerHead = [['BUYER NAME', 'TOTAL COST (Rs.)', 'TOTAL PAID (Rs.)', 'TOTAL OUTSTANDING (Rs.)']];
-    const buyerBody = Object.entries(buyerAgg).map(([name, data]) => [
-      name,
-      data.billed.toLocaleString(),
-      data.paid.toLocaleString(),
-      data.pending.toLocaleString()
-    ]);
-
-    doc.setFontSize(10);
-    doc.setFont(undefined, 'bold');
-    doc.text('Summary By Buyer:', 14, y - 4);
-
-    autoTable(doc, {
-      head: buyerHead,
-      body: buyerBody,
-      startY: y,
-      theme: 'grid',
-      styles: { fontSize: 8, cellPadding: 2 },
-      headStyles: { fillColor: [15, 23, 42], textColor: [255, 255, 255], fontStyle: 'bold' }
-    });
-
-    // Fetch and display payment history for selected buyer
-    if (selectedBuyerId) {
-      let buyerPayments = [];
-      try {
-        const params = new URLSearchParams();
-        if (dateRange.startDate) params.append('startDate', dateRange.startDate);
-        if (dateRange.endDate) params.append('endDate', dateRange.endDate);
-        const { data } = await api.get(`/buyers/${selectedBuyerId}?${params.toString()}`);
-        buyerPayments = data.payments || [];
-      } catch (err) {
-        console.error('Error fetching buyer payments for PDF', err);
+    if (selectedBuyerId && buyerPayments.length > 0) {
+      y = y + 12;
+      if (y > pageHeight - 65) {
+        doc.addPage();
+        y = 18;
       }
 
-      if (buyerPayments.length > 0) {
-        y = (doc.lastAutoTable?.finalY || y) + 12;
-        if (y > pageHeight - 65) {
-          doc.addPage();
-          y = 18;
-        }
+      doc.setFontSize(10);
+      doc.setFont(undefined, 'bold');
+      doc.text('PAYMENT HISTORY:', 14, y - 4);
 
-        doc.setFontSize(10);
-        doc.setFont(undefined, 'bold');
-        doc.text('PAYMENT HISTORY:', 14, y - 4);
+      const payHead = [['S.NO', 'DATE', 'PAYMENT NUMBER', 'AMOUNT PAID (Rs.)', 'PAID BY / METHOD', 'NOTES']];
+      const payBody = buyerPayments.map((p, idx) => [
+        idx + 1,
+        new Date(p.paymentDate || p.date).toLocaleDateString(),
+        p.paymentNumber || '—',
+        Number(p.amount || 0).toLocaleString(),
+        p.paidBy || p.method || '—',
+        p.notes || p.note || '—'
+      ]);
 
-        const payHead = [['S.NO', 'DATE', 'PAYMENT NUMBER', 'AMOUNT PAID (Rs.)', 'PAID BY / METHOD', 'NOTES']];
-        const payBody = buyerPayments.map((p, idx) => [
-          idx + 1,
-          new Date(p.paymentDate || p.date).toLocaleDateString(),
-          p.paymentNumber || '—',
-          Number(p.amount || 0).toLocaleString(),
-          p.paidBy || p.method || '—',
-          p.notes || p.note || '—'
-        ]);
-
-        autoTable(doc, {
-          head: payHead,
-          body: payBody,
-          startY: y,
-          theme: 'grid',
-          styles: { fontSize: 8, cellPadding: 2 },
-          headStyles: { fillColor: [15, 23, 42], textColor: [255, 255, 255], fontStyle: 'bold' }
-        });
-      }
+      autoTable(doc, {
+        head: payHead,
+        body: payBody,
+        startY: y,
+        theme: 'grid',
+        styles: { fontSize: 8, cellPadding: 2 },
+        headStyles: { fillColor: [15, 23, 42], textColor: [255, 255, 255], fontStyle: 'bold' }
+      });
     }
 
     const rangeSlug = rangeLabel
@@ -659,157 +700,151 @@ const LoadManagement = () => {
           <p className="text-slate-500 text-sm mt-1">Track incoming/outgoing material loads, pricing, and units/tons.</p>
         </div>
 
-        <div className="flex flex-wrap items-end gap-3 bg-white p-3 rounded-xl shadow-sm border border-slate-200 w-full md:w-auto">
-          <div className="w-full sm:w-auto">
-            <label className="block text-xs font-semibold text-slate-500 mb-1 uppercase tracking-wider">Search</label>
-            <input
-              type="text"
-              placeholder="Search buyer, quarry, vehicle..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="border border-slate-300 rounded-lg p-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none w-full sm:w-48 bg-white"
-            />
-          </div>
-
-          <div className="w-full sm:w-auto">
-            <label className="block text-xs font-semibold text-slate-500 mb-1 uppercase tracking-wider">Buyer Name</label>
-            <select
-              value={selectedBuyerId}
-              onChange={(e) => setSelectedBuyerId(e.target.value)}
-              className="border border-slate-300 rounded-lg p-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none bg-white w-full sm:w-40"
-            >
-              <option value="">All Buyers</option>
-              {buyers.map((b) => (
-                <option key={b._id} value={b._id}>{b.name}</option>
-              ))}
-            </select>
-          </div>
-
-          <div className="w-full sm:w-auto">
-            <label className="block text-xs font-semibold text-slate-500 mb-1 uppercase tracking-wider">Material</label>
-            <select
-              value={selectedQuarryName}
-              onChange={(e) => setSelectedQuarryName(e.target.value)}
-              className="border border-slate-300 rounded-lg p-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none bg-white w-full sm:w-40"
-            >
-              <option value="">All Materials</option>
-              {uniqueQuarryNames.map((q) => (
-                <option key={q} value={q}>{q}</option>
-              ))}
-            </select>
-          </div>
-
-          <div className="w-full sm:w-auto">
-            <label className="block text-xs font-semibold text-slate-500 mb-1 uppercase tracking-wider">Time Filter</label>
-            <select
-              value={reportType}
-              onChange={(e) => setReportType(e.target.value)}
-              className="border border-slate-300 rounded-lg p-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none bg-white w-full"
-            >
-              <option value="all">All Time</option>
-              <option value="daily">Particular Date</option>
-              <option value="weekly">Weekly</option>
-              <option value="monthly">Monthly</option>
-              <option value="range">Date Range</option>
-            </select>
-          </div>
-
-          {reportType === 'daily' && (
+        <div className="flex flex-col gap-3 bg-white p-3 rounded-xl shadow-sm border border-slate-200 w-full md:w-auto shrink-0">
+          <div className="flex flex-wrap items-end gap-3 w-full">
             <div className="w-full sm:w-auto">
-              <label className="block text-xs font-semibold text-slate-500 mb-1 uppercase tracking-wider">Date</label>
+              <label className="block text-xs font-semibold text-slate-500 mb-1 uppercase tracking-wider">Search</label>
               <input
-                type="date"
-                value={dateRange.particularDate}
-                onChange={(e) => handleDateFilterChange('particularDate', e.target.value)}
-                className="border border-slate-300 rounded-lg p-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none w-full"
+                type="text"
+                placeholder="Search buyer, quarry, vehicle..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="border border-slate-300 rounded-lg p-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none w-full sm:w-48 bg-white"
               />
             </div>
-          )}
 
-          {reportType === 'weekly' && (
             <div className="w-full sm:w-auto">
-              <label className="block text-xs font-semibold text-slate-500 mb-1 uppercase tracking-wider">Week Start Date</label>
-              <input
-                type="date"
-                value={dateRange.weekStart}
-                onChange={(e) => handleDateFilterChange('weekStart', e.target.value)}
-                className="border border-slate-300 rounded-lg p-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none w-full"
-              />
+              <label className="block text-xs font-semibold text-slate-500 mb-1 uppercase tracking-wider">Buyer Name</label>
+              <select
+                value={selectedBuyerId}
+                onChange={(e) => setSelectedBuyerId(e.target.value)}
+                className="border border-slate-300 rounded-lg p-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none bg-white w-full sm:w-40"
+              >
+                <option value="">All Buyers</option>
+                {buyers.map((b) => (
+                  <option key={b._id} value={b._id}>{b.name}</option>
+                ))}
+              </select>
             </div>
-          )}
 
-          {reportType === 'monthly' && (
             <div className="w-full sm:w-auto">
-              <label className="block text-xs font-semibold text-slate-500 mb-1 uppercase tracking-wider">Month</label>
-              <input
-                type="month"
-                value={dateRange.month}
-                onChange={(e) => handleDateFilterChange('month', e.target.value)}
-                className="border border-slate-300 rounded-lg p-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none w-full"
-              />
+              <label className="block text-xs font-semibold text-slate-500 mb-1 uppercase tracking-wider">Material</label>
+              <select
+                value={selectedQuarryName}
+                onChange={(e) => setSelectedQuarryName(e.target.value)}
+                className="border border-slate-300 rounded-lg p-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none bg-white w-full sm:w-40"
+              >
+                <option value="">All Materials</option>
+                {uniqueQuarryNames.map((q) => (
+                  <option key={q} value={q}>{q}</option>
+                ))}
+              </select>
             </div>
-          )}
 
-          {reportType === 'range' && (
-            <>
-              <div className="w-full sm:w-auto">
-                <label className="block text-xs font-semibold text-slate-500 mb-1 uppercase tracking-wider">Start Date</label>
-                <input
-                  type="date"
-                  value={dateRange.startDate}
-                  onChange={(e) => handleDateFilterChange('startDate', e.target.value)}
-                  className="border border-slate-300 rounded-lg p-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none w-full"
-                />
-              </div>
-              <div className="w-full sm:w-auto">
-                <label className="block text-xs font-semibold text-slate-500 mb-1 uppercase tracking-wider">End Date</label>
-                <input
-                  type="date"
-                  value={dateRange.endDate}
-                  onChange={(e) => handleDateFilterChange('endDate', e.target.value)}
-                  className="border border-slate-300 rounded-lg p-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none w-full"
-                />
-              </div>
-            </>
-          )}
+            <div className="w-full sm:w-auto">
+              <label className="block text-xs font-semibold text-slate-500 mb-1 uppercase tracking-wider">Time Filter</label>
+              <select
+                value={reportType}
+                onChange={(e) => setReportType(e.target.value)}
+                className="border border-slate-300 rounded-lg p-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none bg-white w-full"
+              >
+                <option value="all">All Time</option>
+                <option value="daily">Particular Date</option>
+                <option value="weekly">Weekly</option>
+                <option value="monthly">Monthly</option>
+                <option value="range">Date Range</option>
+              </select>
+            </div>
 
-          <button
-            type="button"
-            onClick={downloadPdf}
-            disabled={loads.length === 0 || loading}
-            className="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-blue-700 transition shadow-md disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer w-full sm:w-auto justify-center inline-flex items-center"
-          >
-            Download PDF
-          </button>
-
-          {canWrite && (
-            <div className="flex gap-2 w-full sm:w-auto">
+            <div className="flex flex-wrap gap-2 w-full sm:w-auto ml-auto">
               <button
                 type="button"
-                onClick={() => openPaymentModal()}
-                className="bg-blue-650 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-blue-700 transition shadow-md whitespace-nowrap cursor-pointer w-full sm:w-auto justify-center inline-flex items-center"
+                onClick={downloadPdf}
+                disabled={loads.length === 0 || loading}
+                className="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-blue-700 transition shadow-md disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer w-full sm:w-auto justify-center inline-flex items-center"
               >
-                Record Payment
+                Download PDF
               </button>
-              <button
-                type="button"
-                onClick={() => {
-                  setFormData({
-                    vehicleMode: 'select',
-                    vehicleNumber: '',
-                    date: new Date().toISOString().split('T')[0],
-                    quarryName: '',
-                    buyerId: '',
-                    price: '',
-                    quantity: '',
-                    unitType: 'tons'
-                  });
-                  setIsModalOpen(true);
-                }}
-                className="bg-green-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-green-700 transition shadow-md whitespace-nowrap cursor-pointer w-full sm:w-auto justify-center inline-flex items-center"
-              >
-                + Add Load
-              </button>
+              {canWrite && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setFormData({
+                      vehicleMode: 'select',
+                      vehicleNumber: '',
+                      date: new Date().toISOString().split('T')[0],
+                      quarryName: '',
+                      buyerId: '',
+                      price: '',
+                      quantity: '',
+                      unitType: 'tons'
+                    });
+                    setIsModalOpen(true);
+                  }}
+                  className="bg-green-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-green-700 transition shadow-md whitespace-nowrap cursor-pointer w-full sm:w-auto justify-center inline-flex items-center"
+                >
+                  + Add Load
+                </button>
+              )}
+            </div>
+          </div>
+
+          {['daily', 'weekly', 'monthly', 'range'].includes(reportType) && (
+            <div className="flex flex-wrap items-center gap-3 p-3 bg-slate-50 border border-slate-200 rounded-lg animate-in slide-in-from-top-1 duration-200 w-full">
+              {reportType === 'daily' && (
+                <div className="w-full sm:w-auto flex items-center gap-2">
+                  <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider whitespace-nowrap">Date:</span>
+                  <input
+                    type="date"
+                    value={dateRange.particularDate}
+                    onChange={(e) => handleDateFilterChange('particularDate', e.target.value)}
+                    className="border border-slate-300 rounded-lg p-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none bg-white w-full sm:w-48"
+                  />
+                </div>
+              )}
+
+              {reportType === 'weekly' && (
+                <div className="w-full sm:w-auto flex items-center gap-2">
+                  <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider whitespace-nowrap">Week Start:</span>
+                  <input
+                    type="date"
+                    value={dateRange.weekStart}
+                    onChange={(e) => handleDateFilterChange('weekStart', e.target.value)}
+                    className="border border-slate-300 rounded-lg p-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none bg-white w-full sm:w-48"
+                  />
+                </div>
+              )}
+
+              {reportType === 'monthly' && (
+                <div className="w-full sm:w-auto flex items-center gap-2">
+                  <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider whitespace-nowrap">Month:</span>
+                  <input
+                    type="month"
+                    value={dateRange.month}
+                    onChange={(e) => handleDateFilterChange('month', e.target.value)}
+                    className="border border-slate-300 rounded-lg p-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none bg-white w-full sm:w-48"
+                  />
+                </div>
+              )}
+
+              {reportType === 'range' && (
+                <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
+                  <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider whitespace-nowrap">Date Range:</span>
+                  <input
+                    type="date"
+                    value={dateRange.startDate}
+                    onChange={(e) => handleDateFilterChange('startDate', e.target.value)}
+                    className="border border-slate-300 rounded-lg p-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none bg-white w-full sm:w-40"
+                  />
+                  <span className="text-slate-400 text-sm">to</span>
+                  <input
+                    type="date"
+                    value={dateRange.endDate}
+                    onChange={(e) => handleDateFilterChange('endDate', e.target.value)}
+                    className="border border-slate-300 rounded-lg p-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none bg-white w-full sm:w-40"
+                  />
+                </div>
+              )}
             </div>
           )}
         </div>
@@ -864,15 +899,6 @@ const LoadManagement = () => {
                     <td className="p-4 text-right space-x-3 whitespace-nowrap">
                       {canWrite && (
                         <>
-                          {Number(load.price * load.quantity - (load.allocatedAmount || 0)) > 0 && (
-                            <button 
-                              onClick={() => openPaymentModal(load)} 
-                              className="text-emerald-600 hover:text-emerald-800 hover:bg-emerald-50 p-2 rounded-lg transition-colors inline-flex items-center" 
-                              title="Record Payment"
-                            >
-                              <MoneyIcon className="h-5 w-5" />
-                            </button>
-                          )}
                           <button 
                             onClick={() => handleEdit(load)} 
                             className="text-blue-600 hover:text-blue-800 hover:bg-blue-50 p-2 rounded-lg transition-colors inline-flex items-center" 
@@ -1185,68 +1211,7 @@ const LoadManagement = () => {
         </div>
       )}
 
-      {/* Record Payment Modal */}
-      {paymentModalOpen && (
-        <div className="fixed inset-0 bg-slate-900/50 flex items-center justify-center p-4 z-50 animate-in fade-in duration-200">
-          <div className="bg-white rounded-xl shadow-2xl w-full max-w-md overflow-hidden flex flex-col">
-            <div className="p-5 border-b border-slate-100 flex justify-between items-center bg-blue-50">
-              <h2 className="text-xl font-bold text-blue-900">Record Payment to Buyer</h2>
-              <button onClick={() => setPaymentModalOpen(false)} className="text-blue-400 hover:text-blue-600 text-2xl leading-none">&times;</button>
-            </div>
-            
-            <form onSubmit={handlePaymentSubmit} className="p-6 space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">Buyer *</label>
-                <select
-                  required
-                  value={paymentBuyerId}
-                  onChange={(e) => handlePaymentBuyerChange(e.target.value)}
-                  className="w-full border border-slate-300 rounded-lg p-2.5 bg-white text-sm focus:ring-2 focus:ring-blue-500 outline-none"
-                >
-                  <option value="" disabled>Select Buyer *</option>
-                  {buyers.map(b => (
-                    <option key={b._id} value={b._id}>{b.name}</option>
-                  ))}
-                </select>
-              </div>
 
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">Total Outstanding (₹)</label>
-                <input type="text" disabled value={paymentBuyerOutstanding?.toLocaleString() || '0'} className="w-full border border-slate-200 rounded-lg p-2.5 bg-slate-50 text-slate-400 outline-none cursor-not-allowed text-sm" />
-              </div>
-              
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">Payment Date *</label>
-                <input type="date" required value={paymentDate} onChange={(e) => setPaymentDate(e.target.value)} className="w-full border border-slate-300 rounded-lg p-2.5 text-sm bg-white" />
-              </div>
-              
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">Payment Amount (₹) *</label>
-                <input type="number" required min="1" step="0.01" value={paymentAmount} onChange={(e) => setPaymentAmount(e.target.value)} className="w-full border border-slate-300 rounded-lg p-2.5 text-sm font-semibold text-slate-900" />
-              </div>
-              
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">Paid By / Method</label>
-                <input type="text" value={paymentPaidBy} onChange={(e) => setPaymentPaidBy(e.target.value)} className="w-full border border-slate-300 rounded-lg p-2.5 text-sm" placeholder="e.g. cash, bank, name" />
-              </div>
-              
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">Notes</label>
-                <textarea rows="3" value={paymentNote} onChange={(e) => setPaymentNote(e.target.value)} className="w-full border border-slate-300 rounded-lg p-2.5 text-sm" placeholder="Add payment details or references..."></textarea>
-              </div>
-              
-              <div className="pt-4 flex justify-end space-x-3 border-t border-slate-100">
-                <button type="button" onClick={() => setPaymentModalOpen(false)} className="px-4 py-2 text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-lg font-medium transition text-sm">
-                  Cancel
-                </button>
-                <button type="submit" className="px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition shadow-md text-sm">
-                  Record Payment
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
     </div>
   );
 };

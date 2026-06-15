@@ -54,13 +54,15 @@ const Dashboard = () => {
   useEffect(() => {
     // when reportType changes, update the dateRange for monthly/weekly
     if (reportType === 'monthly') setDateRange(initialMonthlyRange);
+    if (reportType === 'range') setDateRange(initialMonthlyRange);
     if (reportType === 'weekly') {
-      const end = new Date(today);
-      end.setHours(0, 0, 0, 0);
-      const start = new Date(end);
-      start.setDate(start.getDate() - 6);
+      const day = today.getDay();
+      const sunday = new Date(today);
+      sunday.setDate(today.getDate() - day);
+      const saturday = new Date(sunday);
+      saturday.setDate(sunday.getDate() + 6);
       const toYMD = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-      setDateRange({ startDate: toYMD(start), endDate: toYMD(end) });
+      setDateRange({ startDate: toYMD(sunday), endDate: toYMD(saturday) });
     }
   }, [reportType, initialMonthlyRange, today]);
 
@@ -112,9 +114,16 @@ const Dashboard = () => {
     const now = new Date();
     let startDate;
     let endDate = now;
-    if (reportType === 'weekly') startDate = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 6);
-    else if (reportType === 'monthly') startDate = new Date(now.getFullYear(), now.getMonth(), 1);
-    else {
+    if (reportType === 'weekly') {
+      const day = now.getDay();
+      startDate = new Date(now.getFullYear(), now.getMonth(), now.getDate() - day);
+      startDate.setHours(0, 0, 0, 0);
+      endDate = new Date(startDate);
+      endDate.setDate(startDate.getDate() + 6);
+      endDate.setHours(23, 59, 59, 999);
+    } else if (reportType === 'monthly') {
+      startDate = new Date(now.getFullYear(), now.getMonth(), 1);
+    } else {
       // range
       startDate = new Date(dateRange.startDate);
       endDate = new Date(dateRange.endDate);
@@ -163,9 +172,16 @@ const Dashboard = () => {
     const now = new Date();
     let startDate;
     let endDate = now;
-    if (reportType === 'weekly') startDate = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 6);
-    else if (reportType === 'monthly') startDate = new Date(now.getFullYear(), now.getMonth(), 1);
-    else { // range
+    if (reportType === 'weekly') {
+      const day = now.getDay();
+      startDate = new Date(now.getFullYear(), now.getMonth(), now.getDate() - day);
+      startDate.setHours(0, 0, 0, 0);
+      endDate = new Date(startDate);
+      endDate.setDate(startDate.getDate() + 6);
+      endDate.setHours(23, 59, 59, 999);
+    } else if (reportType === 'monthly') {
+      startDate = new Date(now.getFullYear(), now.getMonth(), 1);
+    } else { // range
       startDate = new Date(dateRange.startDate);
       endDate = new Date(dateRange.endDate);
       endDate.setHours(23, 59, 59, 999);

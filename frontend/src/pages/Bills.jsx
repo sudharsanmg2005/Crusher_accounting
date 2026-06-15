@@ -131,7 +131,10 @@ const Bills = () => {
     }
 
     if (filters.mode === 'week' && filters.weekStart) {
-      const start = new Date(filters.weekStart + 'T00:00:00');
+      const d = new Date(filters.weekStart + 'T00:00:00');
+      const day = d.getDay();
+      const start = new Date(d);
+      start.setDate(d.getDate() - day);
       const end = new Date(start);
       end.setDate(start.getDate() + 6);
       end.setHours(23, 59, 59, 999);
@@ -181,7 +184,10 @@ const Bills = () => {
         rangeLabel = filters.month;
       }
     } else if (filters.mode === 'week' && filters.weekStart) {
-      const start = new Date(filters.weekStart);
+      const d = new Date(filters.weekStart + 'T00:00:00');
+      const day = d.getDay();
+      const start = new Date(d);
+      start.setDate(d.getDate() - day);
       const end = new Date(start);
       end.setDate(start.getDate() + 6);
       rangeLabel = `${formatDateTime(start).date} - ${formatDateTime(end).date}`;
@@ -274,7 +280,13 @@ const Bills = () => {
     } else if (filters.mode === 'month' && filters.month) {
       rangeLabel = `Month: ${filters.month}`;
     } else if (filters.mode === 'week' && filters.weekStart) {
-      rangeLabel = `Week starting: ${formatDateTime(filters.weekStart).date}`;
+      const d = new Date(filters.weekStart + 'T00:00:00');
+      const day = d.getDay();
+      const start = new Date(d);
+      start.setDate(d.getDate() - day);
+      const end = new Date(start);
+      end.setDate(start.getDate() + 6);
+      rangeLabel = `Week: ${formatDateTime(start).date} to ${formatDateTime(end).date}`;
     }
     centerText(rangeLabel, 26, 9);
 
@@ -650,142 +662,182 @@ const Bills = () => {
           <p className="text-slate-500 text-sm mt-1">Generate and print invoice bills for customers.</p>
         </div>
 
-        <div className="flex flex-wrap items-end gap-3 bg-white p-3 rounded-xl shadow-sm border border-slate-200 w-full lg:w-auto">
-          <div className="w-full sm:w-auto">
-            <label className="block text-xs font-semibold text-slate-500 mb-1 uppercase tracking-wider">Search</label>
-            <input
-              type="text"
-              value={filters.search}
-              onChange={(e) => setFilters((prev) => ({ ...prev, search: e.target.value }))}
-              placeholder="Name, vehicle, material"
-              className="border border-slate-300 rounded-lg p-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none bg-white w-full sm:w-44"
-            />
-          </div>
-
-          <div className="w-full sm:w-auto">
-            <label className="block text-xs font-semibold text-slate-500 mb-1 uppercase tracking-wider">Customer</label>
-            <select
-              value={filters.customerId}
-              onChange={(e) => setFilters((prev) => ({ ...prev, customerId: e.target.value }))}
-              className="border border-slate-300 rounded-lg p-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none bg-white w-full"
-            >
-              <option value="">All Customers</option>
-              {customers.map((c) => (
-                <option key={c._id} value={c._id}>
-                  {c.name}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          <div className="w-full sm:w-auto">
-            <label className="block text-xs font-semibold text-slate-500 mb-1 uppercase tracking-wider">Status</label>
-            <select
-              value={filters.status}
-              onChange={(e) => setFilters((prev) => ({ ...prev, status: e.target.value }))}
-              className="border border-slate-300 rounded-lg p-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none bg-white w-full"
-            >
-              <option value="">All Statuses</option>
-              <option value="Outstanding">Outstanding</option>
-              <option value="Settled">Settled</option>
-            </select>
-          </div>
-
-          <div className="w-full sm:w-auto">
-            <label className="block text-xs font-semibold text-slate-500 mb-1 uppercase tracking-wider">Filter Mode</label>
-            <select
-              value={filters.mode}
-              onChange={(e) => setFilters((prev) => ({ ...prev, mode: e.target.value }))}
-              className="border border-slate-300 rounded-lg p-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none bg-white w-full"
-            >
-              <option value="date_newest">Date: newest first</option>
-              <option value="date_oldest">Date: oldest first</option>
-              <option value="alpha_az">Customer A to Z</option>
-              <option value="alpha_za">Customer Z to A</option>
-              <option value="particular_date">Particular date</option>
-              <option value="selected_dates">Selected dates</option>
-              <option value="month">Month</option>
-              <option value="week">Week</option>
-            </select>
-          </div>
-
-          {filters.mode === 'particular_date' && (
+        <div className="flex flex-col gap-3 bg-white p-3 rounded-xl shadow-sm border border-slate-200 w-full lg:w-auto shrink-0">
+          <div className="flex flex-wrap items-end gap-3 w-full">
             <div className="w-full sm:w-auto">
-              <label className="block text-xs font-semibold text-slate-500 mb-1 uppercase tracking-wider">Date</label>
+              <label className="block text-xs font-semibold text-slate-500 mb-1 uppercase tracking-wider">Search</label>
               <input
-                type="date"
-                value={filters.particularDate}
-                onChange={(e) => setFilters((prev) => ({ ...prev, particularDate: e.target.value }))}
-                className="border border-slate-300 rounded-lg p-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none bg-white w-full"
+                type="text"
+                value={filters.search}
+                onChange={(e) => setFilters((prev) => ({ ...prev, search: e.target.value }))}
+                placeholder="Name, vehicle, material"
+                className="border border-slate-300 rounded-lg p-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none bg-white w-full sm:w-44"
               />
             </div>
-          )}
 
-          {filters.mode === 'month' && (
             <div className="w-full sm:w-auto">
-              <label className="block text-xs font-semibold text-slate-500 mb-1 uppercase tracking-wider">Month</label>
-              <input
-                type="month"
-                value={filters.month}
-                onChange={(e) => setFilters((prev) => ({ ...prev, month: e.target.value }))}
+              <label className="block text-xs font-semibold text-slate-500 mb-1 uppercase tracking-wider">Customer</label>
+              <select
+                value={filters.customerId}
+                onChange={(e) => setFilters((prev) => ({ ...prev, customerId: e.target.value }))}
                 className="border border-slate-300 rounded-lg p-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none bg-white w-full"
-              />
-            </div>
-          )}
-
-          {filters.mode === 'week' && (
-            <div className="w-full sm:w-auto">
-              <label className="block text-xs font-semibold text-slate-500 mb-1 uppercase tracking-wider">Week Start</label>
-              <input
-                type="date"
-                value={filters.weekStart}
-                onChange={(e) => setFilters((prev) => ({ ...prev, weekStart: e.target.value }))}
-                className="border border-slate-300 rounded-lg p-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none bg-white w-full"
-              />
-            </div>
-          )}
-
-          {filters.mode === 'selected_dates' && (
-            <>
-              <div className="w-full sm:w-auto">
-                <label className="block text-xs font-semibold text-slate-500 mb-1 uppercase tracking-wider">Start Date</label>
-                <input
-                  type="date"
-                  value={filters.startDate}
-                  onChange={(e) => setFilters((prev) => ({ ...prev, startDate: e.target.value }))}
-                  className="border border-slate-300 rounded-lg p-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none bg-white w-full"
-                />
-              </div>
-              <div className="w-full sm:w-auto">
-                <label className="block text-xs font-semibold text-slate-500 mb-1 uppercase tracking-wider">End Date</label>
-                <input
-                  type="date"
-                  value={filters.endDate}
-                  onChange={(e) => setFilters((prev) => ({ ...prev, endDate: e.target.value }))}
-                  className="border border-slate-300 rounded-lg p-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none bg-white w-full"
-                />
-              </div>
-            </>
-          )}
-
-          <div className="flex flex-wrap gap-2 w-full sm:w-auto">
-            <button
-              type="button"
-              onClick={downloadSummaryPdf}
-              disabled={filteredBills.length === 0 || loading}
-              className="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-blue-700 transition shadow-md disabled:opacity-50 disabled:cursor-not-allowed w-full sm:w-auto justify-center inline-flex items-center cursor-pointer"
-            >
-              Download Summary PDF
-            </button>
-            {canCreateBills && (
-              <button 
-                onClick={() => { setFormData(emptyForm()); setIsModalOpen(true); }}
-                className="bg-emerald-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-emerald-700 transition shadow-md inline-flex items-center justify-center w-full sm:w-auto cursor-pointer"
               >
-                + Generate Bill
+                <option value="">All Customers</option>
+                {customers.map((c) => (
+                  <option key={c._id} value={c._id}>
+                    {c.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div className="w-full sm:w-auto">
+              <label className="block text-xs font-semibold text-slate-500 mb-1 uppercase tracking-wider">Status</label>
+              <select
+                value={filters.status}
+                onChange={(e) => setFilters((prev) => ({ ...prev, status: e.target.value }))}
+                className="border border-slate-300 rounded-lg p-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none bg-white w-full"
+              >
+                <option value="">All Statuses</option>
+                <option value="Outstanding">Outstanding</option>
+                <option value="Settled">Settled</option>
+              </select>
+            </div>
+
+            <div className="w-full sm:w-auto">
+              <label className="block text-xs font-semibold text-slate-500 mb-1 uppercase tracking-wider">Filter Mode</label>
+              <select
+                value={filters.mode}
+                onChange={(e) => {
+                  const newMode = e.target.value;
+                  setFilters((prev) => {
+                    const next = { ...prev, mode: newMode };
+                    const todayStr = toYMD(new Date());
+                    if (newMode === 'particular_date' && !next.particularDate) {
+                      next.particularDate = todayStr;
+                    } else if (newMode === 'month' && !next.month) {
+                      next.month = todayStr.substring(0, 7);
+                    } else if (newMode === 'week' && !next.weekStart) {
+                      const d = new Date();
+                      const day = d.getDay();
+                      const sunday = new Date(d);
+                      sunday.setDate(d.getDate() - day);
+                      next.weekStart = toYMD(sunday);
+                    } else if (newMode === 'selected_dates') {
+                      if (!next.startDate) {
+                        const d = new Date();
+                        const firstDay = new Date(d.getFullYear(), d.getMonth(), 1);
+                        next.startDate = toYMD(firstDay);
+                      }
+                      if (!next.endDate) {
+                        next.endDate = todayStr;
+                      }
+                    }
+                    return next;
+                  });
+                }}
+                className="border border-slate-300 rounded-lg p-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none bg-white w-full"
+              >
+                <option value="date_newest">Date: newest first</option>
+                <option value="date_oldest">Date: oldest first</option>
+                <option value="alpha_az">Customer A to Z</option>
+                <option value="alpha_za">Customer Z to A</option>
+                <option value="particular_date">Particular date</option>
+                <option value="selected_dates">Selected dates</option>
+                <option value="month">Month</option>
+                <option value="week">Week</option>
+              </select>
+            </div>
+
+            <div className="flex flex-wrap gap-2 w-full sm:w-auto ml-auto">
+              <button
+                type="button"
+                onClick={downloadSummaryPdf}
+                disabled={filteredBills.length === 0 || loading}
+                className="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-blue-700 transition shadow-md disabled:opacity-50 disabled:cursor-not-allowed w-full sm:w-auto justify-center inline-flex items-center cursor-pointer"
+              >
+                Download Summary PDF
               </button>
-            )}
+              {canCreateBills && (
+                <button 
+                  onClick={() => { setFormData(emptyForm()); setIsModalOpen(true); }}
+                  className="bg-emerald-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-emerald-700 transition shadow-md inline-flex items-center justify-center w-full sm:w-auto cursor-pointer"
+                >
+                  + Generate Bill
+                </button>
+              )}
+            </div>
           </div>
+
+          {['particular_date', 'month', 'week', 'selected_dates'].includes(filters.mode) && (
+            <div className="flex flex-wrap items-center gap-3 p-3 bg-slate-50 border border-slate-200 rounded-lg animate-in slide-in-from-top-1 duration-200 w-full">
+              {filters.mode === 'particular_date' && (
+                <div className="w-full sm:w-auto flex items-center gap-2">
+                  <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider whitespace-nowrap">Date:</span>
+                  <input
+                    type="date"
+                    value={filters.particularDate}
+                    onChange={(e) => setFilters((prev) => ({ ...prev, particularDate: e.target.value }))}
+                    className="border border-slate-300 rounded-lg p-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none bg-white w-full sm:w-48"
+                  />
+                </div>
+              )}
+
+              {filters.mode === 'month' && (
+                <div className="w-full sm:w-auto flex items-center gap-2">
+                  <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider whitespace-nowrap">Month:</span>
+                  <input
+                    type="month"
+                    value={filters.month}
+                    onChange={(e) => setFilters((prev) => ({ ...prev, month: e.target.value }))}
+                    className="border border-slate-300 rounded-lg p-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none bg-white w-full sm:w-48"
+                  />
+                </div>
+              )}
+
+              {filters.mode === 'week' && (
+                <div className="w-full sm:w-auto flex items-center gap-2">
+                  <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider whitespace-nowrap">Week Start:</span>
+                  <input
+                    type="date"
+                    value={filters.weekStart}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      if (val) {
+                        const d = new Date(val + 'T00:00:00');
+                        const day = d.getDay();
+                        const sunday = new Date(d);
+                        sunday.setDate(d.getDate() - day);
+                        setFilters((prev) => ({ ...prev, weekStart: toYMD(sunday) }));
+                      } else {
+                        setFilters((prev) => ({ ...prev, weekStart: '' }));
+                      }
+                    }}
+                    className="border border-slate-300 rounded-lg p-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none bg-white w-full sm:w-48"
+                  />
+                </div>
+              )}
+
+              {filters.mode === 'selected_dates' && (
+                <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
+                  <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider whitespace-nowrap">Date Range:</span>
+                  <input
+                    type="date"
+                    value={filters.startDate}
+                    onChange={(e) => setFilters((prev) => ({ ...prev, startDate: e.target.value }))}
+                    className="border border-slate-300 rounded-lg p-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none bg-white w-full sm:w-40"
+                  />
+                  <span className="text-slate-400 text-sm">to</span>
+                  <input
+                    type="date"
+                    value={filters.endDate}
+                    onChange={(e) => setFilters((prev) => ({ ...prev, endDate: e.target.value }))}
+                    className="border border-slate-300 rounded-lg p-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none bg-white w-full sm:w-40"
+                  />
+                </div>
+              )}
+            </div>
+          )}
         </div>
       </div>
 

@@ -82,11 +82,16 @@ const Customers = () => {
       const lastDay = new Date(today.getFullYear(), today.getMonth() + 1, 0);
       setDateRange({ startDate: toYMD(firstDay), endDate: toYMD(lastDay) });
     } else if (reportType === 'weekly') {
-      const end = new Date(today);
-      end.setHours(0, 0, 0, 0);
-      const start = new Date(end);
-      start.setDate(start.getDate() - 6);
-      setDateRange({ startDate: toYMD(start), endDate: toYMD(end) });
+      const day = today.getDay();
+      const sunday = new Date(today);
+      sunday.setDate(today.getDate() - day);
+      const saturday = new Date(sunday);
+      saturday.setDate(sunday.getDate() + 6);
+      setDateRange({ startDate: toYMD(sunday), endDate: toYMD(saturday) });
+    } else if (reportType === 'range') {
+      const firstDay = new Date(today.getFullYear(), today.getMonth(), 1);
+      const lastDay = new Date(today.getFullYear(), today.getMonth() + 1, 0);
+      setDateRange({ startDate: toYMD(firstDay), endDate: toYMD(lastDay) });
     }
   }, [reportType]);
 
@@ -324,19 +329,30 @@ const Customers = () => {
     doc.setDrawColor(200, 200, 200);
     doc.line(14, 29, pageWidth - 14, 29);
 
+    const selectedBilled = customerDetails.summary?.totalBillsAmount || 0;
+    const selectedPaid = customerDetails.summary?.totalPaidAmount || 0;
+    const selectedOutstanding = customerDetails.summary?.totalOutstandingAmount || 0;
+
+    const overallBilled = customerDetails.summary?.overallBilled || selectedBilled;
+    const overallPaid = customerDetails.summary?.overallPaid || selectedPaid;
+    const overallOutstanding = customerDetails.summary?.overallOutstanding || selectedOutstanding;
+
+    const previousBilled = Math.max(0, overallBilled - selectedBilled);
+    const previousPaid = Math.max(0, overallPaid - selectedPaid);
+    const previousOutstanding = Math.max(0, overallOutstanding - selectedOutstanding);
+
     const yStartTable = 36;
-    const head = [['S.NO', 'DATE', 'BILL NUMBER', 'VEHICLE NUMBER', 'MATERIAL', 'PRICE (Rs.)', 'QUANTITY', 'TOTAL VALUE (Rs.)', 'ALLOCATED (Rs.)', 'PENDING (Rs.)']];
+    const head = [['S.NO', 'DATE', 'VEHICLE NO', 'MATERIAL', 'PRICE (Rs.)', 'QUANTITY', 'TOTAL (Rs.)', 'PASS AMT (Rs.)', 'GRAND TOTAL (Rs.)']];
     const body = (customerDetails.bills || []).map((r, idx) => [
       idx + 1,
       formatDateTime(r.date).date,
-      r.billNumber || '—',
       r.vehicleNumber || '—',
       r.materialNameSnapshot || '—',
       r.pricePerUnit.toLocaleString(),
       `${Number(r.quantity || 0).toFixed(2)} ${r.quantityUnit || 'ton'}${r.quantity !== 1 ? 's' : ''}`,
-      (r.totalAmount + (r.passAmount || 0)).toLocaleString(),
-      (r.allocatedAmount || 0).toLocaleString(),
-      r.pendingAmount.toLocaleString()
+      r.totalAmount.toLocaleString(),
+      (r.passAmount || 0).toLocaleString(),
+      (r.totalAmount + (r.passAmount || 0)).toLocaleString()
     ]);
 
     autoTable(doc, {
@@ -344,25 +360,25 @@ const Customers = () => {
       body,
       startY: yStartTable,
       theme: 'grid',
-      styles: { fontSize: 6.5, cellPadding: 1.5 },
+      styles: { fontSize: 7, cellPadding: 2 },
       headStyles: { fillColor: [245, 246, 250], textColor: [15, 23, 42], fontStyle: 'bold' }
     });
 
     let y = (doc.lastAutoTable?.finalY || yStartTable) + 12;
-    if (y > pageHeight - 60) {
+    if (y > pageHeight - 110) {
       doc.addPage();
       y = 18;
     }
 
-    const totalsHead = [['DETAILS', 'AMOUNT']];
+    const totalsHead = [['SELECTED PERIOD STATEMENT', 'AMOUNT']];
     const totalsBody = [
-      ['TOTAL BILLED AMOUNT', `Rs. ${Number(customerDetails.summary?.totalBillsAmount || 0).toLocaleString()}`],
-      ['TOTAL PAID', `Rs. ${Number(customerDetails.summary?.totalPaidAmount || 0).toLocaleString()}`],
-      ['OUTSTANDING BALANCE', `Rs. ${Number(customerDetails.summary?.totalOutstandingAmount || 0).toLocaleString()}`]
+      ['TOTAL BILLED AMOUNT', `Rs. ${Number(selectedBilled).toLocaleString()}`],
+      ['TOTAL PAID', `Rs. ${Number(selectedPaid).toLocaleString()}`],
+      ['OUTSTANDING BALANCE', `Rs. ${Number(selectedOutstanding).toLocaleString()}`]
     ];
 
     const leftRightMargin = 14;
-    const detailsColWidth = 75;
+    const detailsColWidth = 85;
     const amountColWidth = pageWidth - leftRightMargin * 2 - detailsColWidth;
     const tableWidth = detailsColWidth + amountColWidth;
 
@@ -372,8 +388,56 @@ const Customers = () => {
       startY: y,
       theme: 'grid',
       tableWidth,
-      styles: { fontSize: 9, cellPadding: 2, overflow: 'linebreak' },
+      styles: { fontSize: 8.5, cellPadding: 2, overflow: 'linebreak' },
       headStyles: { fillColor: [37, 99, 235], textColor: [255, 255, 255], fontStyle: 'bold' },
+      columnStyles: {
+        0: { halign: 'left', cellWidth: detailsColWidth },
+        1: { halign: 'right', cellWidth: amountColWidth }
+      },
+      margin: { left: leftRightMargin, right: leftRightMargin }
+    });
+
+    y = doc.lastAutoTable.finalY + 8;
+
+    const prevHead = [['PREVIOUS PERIOD STATEMENT', 'AMOUNT']];
+    const prevBody = [
+      ['PREVIOUS DATES TOTAL BILLED', `Rs. ${Number(previousBilled).toLocaleString()}`],
+      ['PREVIOUS DATES TOTAL PAID', `Rs. ${Number(previousPaid).toLocaleString()}`],
+      ['PREVIOUS DATES OUTSTANDING', `Rs. ${Number(previousOutstanding).toLocaleString()}`]
+    ];
+
+    autoTable(doc, {
+      head: prevHead,
+      body: prevBody,
+      startY: y,
+      theme: 'grid',
+      tableWidth,
+      styles: { fontSize: 8.5, cellPadding: 2, overflow: 'linebreak' },
+      headStyles: { fillColor: [100, 116, 139], textColor: [255, 255, 255], fontStyle: 'bold' },
+      columnStyles: {
+        0: { halign: 'left', cellWidth: detailsColWidth },
+        1: { halign: 'right', cellWidth: amountColWidth }
+      },
+      margin: { left: leftRightMargin, right: leftRightMargin }
+    });
+
+    y = doc.lastAutoTable.finalY + 8;
+
+    const cumHead = [['CUMULATIVE OUTSTANDING SUMMARY', 'AMOUNT']];
+    const cumBody = [
+      ['PREVIOUS OUTSTANDING BALANCE', `Rs. ${Number(previousOutstanding).toLocaleString()}`],
+      ['SELECTED PERIOD OUTSTANDING', `Rs. ${Number(selectedOutstanding).toLocaleString()}`],
+      ['TOTAL OUTSTANDING BALANCE', `Rs. ${Number(overallOutstanding).toLocaleString()}`]
+    ];
+
+    autoTable(doc, {
+      head: cumHead,
+      body: cumBody,
+      startY: y,
+      theme: 'grid',
+      tableWidth,
+      styles: { fontSize: 8.5, cellPadding: 2, overflow: 'linebreak' },
+      headStyles: { fillColor: [15, 23, 42], textColor: [255, 255, 255], fontStyle: 'bold' },
       columnStyles: {
         0: { halign: 'left', cellWidth: detailsColWidth },
         1: { halign: 'right', cellWidth: amountColWidth }
@@ -723,7 +787,7 @@ const Customers = () => {
                 )}
                 
                 {/* Date Filter selector in Modal */}
-                <div className="flex items-center gap-3 mt-4">
+                <div className="flex flex-col gap-2 mt-4 items-start">
                   <div>
                     <select value={reportType} onChange={(e) => setReportType(e.target.value)} className="border border-slate-300 rounded-lg px-2.5 py-1 text-xs font-semibold focus:ring-2 focus:ring-blue-500 outline-none bg-white text-slate-700">
                       <option value="monthly">This Month</option>
@@ -732,7 +796,7 @@ const Customers = () => {
                     </select>
                   </div>
                   {reportType === 'range' && (
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2 animate-in slide-in-from-top-1 duration-150">
                       <input type="date" value={dateRange.startDate} onChange={(e) => setDateRange(prev => ({ ...prev, startDate: e.target.value }))} className="border border-slate-300 rounded-lg px-2 py-0.5 text-xs focus:ring-2 focus:ring-blue-500 outline-none text-slate-700" />
                       <span className="text-slate-400 text-xs">to</span>
                       <input type="date" value={dateRange.endDate} onChange={(e) => setDateRange(prev => ({ ...prev, endDate: e.target.value }))} className="border border-slate-300 rounded-lg px-2 py-0.5 text-xs focus:ring-2 focus:ring-blue-500 outline-none text-slate-700" />

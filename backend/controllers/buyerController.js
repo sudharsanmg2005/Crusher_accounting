@@ -216,7 +216,10 @@ export const getBuyerById = async (req, res, next) => {
       totalOutstandingAmount,
       totalBillsCount: totalLoadsCount,
       lastBillDate: lastLoadDate,
-      lastPaymentDate
+      lastPaymentDate,
+      overallBilled,
+      overallPaid,
+      overallOutstanding: Math.max(0, overallBilled - overallPaid)
     };
 
     const allLoadsForLedger = await Load.find({ buyer: buyerId, isDeleted: false }).sort({ date: 1, createdAt: 1 });
