@@ -47,6 +47,11 @@ const Buyers = () => {
   const [newVehicle, setNewVehicle] = useState('');
   const [editingVehicleIdx, setEditingVehicleIdx] = useState(null);
   const [editingVehicleVal, setEditingVehicleVal] = useState('');
+  const [expandedVehicleId, setExpandedVehicleId] = useState(null);
+
+  const toggleVehicles = (buyerId) => {
+    setExpandedVehicleId((prev) => (prev === buyerId ? null : buyerId));
+  };
 
   const canWrite = user?.role === 'super_admin' || user?.accessLevel === 'full_access';
 
@@ -438,45 +443,112 @@ const Buyers = () => {
                 <tr className="bg-slate-50 border-b border-slate-200 text-sm text-slate-600 uppercase tracking-wider">
                   <th className="p-4 font-semibold">Name</th>
                   <th className="p-4 font-semibold">Phone</th>
+                  <th className="p-4 font-semibold">Vehicles</th>
                   <th className="p-4 font-semibold">Address</th>
                   <th className="p-4 font-semibold text-right">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {filteredBuyers.map((b) => (
-                  <tr key={b._id} className="hover:bg-slate-50 transition">
-                    <td className="p-4 font-medium text-slate-800">{b.name}</td>
-                    <td className="p-4 text-slate-600">{b.phone || '-'}</td>
-                    <td className="p-4 text-slate-600 truncate max-w-xs">{b.address || '-'}</td>
-                    <td className="p-4 text-right space-x-2 whitespace-nowrap">
-                      <button
-                        onClick={() => openBuyerDetailModal(b)}
-                        className="text-green-600 hover:text-green-800 hover:bg-green-50 p-2 rounded-lg transition-colors inline-flex items-center"
-                        title="View Details & Payments"
-                      >
-                        <EyeIcon className="h-5 w-5" />
-                      </button>
-                      {canWrite && (
-                        <>
+                {filteredBuyers.map((b) => {
+                  const vehicles = b.vehicles || [];
+                  const vehicleCount = vehicles.length;
+                  const isExpanded = expandedVehicleId === b._id;
+
+                  return (
+                    <React.Fragment key={b._id}>
+                      <tr className="hover:bg-slate-50 transition">
+                        <td className="p-4 font-medium text-slate-800">{b.name}</td>
+                        <td className="p-4 text-slate-600">{b.phone || '-'}</td>
+                        <td className="p-4 text-slate-600 text-sm">
+                          <div className="flex items-center gap-2">
+                            <span className="inline-flex items-center justify-center min-w-[1.75rem] h-7 px-2.5 rounded-full bg-slate-100 border border-slate-200 text-xs font-bold text-slate-700">
+                              {vehicleCount} {vehicleCount === 1 ? 'vehicle' : 'vehicles'}
+                            </span>
+                            {vehicleCount > 0 && (
+                              <div className="relative group">
+                                <button
+                                  type="button"
+                                  onClick={() => toggleVehicles(b._id)}
+                                  className="text-blue-600 hover:text-blue-800 p-1.5 rounded-lg hover:bg-blue-50 transition-colors inline-flex items-center"
+                                  title="Click to expand list below, hover to preview"
+                                >
+                                  <CargoIcon className="h-5 w-5" />
+                                </button>
+                                
+                                {/* Hover card showing vehicles */}
+                                <div className="absolute left-0 top-full mt-1 bg-white border border-slate-200 rounded-lg shadow-xl p-3 hidden group-hover:block z-30 min-w-[180px] animate-in fade-in slide-in-from-top-1 duration-150 text-left">
+                                  <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2 border-b border-slate-100 pb-1 flex items-center gap-1">
+                                    <CargoIcon className="h-3 w-3 text-slate-400" />
+                                    Vehicles List
+                                  </div>
+                                  <div className="space-y-1.5 max-h-40 overflow-y-auto">
+                                    {vehicles.map((v, idx) => (
+                                      <div key={v._id || idx} className="font-mono text-xs font-semibold text-slate-700 whitespace-nowrap bg-slate-50 border border-slate-100 rounded px-2 py-1 flex items-center gap-1.5">
+                                        <span className="h-1.5 w-1.5 rounded-full bg-blue-500"></span>
+                                        {v.number}
+                                      </div>
+                                    ))}
+                                  </div>
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        </td>
+                        <td className="p-4 text-slate-600 truncate max-w-xs">{b.address || '-'}</td>
+                        <td className="p-4 text-right space-x-2 whitespace-nowrap">
                           <button
-                            onClick={() => handleEdit(b)}
-                            className="text-blue-600 hover:text-blue-800 hover:bg-blue-50 p-2 rounded-lg transition-colors inline-flex items-center"
-                            title="Edit Buyer"
+                            onClick={() => openBuyerDetailModal(b)}
+                            className="text-green-600 hover:text-green-800 hover:bg-green-50 p-2 rounded-lg transition-colors inline-flex items-center"
+                            title="View Details & Payments"
                           >
-                            <EditIcon className="h-5 w-5" />
+                            <EyeIcon className="h-5 w-5" />
                           </button>
-                          <button
-                            onClick={() => handleDelete(b._id)}
-                            className="text-red-600 hover:text-red-800 hover:bg-red-50 p-2 rounded-lg transition-colors inline-flex items-center"
-                            title="Delete Buyer"
-                          >
-                            <TrashIcon className="h-5 w-5" />
-                          </button>
-                        </>
+                          {canWrite && (
+                            <>
+                              <button
+                                onClick={() => handleEdit(b)}
+                                className="text-blue-600 hover:text-blue-800 hover:bg-blue-50 p-2 rounded-lg transition-colors inline-flex items-center"
+                                title="Edit Buyer"
+                              >
+                                <EditIcon className="h-5 w-5" />
+                              </button>
+                              <button
+                                onClick={() => handleDelete(b._id)}
+                                className="text-red-600 hover:text-red-800 hover:bg-red-50 p-2 rounded-lg transition-colors inline-flex items-center"
+                                title="Delete Buyer"
+                              >
+                                <TrashIcon className="h-5 w-5" />
+                              </button>
+                            </>
+                          )}
+                        </td>
+                      </tr>
+                      {isExpanded && vehicleCount > 0 && (
+                        <tr className="bg-slate-50/50 border-b border-slate-200">
+                          <td colSpan={5} className="px-6 py-4">
+                            <div className="flex flex-col gap-2">
+                              <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
+                                <CargoIcon className="h-4 w-4 text-slate-400" />
+                                Registered Vehicles ({vehicleCount})
+                              </div>
+                              <div className="flex flex-wrap gap-2">
+                                {vehicles.map((v, idx) => (
+                                  <span
+                                    key={v._id || `${v.number}-${idx}`}
+                                    className="inline-flex items-center gap-1.5 bg-white hover:bg-slate-50 border border-slate-200 hover:border-slate-300 rounded-lg px-3 py-2 text-xs font-mono font-semibold text-slate-800 shadow-sm transition-all duration-150 cursor-default"
+                                  >
+                                    <span className="h-2 w-2 rounded-full bg-blue-500 animate-pulse"></span>
+                                    {v.number}
+                                  </span>
+                                ))}
+                              </div>
+                            </div>
+                          </td>
+                        </tr>
                       )}
-                    </td>
-                  </tr>
-                ))}
+                    </React.Fragment>
+                  );
+                })}
               </tbody>
             </table>
           </div>
@@ -608,6 +680,16 @@ const Buyers = () => {
                   <span className="font-semibold text-slate-700">📞 {buyerDetails.buyer?.phone}</span>
                   {buyerDetails.buyer?.address && <span>📍 {buyerDetails.buyer?.address}</span>}
                 </div>
+                {buyerDetails.buyer?.vehicles && buyerDetails.buyer.vehicles.length > 0 && (
+                  <div className="flex items-center gap-1.5 flex-wrap mt-2">
+                    <CargoIcon className="h-4 w-4 text-slate-400" />
+                    {buyerDetails.buyer.vehicles.map((v, idx) => (
+                      <span key={v._id || idx} className="inline-flex items-center bg-white border border-slate-200 rounded px-1.5 py-0.5 text-xs font-mono font-semibold text-slate-700 shadow-sm">
+                        {v.number}
+                      </span>
+                    ))}
+                  </div>
+                )}
 
                 {/* Date Filter selector in Modal */}
                 <div className="flex items-center gap-3 mt-4">
@@ -822,7 +904,7 @@ const Buyers = () => {
                             <td className="p-4 text-slate-800 font-semibold">{load.vehicleNumber || '—'}</td>
                             <td className="p-4 text-slate-600">{load.quarryName || '—'}</td>
                             <td className="p-4 text-right text-slate-600">₹{load.price.toLocaleString()}</td>
-                            <td className="p-4 text-right text-slate-600">{Number(load.quantity || 0).toFixed(2)} {load.unitType}</td>
+                            <td className="p-4 text-right text-slate-600">{Number(load.quantity || 0).toFixed(2)} {load.unitType || 'tons'}</td>
                             <td className="p-4 text-right font-bold text-slate-800">₹{(load.price * load.quantity).toLocaleString()}</td>
                             <td className="p-4 text-right text-emerald-600">₹{(load.allocatedAmount || 0).toLocaleString()}</td>
                             <td className={`p-4 text-right font-bold ${hasPending ? 'text-rose-600' : 'text-slate-500'}`}>

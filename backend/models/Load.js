@@ -9,7 +9,7 @@ const loadSchema = new mongoose.Schema(
     buyerNameSnapshot: { type: String, required: true, trim: true },
     price: { type: Number, required: true },
     quantity: { type: Number, required: true },
-    unitType: { type: String, enum: ['units', 'tons'], default: 'units' },
+    unitType: { type: String, enum: ['units', 'tons'], default: 'tons' },
     allocatedAmount: { type: Number, default: 0 },
     isDeleted: { type: Boolean, default: false }
   },

@@ -5,6 +5,8 @@ import { useConfirm } from '../components/ConfirmDialog';
 import { formatVehicleInput, isValidVehicleNumber } from '../utils/vehicleNumber';
 import { formatDateTime } from '../utils/dateTime';
 import { ChevronDownIcon, EditIcon, TrashIcon, EyeIcon, CargoIcon, PlusIcon } from '../components/Icons';
+import jsPDF from 'jspdf';
+import { autoTable } from 'jspdf-autotable';
 
 const Customers = () => {
   const { user } = useAuth();
@@ -294,6 +296,93 @@ const Customers = () => {
         alert('Error deleting payment: ' + (error.response?.data?.message || 'Unknown error'));
       }
     }
+  };
+
+  const downloadPdf = () => {
+    if (!customerDetails) return;
+
+    const doc = new jsPDF();
+    const pageWidth = doc.internal.pageSize.getWidth();
+    const pageHeight = doc.internal.pageSize.getHeight();
+
+    const centerText = (text, xY, fontSize = 10, fontStyle) => {
+      const str = String(text ?? '');
+      doc.setFontSize(fontSize);
+      if (fontStyle) doc.setFont(undefined, fontStyle);
+      const w = doc.getTextWidth(str);
+      doc.text(str, (pageWidth - w) / 2, xY);
+    };
+
+    const headerName = `${customerDetails.customer.name} Customer Statement`;
+    centerText(headerName, 19, 11, 'bold');
+
+    const rangeLabel = dateRange.startDate && dateRange.endDate
+      ? `${formatDateTime(dateRange.startDate).date} to ${formatDateTime(dateRange.endDate).date}`
+      : 'All Time';
+    centerText(rangeLabel, 26, 9);
+
+    doc.setDrawColor(200, 200, 200);
+    doc.line(14, 29, pageWidth - 14, 29);
+
+    const yStartTable = 36;
+    const head = [['S.NO', 'DATE', 'BILL NUMBER', 'VEHICLE NUMBER', 'MATERIAL', 'PRICE (Rs.)', 'QUANTITY', 'TOTAL VALUE (Rs.)', 'ALLOCATED (Rs.)', 'PENDING (Rs.)']];
+    const body = (customerDetails.bills || []).map((r, idx) => [
+      idx + 1,
+      formatDateTime(r.date).date,
+      r.billNumber || '—',
+      r.vehicleNumber || '—',
+      r.materialNameSnapshot || '—',
+      r.pricePerUnit.toLocaleString(),
+      `${Number(r.quantity || 0).toFixed(2)} ${r.quantityUnit || 'ton'}${r.quantity !== 1 ? 's' : ''}`,
+      (r.totalAmount + (r.passAmount || 0)).toLocaleString(),
+      (r.allocatedAmount || 0).toLocaleString(),
+      r.pendingAmount.toLocaleString()
+    ]);
+
+    autoTable(doc, {
+      head,
+      body,
+      startY: yStartTable,
+      theme: 'grid',
+      styles: { fontSize: 6.5, cellPadding: 1.5 },
+      headStyles: { fillColor: [245, 246, 250], textColor: [15, 23, 42], fontStyle: 'bold' }
+    });
+
+    let y = (doc.lastAutoTable?.finalY || yStartTable) + 12;
+    if (y > pageHeight - 60) {
+      doc.addPage();
+      y = 18;
+    }
+
+    const totalsHead = [['DETAILS', 'AMOUNT']];
+    const totalsBody = [
+      ['TOTAL BILLED AMOUNT', `Rs. ${Number(customerDetails.summary?.totalBillsAmount || 0).toLocaleString()}`],
+      ['TOTAL PAID', `Rs. ${Number(customerDetails.summary?.totalPaidAmount || 0).toLocaleString()}`],
+      ['OUTSTANDING BALANCE', `Rs. ${Number(customerDetails.summary?.totalOutstandingAmount || 0).toLocaleString()}`]
+    ];
+
+    const leftRightMargin = 14;
+    const detailsColWidth = 75;
+    const amountColWidth = pageWidth - leftRightMargin * 2 - detailsColWidth;
+    const tableWidth = detailsColWidth + amountColWidth;
+
+    autoTable(doc, {
+      head: totalsHead,
+      body: totalsBody,
+      startY: y,
+      theme: 'grid',
+      tableWidth,
+      styles: { fontSize: 9, cellPadding: 2, overflow: 'linebreak' },
+      headStyles: { fillColor: [37, 99, 235], textColor: [255, 255, 255], fontStyle: 'bold' },
+      columnStyles: {
+        0: { halign: 'left', cellWidth: detailsColWidth },
+        1: { halign: 'right', cellWidth: amountColWidth }
+      },
+      margin: { left: leftRightMargin, right: leftRightMargin }
+    });
+
+    const customerSlug = customerDetails.customer.name.replaceAll(' ', '_').replaceAll('/', '-');
+    doc.save(`${customerSlug}_statement.pdf`);
   };
 
   const toggleVehicles = (customerId) => {
@@ -590,6 +679,16 @@ const Customers = () => {
                   <span className="font-semibold text-slate-700">📞 {customerDetails.customer?.phone}</span>
                   {customerDetails.customer?.address && <span>📍 {customerDetails.customer?.address}</span>}
                 </div>
+                {customerDetails.customer?.vehicles && customerDetails.customer.vehicles.length > 0 && (
+                  <div className="flex items-center gap-1.5 flex-wrap mt-2">
+                    <CargoIcon className="h-4 w-4 text-slate-400" />
+                    {customerDetails.customer.vehicles.map((v, idx) => (
+                      <span key={v._id || idx} className="inline-flex items-center bg-white border border-slate-200 rounded px-1.5 py-0.5 text-xs font-mono font-semibold text-slate-700 shadow-sm">
+                        {v.number}
+                      </span>
+                    ))}
+                  </div>
+                )}
                 
                 {/* Date Filter selector in Modal */}
                 <div className="flex items-center gap-3 mt-4">
@@ -611,6 +710,15 @@ const Customers = () => {
               </div>
               
               <div className="flex items-center space-x-3">
+                <button
+                  onClick={downloadPdf}
+                  className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-semibold hover:bg-blue-700 transition shadow-md flex items-center"
+                >
+                  <svg className="h-4 w-4 mr-1.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                  </svg>
+                  Download PDF
+                </button>
                 {canWrite && (
                   <button 
                     onClick={openPaymentModal}

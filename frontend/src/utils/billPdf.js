@@ -56,7 +56,7 @@ export const downloadBillPdf = (bill) => {
   y = doc.lastAutoTable.finalY + 6;
 
   // Transaction Details Table
-  const unitLabel = bill.quantityUnit === 'ton' ? 'ton' : 'unit';
+  const unitLabel = bill.quantityUnit === 'unit' ? 'unit' : 'ton';
   const rateLabel = `Rs. ${Number(bill.pricePerUnit || 0).toLocaleString('en-IN')}/${unitLabel}`;
   const materialTotal = Number(bill.totalAmount || 0);
   const passAmount = Number(bill.passAmount || 0);

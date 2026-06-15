@@ -52,7 +52,7 @@ const LoadManagement = () => {
     buyerId: '',
     price: '',
     quantity: '',
-    unitType: 'units'
+    unitType: 'tons'
   });
 
   const canWrite = user?.role === 'super_admin' || user?.accessLevel === 'full_access';
@@ -253,7 +253,7 @@ const LoadManagement = () => {
         buyerId: '',
         price: '',
         quantity: '',
-        unitType: 'units'
+        unitType: 'tons'
       });
       fetchLoads();
       fetchBuyers(); // Refresh buyer list vehicles
@@ -410,7 +410,7 @@ const LoadManagement = () => {
       l.quarryName || '—',
       l.buyerNameSnapshot || '—',
       Number(l.quantity || 0).toFixed(2),
-      l.unitType,
+      l.unitType || 'tons',
       l.price.toLocaleString(),
       (l.price * l.quantity).toLocaleString()
     ]);
@@ -637,7 +637,7 @@ const LoadManagement = () => {
                   buyerId: '',
                   price: '',
                   quantity: '',
-                  unitType: 'units'
+                  unitType: 'tons'
                 });
                 setIsModalOpen(true);
               }}
@@ -693,7 +693,7 @@ const LoadManagement = () => {
                     <td className="p-4 text-slate-600 whitespace-nowrap">{load.quarryName || '—'}</td>
                     <td className="p-4 text-slate-600 whitespace-nowrap">{load.buyerNameSnapshot || '—'}</td>
                     <td className="p-4 text-right text-slate-600 whitespace-nowrap">₹{load.price.toLocaleString()}</td>
-                    <td className="p-4 text-right text-slate-600 whitespace-nowrap font-mono">{Number(load.quantity || 0).toFixed(2)} <span className="text-xs text-slate-400 font-sans">{load.unitType}</span></td>
+                    <td className="p-4 text-right text-slate-600 whitespace-nowrap font-mono">{Number(load.quantity || 0).toFixed(2)} <span className="text-xs text-slate-400 font-sans">{load.unitType || 'tons'}</span></td>
                     <td className="p-4 text-right text-slate-800 font-bold whitespace-nowrap">₹{(load.price * load.quantity).toLocaleString()}</td>
                     <td className="p-4 text-right space-x-3 whitespace-nowrap">
                       {canWrite && (

@@ -6,6 +6,8 @@ import { HistoryIcon, ChevronDownIcon, DocumentIcon, EditIcon, TrashIcon } from 
 import { formatVehicleInput, isValidVehicleNumber } from '../utils/vehicleNumber';
 import { downloadBillPdf } from '../utils/billPdf';
 import { formatDateTime } from '../utils/dateTime';
+import jsPDF from 'jspdf';
+import { autoTable } from 'jspdf-autotable';
 
 const emptyForm = () => ({
   customer: '',
@@ -13,7 +15,7 @@ const emptyForm = () => ({
   vehicleMode: 'select',
   material: '',
   quantity: '',
-  quantityUnit: 'unit',
+  quantityUnit: 'ton',
   passAmount: '',
   useManualPrice: false,
   manualPrice: '',
@@ -41,7 +43,7 @@ const Bills = () => {
   const [editModalOpen, setEditModalOpen] = useState(false);
   const [editingBill, setEditingBill] = useState(null);
   const [formData, setFormData] = useState(emptyForm());
-  const [editFormData, setEditFormData] = useState({ vehicleNumber: '', quantity: '', quantityUnit: 'unit', pricePerUnit: '', date: '' });
+  const [editFormData, setEditFormData] = useState({ vehicleNumber: '', quantity: '', quantityUnit: 'ton', pricePerUnit: '', date: '' });
   
   // State for payment editing/deleting
   const [editPaymentModalOpen, setEditPaymentModalOpen] = useState(false);
@@ -202,6 +204,108 @@ const Bills = () => {
     }
   }, [formData.material, formData.quantity, formData.quantityUnit, formData.useManualPrice, formData.manualPrice, materials]);
 
+  const downloadSummaryPdf = () => {
+    const listToExport = filteredBills;
+    if (listToExport.length === 0) return;
+
+    const doc = new jsPDF();
+    const pageWidth = doc.internal.pageSize.getWidth();
+    const pageHeight = doc.internal.pageSize.getHeight();
+
+    const centerText = (text, xY, fontSize = 10, fontStyle) => {
+      const str = String(text ?? '');
+      doc.setFontSize(fontSize);
+      if (fontStyle) doc.setFont(undefined, fontStyle);
+      const w = doc.getTextWidth(str);
+      doc.text(str, (pageWidth - w) / 2, xY);
+    };
+
+    const selectedCustomer = customers.find((c) => c._id === filters.customerId);
+    const customerName = selectedCustomer ? selectedCustomer.name : '';
+
+    let titleParts = [];
+    if (customerName) {
+      titleParts.push(customerName.toUpperCase());
+    }
+
+    const titleText = titleParts.length > 0
+      ? `${titleParts.join(' - ')} BILL SUMMARY`
+      : 'CUSTOMER BILL SUMMARY REPORT';
+
+    centerText(titleText, 19, 12, 'bold');
+
+    let rangeLabel = 'All Time';
+    if (filters.mode === 'particular_date' && filters.particularDate) {
+      rangeLabel = `Date: ${formatDateTime(filters.particularDate).date}`;
+    } else if (filters.mode === 'selected_dates' && filters.startDate && filters.endDate) {
+      rangeLabel = `${formatDateTime(filters.startDate).date} to ${formatDateTime(filters.endDate).date}`;
+    } else if (filters.mode === 'month' && filters.month) {
+      rangeLabel = `Month: ${filters.month}`;
+    } else if (filters.mode === 'week' && filters.weekStart) {
+      rangeLabel = `Week starting: ${formatDateTime(filters.weekStart).date}`;
+    }
+    centerText(rangeLabel, 26, 9);
+
+    doc.setDrawColor(200, 200, 200);
+    doc.line(14, 29, pageWidth - 14, 29);
+
+    const head = [['S.NO', 'DATE', 'CUSTOMER NAME', 'VEHICLE NUMBER', 'MATERIAL', 'QTY', 'UNIT', 'TOTAL (Rs.)', 'ALLOCATED (Rs.)', 'PENDING (Rs.)']];
+    const body = listToExport.map((b, idx) => [
+      idx + 1,
+      new Date(b.date).toLocaleDateString(),
+      b.customerNameSnapshot || '—',
+      b.vehicleNumber || '—',
+      b.materialNameSnapshot || '—',
+      Number(b.quantity || 0).toFixed(2),
+      b.quantityUnit || 'ton',
+      (Number(b.totalAmount || 0) + Number(b.passAmount || 0)).toLocaleString(),
+      (b.allocatedAmount || 0).toLocaleString(),
+      (b.pendingAmount || 0).toLocaleString()
+    ]);
+
+    autoTable(doc, {
+      head,
+      body,
+      startY: 36,
+      theme: 'grid',
+      styles: { fontSize: 7, cellPadding: 2 },
+      headStyles: { fillColor: [245, 246, 250], textColor: [15, 23, 42], fontStyle: 'bold' }
+    });
+
+    let y = (doc.lastAutoTable?.finalY || 36) + 12;
+    if (y > pageHeight - 65) {
+      doc.addPage();
+      y = 18;
+    }
+
+    // Aggregates summary by Customer Name / Material
+    const byCustomer = {};
+    listToExport.forEach((b) => {
+      const key = `${b.customerNameSnapshot || '—'} (${b.materialNameSnapshot || '—'})`;
+      const amount = Number(b.totalAmount || 0) + Number(b.passAmount || 0);
+      byCustomer[key] = (byCustomer[key] || 0) + amount;
+    });
+
+    const summaryHead = [['CUSTOMER & MATERIAL NAME', 'TOTAL AMOUNT (Rs.)']];
+    const summaryBody = Object.entries(byCustomer).map(([key, val]) => [key, val.toLocaleString()]);
+
+    doc.setFontSize(10);
+    doc.setFont(undefined, 'bold');
+    doc.text('Summary By Customer & Material:', 14, y - 4);
+
+    autoTable(doc, {
+      head: summaryHead,
+      body: summaryBody,
+      startY: y,
+      theme: 'grid',
+      styles: { fontSize: 8, cellPadding: 2 },
+      headStyles: { fillColor: [37, 99, 235], textColor: [255, 255, 255], fontStyle: 'bold' }
+    });
+
+    const filePrefix = customerName ? customerName.replaceAll(' ', '_') : 'customer_bills';
+    doc.save(`${filePrefix}_summary.pdf`);
+  };
+
   const handleChange = (e) => {
     const { name, type, value, checked } = e.target;
     if (name === 'vehicleNumber') {
@@ -259,7 +363,7 @@ const Bills = () => {
     setEditFormData({
       vehicleNumber: bill.vehicleNumber || '',
       quantity: bill.quantity,
-      quantityUnit: bill.quantityUnit || 'unit',
+      quantityUnit: bill.quantityUnit || 'ton',
       pricePerUnit: bill.pricePerUnit,
       date: bill.date ? new Date(bill.date).toISOString().split('T')[0] : ''
     });
@@ -419,14 +523,24 @@ const Bills = () => {
           <h1 className="text-2xl font-bold text-slate-800">Bills</h1>
           <p className="text-slate-500 text-sm mt-1">Generate and print invoice bills for customers.</p>
         </div>
-        {canCreateBills && (
-          <button 
-            onClick={() => { setFormData(emptyForm()); setIsModalOpen(true); }}
-            className="btn-primary flex items-center shadow-lg hover:shadow-xl w-full sm:w-auto justify-center"
+        <div className="flex flex-col sm:flex-row gap-3 w-full sm:w-auto items-center">
+          <button
+            type="button"
+            onClick={downloadSummaryPdf}
+            disabled={filteredBills.length === 0 || loading}
+            className="bg-blue-600 text-white px-4 py-2.5 rounded-lg text-sm font-semibold hover:bg-blue-700 transition shadow-md disabled:opacity-50 disabled:cursor-not-allowed inline-flex items-center justify-center w-full sm:w-auto cursor-pointer"
           >
-            <span className="mr-2">+</span> Generate Bill
+            Download Summary PDF
           </button>
-        )}
+          {canCreateBills && (
+            <button 
+              onClick={() => { setFormData(emptyForm()); setIsModalOpen(true); }}
+              className="btn-primary flex items-center shadow-lg hover:shadow-xl w-full sm:w-auto justify-center"
+            >
+              <span className="mr-2">+</span> Generate Bill
+            </button>
+          )}
+        </div>
       </div>
 
       <div className="card overflow-hidden p-0 border border-slate-200 flex-1 flex flex-col min-h-0 min-w-0">
@@ -526,7 +640,7 @@ const Bills = () => {
                       <td className="p-4 text-slate-600"><span className="bg-slate-100 px-2 py-1 rounded border border-slate-200 text-xs font-mono whitespace-nowrap">{bill.vehicleNumber || '—'}</span></td>
                       <td className="p-4 text-slate-600 text-sm">
                         <div className="font-medium text-slate-800">{bill.materialNameSnapshot}</div>
-                        <div className="text-xs text-slate-500">{Number(bill.quantity).toFixed(2)} {bill.quantityUnit || 'unit'}s @ ₹{bill.pricePerUnit}</div>
+                        <div className="text-xs text-slate-500">{Number(bill.quantity).toFixed(2)} {bill.quantityUnit || 'ton'}s @ ₹{bill.pricePerUnit}</div>
                         {bill.isBackdated && <div className="text-xs text-amber-600 font-medium">Backdated</div>}
                       </td>
                       <td className="p-4 font-bold text-slate-800">

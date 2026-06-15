@@ -13,7 +13,7 @@ const billSchema = new mongoose.Schema(
     materialNameSnapshot: { type: String, required: true },
 
     quantity: { type: Number, required: true },
-    quantityUnit: { type: String, enum: ['unit', 'ton'], default: 'unit' },
+    quantityUnit: { type: String, enum: ['unit', 'ton'], default: 'ton' },
     pricePerUnit: { type: Number, required: true },
     isBackdated: { type: Boolean, default: false },
     totalAmount: { type: Number, required: true },
