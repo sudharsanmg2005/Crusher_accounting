@@ -15,10 +15,16 @@ import Admins from './pages/Admins';
 import SuperAdminDashboard from './pages/SuperAdminDashboard';
 import Employees from './pages/Employees';
 import ProtectedRoute from './components/ProtectedRoute';
+import { useAuth } from './AuthContext';
 
 const App = () => {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const location = useLocation();
+  const { loading } = useAuth();
+
+  if (loading) {
+    return <Landing />;
+  }
 
   const isPublicPage = location.pathname === '/login' || location.pathname === '/';
 

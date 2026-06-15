@@ -18,6 +18,7 @@ const Landing = () => {
   }, [user, loading, navigate]);
 
   const goToLogin = () => {
+    if (loading) return;
     navigate('/login', { replace: true });
   };
 
