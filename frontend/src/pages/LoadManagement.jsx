@@ -471,6 +471,8 @@ const LoadManagement = () => {
       const overallPaid = buyerSummary.overallPaid || selectedPaid;
       const overallOutstanding = buyerSummary.overallOutstanding || selectedOutstanding;
 
+      const previousBilled = Math.max(0, overallBilled - selectedBilled);
+      const previousPaid = Math.max(0, overallPaid - selectedPaid);
       const previousOutstanding = Math.max(0, overallOutstanding - selectedOutstanding);
 
       if (y > pageHeight - 65) {
@@ -484,6 +486,8 @@ const LoadManagement = () => {
         ['TOTAL LOAD COST', `Rs. ${Number(selectedBilled).toLocaleString()}`],
         ['TOTAL PAID', `Rs. ${Number(selectedPaid).toLocaleString()}`],
         ['OUTSTANDING BALANCE', `Rs. ${Number(selectedOutstanding).toLocaleString()}`],
+        ['PREVIOUS BILLED', `Rs. ${Number(previousBilled).toLocaleString()}`],
+        ['PREVIOUS PAID', `Rs. ${Number(previousPaid).toLocaleString()}`],
         ['PREVIOUS BALANCE', `Rs. ${Number(previousOutstanding).toLocaleString()}`],
         ['TOTAL BALANCE', `Rs. ${Number(overallOutstanding).toLocaleString()}`]
       ];

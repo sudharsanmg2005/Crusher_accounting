@@ -375,6 +375,8 @@ const Customers = () => {
       ['TOTAL BILLED AMOUNT', `Rs. ${Number(selectedBilled).toLocaleString()}`],
       ['TOTAL PAID', `Rs. ${Number(selectedPaid).toLocaleString()}`],
       ['OUTSTANDING BALANCE', `Rs. ${Number(selectedOutstanding).toLocaleString()}`],
+      ['PREVIOUS BILLED', `Rs. ${Number(previousBilled).toLocaleString()}`],
+      ['PREVIOUS PAID', `Rs. ${Number(previousPaid).toLocaleString()}`],
       ['PREVIOUS BALANCE', `Rs. ${Number(previousOutstanding).toLocaleString()}`],
       ['TOTAL BALANCE', `Rs. ${Number(overallOutstanding).toLocaleString()}`]
     ];
