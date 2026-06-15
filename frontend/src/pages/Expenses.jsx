@@ -226,6 +226,10 @@ const Expenses = () => {
         alert('Please specify an expense type');
         return;
       }
+      if (expenseType.toLowerCase() === 'load') {
+        alert('Expense type "Load" is reserved for buyer payments. Please record buyer payments in Load Management/Buyers.');
+        return;
+      }
       const payload = {
         ...formData,
         type: expenseType,
@@ -248,6 +252,10 @@ const Expenses = () => {
   };
 
   const handleEdit = (expense) => {
+    if (expense.isSynced) {
+      alert(`This expense is synced from ${expense.syncSource}. It cannot be edited directly.`);
+      return;
+    }
     const isPredefined = ['Fuel', 'Maintenance', 'Labour', 'Electricity', 'Rent'].includes(expense.type);
     setFormData({ 
       ...expense, 
@@ -260,6 +268,11 @@ const Expenses = () => {
   };
 
   const handleDelete = async (id) => {
+    const expense = expenses.find(e => e._id === id);
+    if (expense?.isSynced) {
+      alert(`This expense is synced from ${expense.syncSource}. It cannot be deleted directly.`);
+      return;
+    }
     const ok = await confirm({
       title: 'Delete expense',
       message: 'Are you sure you want to delete this expense?',
@@ -390,20 +403,41 @@ const Expenses = () => {
                     <td className="p-4 text-slate-600 min-w-[200px] break-words">{exp.description || '-'}</td>
                     <td className="p-4 text-slate-800 font-bold whitespace-nowrap">₹{exp.amount.toLocaleString()}</td>
                     <td className="p-4 text-right space-x-2 whitespace-nowrap">
-                      <button 
-                        onClick={() => handleEdit(exp)} 
-                        className="text-blue-600 hover:text-blue-800 hover:bg-blue-50 p-2 rounded-lg transition-colors inline-flex items-center" 
-                        title="Edit Expense"
-                      >
-                        <EditIcon className="h-5 w-5" />
-                      </button>
-                      <button 
-                        onClick={() => handleDelete(exp._id)} 
-                        className="text-red-600 hover:text-red-800 hover:bg-red-50 p-2 rounded-lg transition-colors inline-flex items-center" 
-                        title="Delete Expense"
-                      >
-                        <TrashIcon className="h-5 w-5" />
-                      </button>
+                      {exp.isSynced ? (
+                        <>
+                          <button 
+                            disabled
+                            className="text-slate-400 cursor-not-allowed p-2 rounded-lg inline-flex items-center opacity-50" 
+                            title={`This expense is synced from ${exp.syncSource}. Manage it at the source.`}
+                          >
+                            <EditIcon className="h-5 w-5" />
+                          </button>
+                          <button 
+                            disabled
+                            className="text-slate-400 cursor-not-allowed p-2 rounded-lg inline-flex items-center opacity-50" 
+                            title={`This expense is synced from ${exp.syncSource}. Manage it at the source.`}
+                          >
+                            <TrashIcon className="h-5 w-5" />
+                          </button>
+                        </>
+                      ) : (
+                        <>
+                          <button 
+                            onClick={() => handleEdit(exp)} 
+                            className="text-blue-600 hover:text-blue-800 hover:bg-blue-50 p-2 rounded-lg transition-colors inline-flex items-center" 
+                            title="Edit Expense"
+                          >
+                            <EditIcon className="h-5 w-5" />
+                          </button>
+                          <button 
+                            onClick={() => handleDelete(exp._id)} 
+                            className="text-red-600 hover:text-red-800 hover:bg-red-50 p-2 rounded-lg transition-colors inline-flex items-center" 
+                            title="Delete Expense"
+                          >
+                            <TrashIcon className="h-5 w-5" />
+                          </button>
+                        </>
+                      )}
                     </td>
                   </tr>
                 ))}
@@ -437,7 +471,7 @@ const Expenses = () => {
                   className="w-full border border-slate-300 rounded-lg p-2.5 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition bg-white"
                 >
                   <option value="" disabled>Select a type</option>
-                  {dynamicTypes.filter(t => t !== 'Other').map((t) => (
+                  {dynamicTypes.filter(t => t !== 'Other' && t !== 'Load').map((t) => (
                     <option key={t} value={t}>
                       {t === 'Labour' ? 'Labour / Salary' : t}
                     </option>

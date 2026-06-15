@@ -220,3 +220,51 @@ export const recalculateBuyerBalances = async (buyerId, providedSession = null) 
     await runInTransaction(runRecalc);
   }
 };
+
+export const migrateOldBuyerPayments = async () => {
+  try {
+    const BuyerPayment = (await import('../models/BuyerPayment.js')).default;
+    const Expense = (await import('../models/Expense.js')).default;
+    const Buyer = (await import('../models/Buyer.js')).default;
+
+    const payments = await BuyerPayment.find();
+    console.log(`[Migration] Found ${payments.length} buyer payments to check/migrate.`);
+
+    let migratedCount = 0;
+    for (const payment of payments) {
+      let expenseExists = false;
+      if (payment.expenseId) {
+        const expense = await Expense.findOne({ _id: payment.expenseId, isDeleted: false });
+        if (expense) {
+          expenseExists = true;
+        }
+      }
+
+      if (!expenseExists) {
+        // Find the buyer details to construct a good description
+        const buyer = await Buyer.findById(payment.buyerId);
+        const buyerName = buyer ? buyer.name : 'Unknown Buyer';
+
+        const expense = await Expense.create({
+          date: payment.paymentDate || payment.createdAt || new Date(),
+          type: 'Load',
+          description: `Payment to Buyer: ${buyerName}${payment.notes ? ` - ${payment.notes}` : ''}`,
+          amount: payment.amount,
+          isDeleted: false
+        });
+
+        payment.expenseId = expense._id;
+        await payment.save();
+        migratedCount++;
+      }
+    }
+    if (migratedCount > 0) {
+      console.log(`[Migration] Successfully migrated/synced ${migratedCount} buyer payments to Expense system.`);
+    } else {
+      console.log(`[Migration] All buyer payments are already synced with the Expense system.`);
+    }
+  } catch (error) {
+    console.error('[Migration] Error migrating old buyer payments:', error);
+  }
+};
+
