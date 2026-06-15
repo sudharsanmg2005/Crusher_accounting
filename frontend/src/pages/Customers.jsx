@@ -365,16 +365,18 @@ const Customers = () => {
     });
 
     let y = (doc.lastAutoTable?.finalY || yStartTable) + 12;
-    if (y > pageHeight - 110) {
+    if (y > pageHeight - 65) {
       doc.addPage();
       y = 18;
     }
 
-    const totalsHead = [['SELECTED PERIOD STATEMENT', 'AMOUNT']];
+    const totalsHead = [['STATEMENT SUMMARY', 'AMOUNT']];
     const totalsBody = [
       ['TOTAL BILLED AMOUNT', `Rs. ${Number(selectedBilled).toLocaleString()}`],
       ['TOTAL PAID', `Rs. ${Number(selectedPaid).toLocaleString()}`],
-      ['OUTSTANDING BALANCE', `Rs. ${Number(selectedOutstanding).toLocaleString()}`]
+      ['OUTSTANDING BALANCE', `Rs. ${Number(selectedOutstanding).toLocaleString()}`],
+      ['PREVIOUS BALANCE', `Rs. ${Number(previousOutstanding).toLocaleString()}`],
+      ['TOTAL BALANCE', `Rs. ${Number(overallOutstanding).toLocaleString()}`]
     ];
 
     const leftRightMargin = 14;
@@ -397,53 +399,7 @@ const Customers = () => {
       margin: { left: leftRightMargin, right: leftRightMargin }
     });
 
-    y = doc.lastAutoTable.finalY + 8;
-
-    const prevHead = [['PREVIOUS PERIOD STATEMENT', 'AMOUNT']];
-    const prevBody = [
-      ['PREVIOUS DATES TOTAL BILLED', `Rs. ${Number(previousBilled).toLocaleString()}`],
-      ['PREVIOUS DATES TOTAL PAID', `Rs. ${Number(previousPaid).toLocaleString()}`],
-      ['PREVIOUS DATES OUTSTANDING', `Rs. ${Number(previousOutstanding).toLocaleString()}`]
-    ];
-
-    autoTable(doc, {
-      head: prevHead,
-      body: prevBody,
-      startY: y,
-      theme: 'grid',
-      tableWidth,
-      styles: { fontSize: 8.5, cellPadding: 2, overflow: 'linebreak' },
-      headStyles: { fillColor: [100, 116, 139], textColor: [255, 255, 255], fontStyle: 'bold' },
-      columnStyles: {
-        0: { halign: 'left', cellWidth: detailsColWidth },
-        1: { halign: 'right', cellWidth: amountColWidth }
-      },
-      margin: { left: leftRightMargin, right: leftRightMargin }
-    });
-
-    y = doc.lastAutoTable.finalY + 8;
-
-    const cumHead = [['CUMULATIVE OUTSTANDING SUMMARY', 'AMOUNT']];
-    const cumBody = [
-      ['PREVIOUS OUTSTANDING BALANCE', `Rs. ${Number(previousOutstanding).toLocaleString()}`],
-      ['SELECTED PERIOD OUTSTANDING', `Rs. ${Number(selectedOutstanding).toLocaleString()}`],
-      ['TOTAL OUTSTANDING BALANCE', `Rs. ${Number(overallOutstanding).toLocaleString()}`]
-    ];
-
-    autoTable(doc, {
-      head: cumHead,
-      body: cumBody,
-      startY: y,
-      theme: 'grid',
-      tableWidth,
-      styles: { fontSize: 8.5, cellPadding: 2, overflow: 'linebreak' },
-      headStyles: { fillColor: [15, 23, 42], textColor: [255, 255, 255], fontStyle: 'bold' },
-      columnStyles: {
-        0: { halign: 'left', cellWidth: detailsColWidth },
-        1: { halign: 'right', cellWidth: amountColWidth }
-      },
-      margin: { left: leftRightMargin, right: leftRightMargin }
-    });
+    y = doc.lastAutoTable.finalY;
 
     // Render payment history table
     if (customerDetails.payments && customerDetails.payments.length > 0) {
