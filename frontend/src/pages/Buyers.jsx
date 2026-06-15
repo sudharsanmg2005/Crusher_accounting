@@ -380,6 +380,38 @@ const Buyers = () => {
       margin: { left: leftRightMargin, right: leftRightMargin }
     });
 
+    // Render payment history table
+    if (buyerDetails.payments && buyerDetails.payments.length > 0) {
+      y = (doc.lastAutoTable?.finalY || y) + 12;
+      if (y > pageHeight - 65) {
+        doc.addPage();
+        y = 18;
+      }
+
+      doc.setFontSize(10);
+      doc.setFont(undefined, 'bold');
+      doc.text('PAYMENT HISTORY:', 14, y - 4);
+
+      const payHead = [['S.NO', 'DATE', 'PAYMENT NUMBER', 'AMOUNT PAID (Rs.)', 'PAID BY / METHOD', 'NOTES']];
+      const payBody = buyerDetails.payments.map((p, idx) => [
+        idx + 1,
+        new Date(p.paymentDate || p.date).toLocaleDateString(),
+        p.paymentNumber || '—',
+        Number(p.amount || 0).toLocaleString(),
+        p.paidBy || p.method || '—',
+        p.notes || p.note || '—'
+      ]);
+
+      autoTable(doc, {
+        head: payHead,
+        body: payBody,
+        startY: y,
+        theme: 'grid',
+        styles: { fontSize: 8, cellPadding: 2 },
+        headStyles: { fillColor: [15, 23, 42], textColor: [255, 255, 255], fontStyle: 'bold' }
+      });
+    }
+
     const buyerSlug = buyerDetails.buyer.name.replaceAll(' ', '_').replaceAll('/', '-');
     doc.save(`${buyerSlug}_statement.pdf`);
   };

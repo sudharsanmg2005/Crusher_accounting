@@ -4,7 +4,7 @@ import jsPDF from 'jspdf';
 import { autoTable } from 'jspdf-autotable';
 import { useConfirm } from '../components/ConfirmDialog';
 import { useAuth } from '../AuthContext';
-import { EditIcon, TrashIcon } from '../components/Icons';
+import { EditIcon, TrashIcon, MoneyIcon } from '../components/Icons';
 import { formatVehicleInput, isValidVehicleNumber } from '../utils/vehicleNumber';
 
 const toYMD = (d) => {
@@ -43,6 +43,15 @@ const LoadManagement = () => {
   // New material modal states
   const [isCreateMaterialOpen, setIsCreateMaterialOpen] = useState(false);
   const [newMaterialData, setNewMaterialData] = useState({ name: '', currentPrice: '', pricePerTon: '' });
+
+  // Record payment state
+  const [paymentModalOpen, setPaymentModalOpen] = useState(false);
+  const [paymentAmount, setPaymentAmount] = useState('');
+  const [paymentNote, setPaymentNote] = useState('');
+  const [paymentPaidBy, setPaymentPaidBy] = useState('');
+  const [paymentDate, setPaymentDate] = useState('');
+  const [paymentBuyerId, setPaymentBuyerId] = useState('');
+  const [paymentBuyerOutstanding, setPaymentBuyerOutstanding] = useState(0);
 
   const [formData, setFormData] = useState({
     vehicleMode: 'select',
@@ -340,6 +349,74 @@ const LoadManagement = () => {
     }
   };
 
+  const openPaymentModal = async (load = null) => {
+    if (load) {
+      setPaymentBuyerId(load.buyer);
+      const pending = load.price * load.quantity - (load.allocatedAmount || 0);
+      setPaymentAmount(pending.toString());
+      try {
+        const { data } = await api.get(`/buyers/${load.buyer}`);
+        setPaymentBuyerOutstanding(data.summary?.totalOutstandingAmount || 0);
+      } catch (err) {
+        console.error('Error fetching buyer outstanding', err);
+        setPaymentBuyerOutstanding(pending);
+      }
+    } else {
+      setPaymentBuyerId('');
+      setPaymentAmount('');
+      setPaymentBuyerOutstanding(0);
+    }
+    setPaymentNote('');
+    setPaymentPaidBy(user?.name || '');
+    setPaymentDate(new Date().toISOString().split('T')[0]);
+    setPaymentModalOpen(true);
+  };
+
+  const handlePaymentBuyerChange = async (buyerId) => {
+    setPaymentBuyerId(buyerId);
+    if (!buyerId) {
+      setPaymentBuyerOutstanding(0);
+      return;
+    }
+    try {
+      const { data } = await api.get(`/buyers/${buyerId}`);
+      setPaymentBuyerOutstanding(data.summary?.totalOutstandingAmount || 0);
+      setPaymentAmount(data.summary?.totalOutstandingAmount?.toString() || '');
+    } catch (err) {
+      console.error('Error fetching buyer details for payment', err);
+      setPaymentBuyerOutstanding(0);
+    }
+  };
+
+  const handlePaymentSubmit = async (e) => {
+    e.preventDefault();
+    const amount = Number(paymentAmount);
+    if (!amount || amount <= 0) {
+      alert('Please enter a valid payment amount');
+      return;
+    }
+    if (amount - paymentBuyerOutstanding > 1e-4) {
+      alert(`Payment amount (₹${amount.toLocaleString()}) cannot exceed outstanding balance (₹${paymentBuyerOutstanding.toLocaleString()})`);
+      return;
+    }
+
+    try {
+      await api.post('/buyer-payments', {
+        buyerId: paymentBuyerId,
+        amount,
+        date: paymentDate,
+        notes: paymentNote,
+        paidBy: paymentPaidBy
+      });
+      setPaymentModalOpen(false);
+      fetchLoads();
+      fetchBuyers();
+    } catch (error) {
+      console.error('Error recording payment', error);
+      alert(error.response?.data?.message || 'Error recording payment');
+    }
+  };
+
   const totals = useMemo(() => {
     return filteredLoads.reduce(
       (acc, load) => {
@@ -355,7 +432,7 @@ const LoadManagement = () => {
     );
   }, [filteredLoads]);
 
-  const downloadPdf = () => {
+  const downloadPdf = async () => {
     const listToExport = filteredLoads;
     if (listToExport.length === 0) return;
 
@@ -502,6 +579,51 @@ const LoadManagement = () => {
       styles: { fontSize: 8, cellPadding: 2 },
       headStyles: { fillColor: [15, 23, 42], textColor: [255, 255, 255], fontStyle: 'bold' }
     });
+
+    // Fetch and display payment history for selected buyer
+    if (selectedBuyerId) {
+      let buyerPayments = [];
+      try {
+        const params = new URLSearchParams();
+        if (dateRange.startDate) params.append('startDate', dateRange.startDate);
+        if (dateRange.endDate) params.append('endDate', dateRange.endDate);
+        const { data } = await api.get(`/buyers/${selectedBuyerId}?${params.toString()}`);
+        buyerPayments = data.payments || [];
+      } catch (err) {
+        console.error('Error fetching buyer payments for PDF', err);
+      }
+
+      if (buyerPayments.length > 0) {
+        y = (doc.lastAutoTable?.finalY || y) + 12;
+        if (y > pageHeight - 65) {
+          doc.addPage();
+          y = 18;
+        }
+
+        doc.setFontSize(10);
+        doc.setFont(undefined, 'bold');
+        doc.text('PAYMENT HISTORY:', 14, y - 4);
+
+        const payHead = [['S.NO', 'DATE', 'PAYMENT NUMBER', 'AMOUNT PAID (Rs.)', 'PAID BY / METHOD', 'NOTES']];
+        const payBody = buyerPayments.map((p, idx) => [
+          idx + 1,
+          new Date(p.paymentDate || p.date).toLocaleDateString(),
+          p.paymentNumber || '—',
+          Number(p.amount || 0).toLocaleString(),
+          p.paidBy || p.method || '—',
+          p.notes || p.note || '—'
+        ]);
+
+        autoTable(doc, {
+          head: payHead,
+          body: payBody,
+          startY: y,
+          theme: 'grid',
+          styles: { fontSize: 8, cellPadding: 2 },
+          headStyles: { fillColor: [15, 23, 42], textColor: [255, 255, 255], fontStyle: 'bold' }
+        });
+      }
+    }
 
     const rangeSlug = rangeLabel
       .replaceAll(' ', '_')
@@ -661,24 +783,34 @@ const LoadManagement = () => {
           </button>
 
           {canWrite && (
-            <button
-              type="button"
-              onClick={() => {
-                setFormData({
-                  vehicleType: '',
-                  date: new Date().toISOString().split('T')[0],
-                  quarryName: '',
-                  buyerId: '',
-                  price: '',
-                  quantity: '',
-                  unitType: 'tons'
-                });
-                setIsModalOpen(true);
-              }}
-              className="bg-green-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-green-700 transition shadow-md whitespace-nowrap cursor-pointer w-full sm:w-auto justify-center inline-flex items-center"
-            >
-              + Add Load
-            </button>
+            <div className="flex gap-2 w-full sm:w-auto">
+              <button
+                type="button"
+                onClick={() => openPaymentModal()}
+                className="bg-blue-650 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-blue-700 transition shadow-md whitespace-nowrap cursor-pointer w-full sm:w-auto justify-center inline-flex items-center"
+              >
+                Record Payment
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setFormData({
+                    vehicleMode: 'select',
+                    vehicleNumber: '',
+                    date: new Date().toISOString().split('T')[0],
+                    quarryName: '',
+                    buyerId: '',
+                    price: '',
+                    quantity: '',
+                    unitType: 'tons'
+                  });
+                  setIsModalOpen(true);
+                }}
+                className="bg-green-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-green-700 transition shadow-md whitespace-nowrap cursor-pointer w-full sm:w-auto justify-center inline-flex items-center"
+              >
+                + Add Load
+              </button>
+            </div>
           )}
         </div>
       </div>
@@ -732,6 +864,15 @@ const LoadManagement = () => {
                     <td className="p-4 text-right space-x-3 whitespace-nowrap">
                       {canWrite && (
                         <>
+                          {Number(load.price * load.quantity - (load.allocatedAmount || 0)) > 0 && (
+                            <button 
+                              onClick={() => openPaymentModal(load)} 
+                              className="text-emerald-600 hover:text-emerald-800 hover:bg-emerald-50 p-2 rounded-lg transition-colors inline-flex items-center" 
+                              title="Record Payment"
+                            >
+                              <MoneyIcon className="h-5 w-5" />
+                            </button>
+                          )}
                           <button 
                             onClick={() => handleEdit(load)} 
                             className="text-blue-600 hover:text-blue-800 hover:bg-blue-50 p-2 rounded-lg transition-colors inline-flex items-center" 
@@ -1037,6 +1178,69 @@ const LoadManagement = () => {
                 </button>
                 <button type="submit" className="px-5 py-2 bg-green-600 text-white rounded-lg font-medium hover:bg-green-700 transition shadow-md">
                   Create Material
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Record Payment Modal */}
+      {paymentModalOpen && (
+        <div className="fixed inset-0 bg-slate-900/50 flex items-center justify-center p-4 z-50 animate-in fade-in duration-200">
+          <div className="bg-white rounded-xl shadow-2xl w-full max-w-md overflow-hidden flex flex-col">
+            <div className="p-5 border-b border-slate-100 flex justify-between items-center bg-blue-50">
+              <h2 className="text-xl font-bold text-blue-900">Record Payment to Buyer</h2>
+              <button onClick={() => setPaymentModalOpen(false)} className="text-blue-400 hover:text-blue-600 text-2xl leading-none">&times;</button>
+            </div>
+            
+            <form onSubmit={handlePaymentSubmit} className="p-6 space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">Buyer *</label>
+                <select
+                  required
+                  value={paymentBuyerId}
+                  onChange={(e) => handlePaymentBuyerChange(e.target.value)}
+                  className="w-full border border-slate-300 rounded-lg p-2.5 bg-white text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+                >
+                  <option value="" disabled>Select Buyer *</option>
+                  {buyers.map(b => (
+                    <option key={b._id} value={b._id}>{b.name}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">Total Outstanding (₹)</label>
+                <input type="text" disabled value={paymentBuyerOutstanding?.toLocaleString() || '0'} className="w-full border border-slate-200 rounded-lg p-2.5 bg-slate-50 text-slate-400 outline-none cursor-not-allowed text-sm" />
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">Payment Date *</label>
+                <input type="date" required value={paymentDate} onChange={(e) => setPaymentDate(e.target.value)} className="w-full border border-slate-300 rounded-lg p-2.5 text-sm bg-white" />
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">Payment Amount (₹) *</label>
+                <input type="number" required min="1" step="0.01" value={paymentAmount} onChange={(e) => setPaymentAmount(e.target.value)} className="w-full border border-slate-300 rounded-lg p-2.5 text-sm font-semibold text-slate-900" />
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">Paid By / Method</label>
+                <input type="text" value={paymentPaidBy} onChange={(e) => setPaymentPaidBy(e.target.value)} className="w-full border border-slate-300 rounded-lg p-2.5 text-sm" placeholder="e.g. cash, bank, name" />
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">Notes</label>
+                <textarea rows="3" value={paymentNote} onChange={(e) => setPaymentNote(e.target.value)} className="w-full border border-slate-300 rounded-lg p-2.5 text-sm" placeholder="Add payment details or references..."></textarea>
+              </div>
+              
+              <div className="pt-4 flex justify-end space-x-3 border-t border-slate-100">
+                <button type="button" onClick={() => setPaymentModalOpen(false)} className="px-4 py-2 text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-lg font-medium transition text-sm">
+                  Cancel
+                </button>
+                <button type="submit" className="px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition shadow-md text-sm">
+                  Record Payment
                 </button>
               </div>
             </form>

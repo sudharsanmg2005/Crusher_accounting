@@ -185,6 +185,38 @@ const Reports = () => {
       margin: { left: leftRightMargin, right: leftRightMargin }
     });
 
+    // Render payment history table if a specific customer is selected
+    if (statement.customer && statement.payments && statement.payments.length > 0) {
+      y = (doc.lastAutoTable?.finalY || y) + 12;
+      if (y > pageHeight - 65) {
+        doc.addPage();
+        y = 18;
+      }
+
+      doc.setFontSize(10);
+      doc.setFont(undefined, 'bold');
+      doc.text('PAYMENT HISTORY:', 14, y - 4);
+
+      const payHead = [['S.NO', 'DATE', 'PAYMENT NUMBER', 'AMOUNT PAID (Rs.)', 'RECEIVED BY', 'NOTES']];
+      const payBody = statement.payments.map((p, idx) => [
+        idx + 1,
+        p.date,
+        p.paymentNumber || '—',
+        Number(p.amount || 0).toLocaleString(),
+        p.receivedBy || '—',
+        p.notes || '—'
+      ]);
+
+      autoTable(doc, {
+        head: payHead,
+        body: payBody,
+        startY: y,
+        theme: 'grid',
+        styles: { fontSize: 8, cellPadding: 2 },
+        headStyles: { fillColor: [15, 23, 42], textColor: [255, 255, 255], fontStyle: 'bold' }
+      });
+    }
+
     const rangeSlug = (statement.rangeLabel || 'report')
       .replaceAll(' ', '_')
       .replaceAll('/', '-')

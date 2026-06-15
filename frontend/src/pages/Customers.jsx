@@ -381,6 +381,38 @@ const Customers = () => {
       margin: { left: leftRightMargin, right: leftRightMargin }
     });
 
+    // Render payment history table
+    if (customerDetails.payments && customerDetails.payments.length > 0) {
+      y = (doc.lastAutoTable?.finalY || y) + 12;
+      if (y > pageHeight - 65) {
+        doc.addPage();
+        y = 18;
+      }
+
+      doc.setFontSize(10);
+      doc.setFont(undefined, 'bold');
+      doc.text('PAYMENT HISTORY:', 14, y - 4);
+
+      const payHead = [['S.NO', 'DATE', 'PAYMENT NUMBER', 'AMOUNT PAID (Rs.)', 'RECEIVED BY', 'NOTES']];
+      const payBody = customerDetails.payments.map((p, idx) => [
+        idx + 1,
+        formatDateTime(p.paymentDate || p.date).date,
+        p.paymentNumber || '—',
+        Number(p.amount || 0).toLocaleString(),
+        p.method || p.receivedBy || '—',
+        p.note || p.notes || '—'
+      ]);
+
+      autoTable(doc, {
+        head: payHead,
+        body: payBody,
+        startY: y,
+        theme: 'grid',
+        styles: { fontSize: 8, cellPadding: 2 },
+        headStyles: { fillColor: [15, 23, 42], textColor: [255, 255, 255], fontStyle: 'bold' }
+      });
+    }
+
     const customerSlug = customerDetails.customer.name.replaceAll(' ', '_').replaceAll('/', '-');
     doc.save(`${customerSlug}_statement.pdf`);
   };

@@ -52,12 +52,71 @@ export const updateExpense = async (req, res, next) => {
     }
 
     const { date, type, description, amount } = req.body;
+    const oldAmount = expense.amount;
+    const oldDate = expense.date;
+
     if (date) expense.date = new Date(date);
     if (type) expense.type = type;
     if (description !== undefined) expense.description = description;
     if (amount != null) expense.amount = amount;
 
     const updated = await expense.save();
+
+    // Sync changes to BuyerPayment if type is Load
+    if (expense.type === 'Load') {
+      const BuyerPayment = (await import('../models/BuyerPayment.js')).default;
+      const { recalculateBuyerBalances } = await import('../services/buyerPaymentService.js');
+      const payment = await BuyerPayment.findOne({ expenseId: expense._id });
+      if (payment) {
+        let changed = false;
+        if (amount != null && oldAmount !== amount) {
+          payment.amount = amount;
+          changed = true;
+        }
+        if (date && new Date(oldDate).getTime() !== new Date(date).getTime()) {
+          payment.paymentDate = new Date(date);
+          changed = true;
+        }
+        if (changed) {
+          await payment.save();
+          await recalculateBuyerBalances(payment.buyerId);
+        }
+      }
+    }
+
+    // Sync changes to SalaryPayment if type is Labour
+    if (expense.type === 'Labour') {
+      const SalaryPayment = (await import('../models/SalaryPayment.js')).default;
+      const payment = await SalaryPayment.findOne({ 'history.expenseRef': expense._id });
+      if (payment) {
+        const entry = payment.history.find(h => h.expenseRef?.toString() === expense._id.toString());
+        if (entry) {
+          let changed = false;
+          if (amount != null && oldAmount !== amount) {
+            entry.amount = amount;
+            changed = true;
+          }
+          if (date && new Date(oldDate).getTime() !== new Date(date).getTime()) {
+            entry.date = new Date(date);
+            changed = true;
+          }
+          if (changed) {
+            payment.paidAmount = payment.history.reduce((sum, h) => sum + h.amount, 0);
+            payment.pendingAmount = payment.totalSalary - payment.paidAmount;
+            if (Math.abs(payment.pendingAmount) < 1e-4) {
+              payment.pendingAmount = 0;
+              payment.paymentStatus = 'Paid';
+            } else if (payment.paidAmount > 0) {
+              payment.paymentStatus = 'Partially Paid';
+            } else {
+              payment.paymentStatus = 'Unpaid';
+            }
+            await payment.save();
+          }
+        }
+      }
+    }
+
     res.json({
       ...updated.toObject(),
       auditDetails: `Edited expense ${updated.type} (${updated.description || 'No description'}) for ${updated.amount}`
@@ -76,6 +135,39 @@ export const deleteExpense = async (req, res, next) => {
     }
     expense.isDeleted = true;
     await expense.save();
+
+    // Sync changes to BuyerPayment if type is Load
+    if (expense.type === 'Load') {
+      const BuyerPayment = (await import('../models/BuyerPayment.js')).default;
+      const { recalculateBuyerBalances } = await import('../services/buyerPaymentService.js');
+      const payment = await BuyerPayment.findOne({ expenseId: expense._id });
+      if (payment) {
+        const buyerId = payment.buyerId;
+        await BuyerPayment.deleteOne({ _id: payment._id });
+        await recalculateBuyerBalances(buyerId);
+      }
+    }
+
+    // Sync changes to SalaryPayment if type is Labour
+    if (expense.type === 'Labour') {
+      const SalaryPayment = (await import('../models/SalaryPayment.js')).default;
+      const payment = await SalaryPayment.findOne({ 'history.expenseRef': expense._id });
+      if (payment) {
+        payment.history = payment.history.filter(h => h.expenseRef?.toString() !== expense._id.toString());
+        payment.paidAmount = payment.history.reduce((sum, h) => sum + h.amount, 0);
+        payment.pendingAmount = payment.totalSalary - payment.paidAmount;
+        if (Math.abs(payment.pendingAmount) < 1e-4) {
+          payment.pendingAmount = 0;
+          payment.paymentStatus = 'Paid';
+        } else if (payment.paidAmount > 0) {
+          payment.paymentStatus = 'Partially Paid';
+        } else {
+          payment.paymentStatus = 'Unpaid';
+        }
+        await payment.save();
+      }
+    }
+
     res.json({
       message: 'Expense removed',
       auditDetails: `Deleted expense ${expense.type} (${expense.description || 'No description'}) for ${expense.amount}`

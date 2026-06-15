@@ -147,7 +147,14 @@ export const getGeneralStatement = async (req, res, next) => {
         // Remaining balance after received payments.
         totalBalance: `₹ ${formatINR2(Math.max(0, currentWeekBalance - sumPaid))}`
       },
-      rows
+      rows,
+      payments: payments.map((p) => ({
+        paymentNumber: p.paymentNumber || '',
+        date: formatDateDDMMYYYY(p.paymentDate || p.date),
+        amount: formatMaybeIntOr2(p.amount),
+        notes: p.notes || p.note || '',
+        receivedBy: p.method || p.receivedBy || ''
+      }))
     });
   } catch (err) {
     next(err);

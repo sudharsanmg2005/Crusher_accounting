@@ -236,7 +236,7 @@ const Bills = () => {
     }
   }, [formData.material, formData.quantity, formData.quantityUnit, formData.useManualPrice, formData.manualPrice, materials]);
 
-  const downloadSummaryPdf = () => {
+  const downloadSummaryPdf = async () => {
     const listToExport = filteredBills;
     if (listToExport.length === 0) return;
 
@@ -382,6 +382,51 @@ const Bills = () => {
       styles: { fontSize: 8, cellPadding: 2 },
       headStyles: { fillColor: [15, 23, 42], textColor: [255, 255, 255], fontStyle: 'bold' }
     });
+
+    // Fetch and display payment history for selected customer
+    if (filters.customerId) {
+      let customerPayments = [];
+      try {
+        const params = new URLSearchParams();
+        if (filters.startDate) params.append('startDate', filters.startDate);
+        if (filters.endDate) params.append('endDate', filters.endDate);
+        const { data } = await api.get(`/customers/${filters.customerId}/history?${params.toString()}`);
+        customerPayments = data.payments || [];
+      } catch (err) {
+        console.error('Error fetching customer payments for PDF', err);
+      }
+
+      if (customerPayments.length > 0) {
+        y = (doc.lastAutoTable?.finalY || y) + 12;
+        if (y > pageHeight - 65) {
+          doc.addPage();
+          y = 18;
+        }
+
+        doc.setFontSize(10);
+        doc.setFont(undefined, 'bold');
+        doc.text('PAYMENT HISTORY:', 14, y - 4);
+
+        const payHead = [['S.NO', 'DATE', 'PAYMENT NUMBER', 'AMOUNT PAID (Rs.)', 'RECEIVED BY', 'NOTES']];
+        const payBody = customerPayments.map((p, idx) => [
+          idx + 1,
+          formatDateTime(p.paymentDate || p.date).date,
+          p.paymentNumber || '—',
+          Number(p.amount || 0).toLocaleString(),
+          p.method || p.receivedBy || '—',
+          p.note || p.notes || '—'
+        ]);
+
+        autoTable(doc, {
+          head: payHead,
+          body: payBody,
+          startY: y,
+          theme: 'grid',
+          styles: { fontSize: 8, cellPadding: 2 },
+          headStyles: { fillColor: [15, 23, 42], textColor: [255, 255, 255], fontStyle: 'bold' }
+        });
+      }
+    }
 
     const filePrefix = customerName ? customerName.replaceAll(' ', '_') : 'customer_bills';
     doc.save(`${filePrefix}_summary.pdf`);
