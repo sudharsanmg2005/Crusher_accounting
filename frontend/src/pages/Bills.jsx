@@ -1049,7 +1049,7 @@ const Bills = () => {
                     <option value="" disabled>Select Material</option>
                     {materials.map(m => (
                       <option key={m._id} value={m._id}>
-                        {m.name} (₹{m.currentPrice}/unit)
+                        {m.name} (₹{m.currentPrice}/unit | ₹{m.pricePerTon ?? m.currentPrice}/ton)
                       </option>
                     ))}
                   </select>
@@ -1128,7 +1128,7 @@ const Bills = () => {
               <div className="mt-3 bg-slate-50 p-3 rounded-lg border border-slate-200 grid grid-cols-2 gap-x-4 gap-y-1 text-sm shrink-0">
                 <div>
                   <span className="text-xs text-slate-500 font-semibold uppercase">Rate:</span>
-                  <span className="ml-1 font-semibold text-slate-700">₹{selectedMaterialPrice.toLocaleString()}</span>
+                  <span className="ml-1 font-semibold text-slate-700">₹{selectedMaterialPrice.toLocaleString()} / {formData.quantityUnit}</span>
                 </div>
                 <div className="text-right">
                   <span className="text-xs text-slate-500 font-semibold uppercase">Subtotal:</span>
