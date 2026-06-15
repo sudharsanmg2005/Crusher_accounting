@@ -5,6 +5,7 @@ import { autoTable } from 'jspdf-autotable';
 import { useConfirm } from '../components/ConfirmDialog';
 import { useAuth } from '../AuthContext';
 import { EditIcon, TrashIcon } from '../components/Icons';
+import { formatVehicleInput, isValidVehicleNumber } from '../utils/vehicleNumber';
 
 const toYMD = (d) => {
   const year = d.getFullYear();
@@ -33,13 +34,19 @@ const LoadManagement = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedBuyerId, setSelectedBuyerId] = useState('');
   const [selectedQuarryName, setSelectedQuarryName] = useState('');
+  const [materials, setMaterials] = useState([]);
   
   // New buyer modal states
   const [isCreateBuyerOpen, setIsCreateBuyerOpen] = useState(false);
   const [newBuyerData, setNewBuyerData] = useState({ name: '', phone: '', address: '' });
 
+  // New material modal states
+  const [isCreateMaterialOpen, setIsCreateMaterialOpen] = useState(false);
+  const [newMaterialData, setNewMaterialData] = useState({ name: '', currentPrice: '', pricePerTon: '' });
+
   const [formData, setFormData] = useState({
-    vehicleType: '',
+    vehicleMode: 'select',
+    vehicleNumber: '',
     date: new Date().toISOString().split('T')[0],
     quarryName: '',
     buyerId: '',
@@ -107,8 +114,18 @@ const LoadManagement = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [dateRange, reportType, searchQuery, selectedBuyerId]);
 
+  const fetchMaterials = async () => {
+    try {
+      const { data } = await api.get('/materials');
+      setMaterials(data);
+    } catch (error) {
+      console.error('Error fetching materials', error);
+    }
+  };
+
   useEffect(() => {
     fetchBuyers();
+    fetchMaterials();
   }, []);
 
   useEffect(() => {
@@ -143,7 +160,9 @@ const LoadManagement = () => {
       }));
     } else if (name === 'month') {
       if (value) {
-        const [year, month] = value.split('-');
+        const [yearStr, monthStr] = value.split('-');
+        const year = parseInt(yearStr);
+        const month = parseInt(monthStr);
         const firstDay = new Date(year, parseInt(month) - 1, 1);
         const lastDay = new Date(year, parseInt(month), 0);
         setDateRange(prev => ({
@@ -176,8 +195,27 @@ const LoadManagement = () => {
 
   const handleChange = (e) => {
     const { name, value } = e.target;
+    if (name === 'vehicleNumber') {
+      setFormData({ ...formData, vehicleNumber: formatVehicleInput(value) });
+      return;
+    }
     setFormData({ ...formData, [name]: value });
   };
+
+  // Auto-fill price when material changes
+  useEffect(() => {
+    if (formData.quarryName && materials.length > 0) {
+      const selectedMat = materials.find((m) => m.name === formData.quarryName);
+      if (selectedMat) {
+        const defaultPrice = formData.unitType === 'tons'
+          ? (selectedMat.pricePerTon ?? selectedMat.currentPrice)
+          : selectedMat.currentPrice;
+        if (!formData._id) {
+          setFormData((prev) => ({ ...prev, price: defaultPrice.toString() }));
+        }
+      }
+    }
+  }, [formData.quarryName, formData.unitType, materials]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -185,11 +223,20 @@ const LoadManagement = () => {
       alert('Buyer is required.');
       return;
     }
+    const vehicle = formData.vehicleMode === 'none' ? '' : (formData.vehicleNumber || '');
+    if (vehicle && !isValidVehicleNumber(vehicle)) {
+      alert('Vehicle number must be TN 74 AE 2003 or TMR 7177 format');
+      return;
+    }
     try {
       const payload = {
-        ...formData,
+        vehicleNumber: vehicle,
+        date: formData.date,
+        quarryName: formData.quarryName,
+        buyerId: formData.buyerId,
         price: Number(formData.price),
-        quantity: Number(formData.quantity)
+        quantity: Number(formData.quantity),
+        unitType: formData.unitType
       };
 
       if (formData._id) {
@@ -199,7 +246,8 @@ const LoadManagement = () => {
       }
       setIsModalOpen(false);
       setFormData({
-        vehicleType: '',
+        vehicleMode: 'select',
+        vehicleNumber: '',
         date: new Date().toISOString().split('T')[0],
         quarryName: '',
         buyerId: '',
@@ -208,6 +256,7 @@ const LoadManagement = () => {
         unitType: 'units'
       });
       fetchLoads();
+      fetchBuyers(); // Refresh buyer list vehicles
     } catch (error) {
       console.error('Error saving load', error);
       alert(error.response?.data?.message || 'Error saving load');
@@ -232,10 +281,42 @@ const LoadManagement = () => {
     }
   };
 
+  const handleCreateMaterial = async (e) => {
+    e.preventDefault();
+    if (!newMaterialData.name || !newMaterialData.currentPrice) {
+      alert('Material name and unit price are required');
+      return;
+    }
+    try {
+      const { data: newMat } = await api.post('/materials', {
+        name: newMaterialData.name,
+        currentPrice: Number(newMaterialData.currentPrice),
+        pricePerTon: Number(newMaterialData.pricePerTon || newMaterialData.currentPrice)
+      });
+      setFormData({ ...formData, quarryName: newMat.name });
+      setIsCreateMaterialOpen(false);
+      setNewMaterialData({ name: '', currentPrice: '', pricePerTon: '' });
+      await fetchMaterials();
+    } catch (error) {
+      console.error('Error creating material', error);
+      alert(error.response?.data?.message || 'Error creating material');
+    }
+  };
+
   const handleEdit = (load) => {
+    const buyer = buyers.find((b) => b._id === load.buyer);
+    const buyerVehicles = buyer?.vehicles || [];
+    const vehicle = load.vehicleNumber || '';
+    let vehicleMode = 'none';
+    if (vehicle) {
+      const exists = buyerVehicles.some((v) => v.number === vehicle);
+      vehicleMode = exists ? 'select' : 'new';
+    }
     setFormData({
       ...load,
       buyerId: load.buyer || '',
+      vehicleMode,
+      vehicleNumber: vehicle,
       date: load.date ? new Date(load.date).toISOString().split('T')[0] : ''
     });
     setIsModalOpen(true);
@@ -321,11 +402,11 @@ const LoadManagement = () => {
     doc.setDrawColor(200, 200, 200);
     doc.line(14, 29, pageWidth - 14, 29);
 
-    const head = [['S.NO', 'DATE', 'VEHICLE TYPE', 'QUARRY NAME', 'BUYER NAME', 'QTY', 'UNIT TYPE', 'PRICE (Rs.)', 'TOTAL (Rs.)']];
+    const head = [['S.NO', 'DATE', 'VEHICLE NUMBER', 'MATERIAL', 'BUYER NAME', 'QTY', 'UNIT TYPE', 'PRICE (Rs.)', 'TOTAL (Rs.)']];
     const body = listToExport.map((l, idx) => [
       idx + 1,
       new Date(l.date).toLocaleDateString(),
-      l.vehicleType,
+      l.vehicleNumber || '—',
       l.quarryName || '—',
       l.buyerNameSnapshot || '—',
       Number(l.quantity || 0).toFixed(2),
@@ -411,6 +492,9 @@ const LoadManagement = () => {
     doc.save(`${fileSlug}_${rangeSlug}.pdf`);
   };
 
+  const selectedBuyer = useMemo(() => buyers.find((b) => b._id === formData.buyerId), [buyers, formData.buyerId]);
+  const buyerVehicles = selectedBuyer?.vehicles || [];
+
   return (
     <div className="space-y-6 flex flex-col h-full">
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center shrink-0 gap-4">
@@ -446,13 +530,13 @@ const LoadManagement = () => {
           </div>
 
           <div className="w-full sm:w-auto">
-            <label className="block text-xs font-semibold text-slate-500 mb-1 uppercase tracking-wider">Quarry Name</label>
+            <label className="block text-xs font-semibold text-slate-500 mb-1 uppercase tracking-wider">Material</label>
             <select
               value={selectedQuarryName}
               onChange={(e) => setSelectedQuarryName(e.target.value)}
               className="border border-slate-300 rounded-lg p-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none bg-white w-full sm:w-40"
             >
-              <option value="">All Quarries</option>
+              <option value="">All Materials</option>
               {uniqueQuarryNames.map((q) => (
                 <option key={q} value={q}>{q}</option>
               ))}
@@ -592,8 +676,8 @@ const LoadManagement = () => {
               <thead className="sticky top-0 bg-slate-50 shadow-sm z-10 w-full min-w-max">
                 <tr className="border-b border-slate-200 text-sm text-slate-600 uppercase tracking-wider">
                   <th className="p-4 font-semibold whitespace-nowrap">Date</th>
-                  <th className="p-4 font-semibold whitespace-nowrap">Vehicle Type</th>
-                  <th className="p-4 font-semibold whitespace-nowrap">Quarry Name</th>
+                  <th className="p-4 font-semibold whitespace-nowrap">Vehicle Number</th>
+                  <th className="p-4 font-semibold whitespace-nowrap">Material</th>
                   <th className="p-4 font-semibold whitespace-nowrap">Buyer Name</th>
                   <th className="p-4 font-semibold whitespace-nowrap text-right">Price (₹)</th>
                   <th className="p-4 font-semibold whitespace-nowrap text-right">Quantity</th>
@@ -605,7 +689,7 @@ const LoadManagement = () => {
                 {filteredLoads.map((load) => (
                   <tr key={load._id} className="hover:bg-slate-50 transition">
                     <td className="p-4 text-slate-600 whitespace-nowrap">{new Date(load.date).toLocaleDateString()}</td>
-                    <td className="p-4 font-medium text-slate-800 whitespace-nowrap">{load.vehicleType}</td>
+                    <td className="p-4 font-medium text-slate-800 whitespace-nowrap">{load.vehicleNumber || '—'}</td>
                     <td className="p-4 text-slate-600 whitespace-nowrap">{load.quarryName || '—'}</td>
                     <td className="p-4 text-slate-600 whitespace-nowrap">{load.buyerNameSnapshot || '—'}</td>
                     <td className="p-4 text-right text-slate-600 whitespace-nowrap">₹{load.price.toLocaleString()}</td>
@@ -657,20 +741,7 @@ const LoadManagement = () => {
                   required
                   value={formData.date}
                   onChange={handleChange}
-                  className="w-full border border-slate-300 rounded-lg p-2.5 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">Vehicle Type *</label>
-                <input
-                  type="text"
-                  name="vehicleType"
-                  required
-                  value={formData.vehicleType}
-                  onChange={handleChange}
-                  placeholder="e.g. Tipper, Lorry, Tractor"
-                  className="w-full border border-slate-300 rounded-lg p-2.5 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition"
+                  className="w-full border border-slate-300 rounded-lg p-2.5 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition text-sm bg-white text-slate-850"
                 />
               </div>
 
@@ -682,7 +753,7 @@ const LoadManagement = () => {
                     required
                     value={formData.buyerId || ''}
                     onChange={handleChange}
-                    className="flex-1 border border-slate-300 rounded-lg p-2.5 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition bg-white text-sm"
+                    className="flex-1 border border-slate-300 rounded-lg p-2.5 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition bg-white text-sm text-slate-800"
                   >
                     <option value="" disabled>Select Buyer *</option>
                     {buyers.map(b => (
@@ -701,16 +772,80 @@ const LoadManagement = () => {
                 </div>
               </div>
 
+              <div className="grid grid-cols-3 gap-2">
+                <div className="col-span-1">
+                  <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">Vehicle Mode</label>
+                  <select
+                    value={formData.vehicleMode || 'select'}
+                    onChange={(e) => setFormData({ ...formData, vehicleMode: e.target.value, vehicleNumber: '' })}
+                    className="w-full border border-slate-300 rounded-lg p-2 text-sm bg-white focus:ring-2 focus:ring-blue-500 outline-none"
+                  >
+                    <option value="select">Existing</option>
+                    <option value="new">Add New</option>
+                    <option value="none">None</option>
+                  </select>
+                </div>
+                <div className="col-span-2">
+                  <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">Vehicle Number</label>
+                  {formData.vehicleMode === 'select' && (
+                    <select
+                      name="vehicleNumber"
+                      value={formData.vehicleNumber || ''}
+                      onChange={handleChange}
+                      className="w-full border border-slate-300 rounded-lg p-2 bg-white focus:ring-2 focus:ring-blue-500 outline-none text-sm text-slate-800"
+                    >
+                      <option value="">Select vehicle</option>
+                      {buyerVehicles.map((v) => (
+                        <option key={v._id || v.number} value={v.number}>{v.number}</option>
+                      ))}
+                    </select>
+                  )}
+                  {formData.vehicleMode === 'new' && (
+                    <input
+                      type="text"
+                      name="vehicleNumber"
+                      value={formData.vehicleNumber || ''}
+                      onChange={handleChange}
+                      className="w-full border border-slate-300 rounded-lg p-2 uppercase focus:ring-2 focus:ring-blue-500 outline-none text-sm text-slate-800"
+                      placeholder="TN 74 AE 2003"
+                    />
+                  )}
+                  {formData.vehicleMode === 'none' && (
+                    <input
+                      type="text"
+                      disabled
+                      value="No vehicle"
+                      className="w-full border border-slate-200 rounded-lg p-2 bg-slate-50 text-slate-400 text-sm outline-none cursor-not-allowed"
+                    />
+                  )}
+                </div>
+              </div>
+
               <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">Quarry Name</label>
-                <input
-                  type="text"
-                  name="quarryName"
-                  value={formData.quarryName || ''}
-                  onChange={handleChange}
-                  placeholder="Quarry source location (optional)"
-                  className="w-full border border-slate-300 rounded-lg p-2.5 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition"
-                />
+                <label className="block text-sm font-medium text-slate-700 mb-1">Material *</label>
+                <div className="flex gap-2">
+                  <select
+                    name="quarryName"
+                    required
+                    value={formData.quarryName || ''}
+                    onChange={handleChange}
+                    className="flex-1 border border-slate-300 rounded-lg p-2.5 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition bg-white text-sm text-slate-800"
+                  >
+                    <option value="" disabled>Select Material *</option>
+                    {materials.map(m => (
+                      <option key={m._id} value={m.name}>{m.name}</option>
+                    ))}
+                  </select>
+                  {canWrite && (
+                    <button
+                      type="button"
+                      onClick={() => setIsCreateMaterialOpen(true)}
+                      className="px-3 py-2 bg-green-600 text-white rounded-lg text-sm font-medium hover:bg-green-700 transition shrink-0"
+                    >
+                      + New
+                    </button>
+                  )}
+                </div>
               </div>
 
               <div className="grid grid-cols-2 gap-4">
@@ -817,6 +952,57 @@ const LoadManagement = () => {
                 </button>
                 <button type="submit" className="px-5 py-2 bg-green-600 text-white rounded-lg font-medium hover:bg-green-700 transition shadow-md">
                   Create Buyer
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Inline Create Material Modal */}
+      {isCreateMaterialOpen && (
+        <div className="fixed inset-0 bg-slate-900/50 flex items-center justify-center p-4 z-[60] animate-in fade-in duration-200">
+          <div className="bg-white rounded-xl shadow-2xl w-full max-w-sm overflow-hidden flex flex-col">
+            <div className="p-5 border-b border-slate-100 flex justify-between items-center bg-green-50">
+              <h2 className="text-xl font-bold text-green-900">Add New Material</h2>
+              <button onClick={() => setIsCreateMaterialOpen(false)} className="text-green-400 hover:text-green-600 text-2xl leading-none">&times;</button>
+            </div>
+            
+            <form onSubmit={handleCreateMaterial} className="p-6 space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">Material Name *</label>
+                <input 
+                  type="text" required value={newMaterialData.name} onChange={(e) => setNewMaterialData({...newMaterialData, name: e.target.value})}
+                  className="w-full border border-slate-300 rounded-lg p-2.5 focus:ring-2 focus:ring-green-500 focus:border-green-500 outline-none transition"
+                  placeholder="e.g. 20mm Rough Stone"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">Unit Price (₹) *</label>
+                <input 
+                  type="number" required value={newMaterialData.currentPrice} onChange={(e) => setNewMaterialData({...newMaterialData, currentPrice: e.target.value})}
+                  className="w-full border border-slate-300 rounded-lg p-2.5 focus:ring-2 focus:ring-green-500 focus:border-green-500 outline-none transition"
+                  placeholder="e.g. 3200"
+                  min="0"
+                  step="0.01"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">Ton Price (₹)</label>
+                <input 
+                  type="number" value={newMaterialData.pricePerTon} onChange={(e) => setNewMaterialData({...newMaterialData, pricePerTon: e.target.value})}
+                  className="w-full border border-slate-300 rounded-lg p-2.5 focus:ring-2 focus:ring-green-500 focus:border-green-500 outline-none transition"
+                  placeholder="e.g. 3500 (optional)"
+                  min="0"
+                  step="0.01"
+                />
+              </div>
+              <div className="pt-4 flex justify-end space-x-3 border-t border-slate-100">
+                <button type="button" onClick={() => setIsCreateMaterialOpen(false)} className="px-4 py-2 text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-lg font-medium transition">
+                  Cancel
+                </button>
+                <button type="submit" className="px-5 py-2 bg-green-600 text-white rounded-lg font-medium hover:bg-green-700 transition shadow-md">
+                  Create Material
                 </button>
               </div>
             </form>

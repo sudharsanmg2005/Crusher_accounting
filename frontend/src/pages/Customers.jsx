@@ -37,6 +37,7 @@ const Customers = () => {
   const [paymentAmount, setPaymentAmount] = useState('');
   const [paymentNote, setPaymentNote] = useState('');
   const [paymentReceivedBy, setPaymentReceivedBy] = useState('');
+  const [paymentDate, setPaymentDate] = useState('');
   
   // Payment editing state
   const [editPaymentModalOpen, setEditPaymentModalOpen] = useState(false);
@@ -200,6 +201,7 @@ const Customers = () => {
     setPaymentAmount(customerDetails.summary?.totalOutstandingAmount?.toString() || '');
     setPaymentNote('');
     setPaymentReceivedBy(user?.name || '');
+    setPaymentDate(new Date().toISOString().split('T')[0]);
     setPaymentModalOpen(true);
   };
 
@@ -220,6 +222,7 @@ const Customers = () => {
       await api.post('/payments', {
         customerId: customerDetails.customer._id,
         amount,
+        date: paymentDate,
         notes: paymentNote,
         receivedBy: paymentReceivedBy
       });
@@ -988,6 +991,17 @@ const Customers = () => {
                     placeholder="Enter amount"
                   />
                 </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-semibold text-slate-700 mb-1">Payment Date *</label>
+                <input
+                  type="date"
+                  required
+                  value={paymentDate}
+                  onChange={(e) => setPaymentDate(e.target.value)}
+                  className="w-full border border-slate-300 rounded-lg p-2.5 focus:ring-2 focus:ring-blue-500 outline-none text-sm bg-white text-slate-800"
+                />
               </div>
 
               <div>

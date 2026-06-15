@@ -3,7 +3,8 @@ import api from '../api';
 import { useAuth } from '../AuthContext';
 import { useConfirm } from '../components/ConfirmDialog';
 import { formatDateTime } from '../utils/dateTime';
-import { EditIcon, TrashIcon, EyeIcon, PlusIcon, ChevronDownIcon } from '../components/Icons';
+import { EditIcon, TrashIcon, EyeIcon, PlusIcon, ChevronDownIcon, CargoIcon } from '../components/Icons';
+import { formatVehicleInput, isValidVehicleNumber } from '../utils/vehicleNumber';
 import jsPDF from 'jspdf';
 import { autoTable } from 'jspdf-autotable';
 
@@ -42,7 +43,10 @@ const Buyers = () => {
   const [editPaymentPaidBy, setEditPaymentPaidBy] = useState('');
 
   // Add/Edit Buyer form state
-  const [formData, setFormData] = useState({ name: '', phone: '', address: '' });
+  const [formData, setFormData] = useState({ name: '', phone: '', address: '', vehicles: [] });
+  const [newVehicle, setNewVehicle] = useState('');
+  const [editingVehicleIdx, setEditingVehicleIdx] = useState(null);
+  const [editingVehicleVal, setEditingVehicleVal] = useState('');
 
   const canWrite = user?.role === 'super_admin' || user?.accessLevel === 'full_access';
 
@@ -115,6 +119,34 @@ const Buyers = () => {
     setFormData({ ...formData, [name]: value });
   };
 
+  const addVehicleToForm = () => {
+    const formatted = formatVehicleInput(newVehicle);
+    if (!formatted) return;
+    if (!isValidVehicleNumber(formatted)) {
+      alert('Vehicle number must be TN 74 AE 2003 or TMR 7177 format');
+      return;
+    }
+    if (formData.vehicles?.some((v) => v.number === formatted)) return;
+    setFormData({ ...formData, vehicles: [...(formData.vehicles || []), { number: formatted }] });
+    setNewVehicle('');
+  };
+
+  const removeVehicleFromForm = (index) => {
+    setFormData({ ...formData, vehicles: (formData.vehicles || []).filter((_, i) => i !== index) });
+  };
+
+  const saveVehicleEdit = (index) => {
+    const formatted = formatVehicleInput(editingVehicleVal);
+    if (!isValidVehicleNumber(formatted)) {
+      alert('Vehicle number must be TN 74 AE 2003 or TMR 7177 format');
+      return;
+    }
+    const updatedVehicles = [...(formData.vehicles || [])];
+    updatedVehicles[index] = { ...updatedVehicles[index], number: formatted };
+    setFormData({ ...formData, vehicles: updatedVehicles });
+    setEditingVehicleIdx(null);
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!formData.name || !formData.phone || formData.phone.length !== 10) {
@@ -122,13 +154,19 @@ const Buyers = () => {
       return;
     }
     try {
+      const payload = {
+        name: formData.name,
+        phone: formData.phone,
+        address: formData.address,
+        vehicles: formData.vehicles || []
+      };
       if (formData._id) {
-        await api.put(`/buyers/${formData._id}`, formData);
+        await api.put(`/buyers/${formData._id}`, payload);
       } else {
-        await api.post('/buyers', formData);
+        await api.post('/buyers', payload);
       }
       setIsModalOpen(false);
-      setFormData({ name: '', phone: '', address: '' });
+      setFormData({ name: '', phone: '', address: '', vehicles: [] });
       fetchBuyers();
     } catch (error) {
       console.error('Error saving buyer', error);
@@ -137,7 +175,10 @@ const Buyers = () => {
   };
 
   const handleEdit = (buyer) => {
-    setFormData({ ...buyer });
+    setFormData({
+      ...buyer,
+      vehicles: buyer.vehicles || []
+    });
     setIsModalOpen(true);
   };
 
@@ -279,11 +320,11 @@ const Buyers = () => {
     doc.line(14, 29, pageWidth - 14, 29);
 
     const yStartTable = 36;
-    const head = [['S.NO', 'DATE', 'VEHICLE TYPE', 'QUARRY NAME', 'PRICE (Rs.)', 'QUANTITY', 'TOTAL VALUE (Rs.)', 'ALLOCATED (Rs.)', 'PENDING (Rs.)']];
+    const head = [['S.NO', 'DATE', 'VEHICLE NUMBER', 'MATERIAL', 'PRICE (Rs.)', 'QUANTITY', 'TOTAL VALUE (Rs.)', 'ALLOCATED (Rs.)', 'PENDING (Rs.)']];
     const body = (buyerDetails.bills || []).map((r, idx) => [
       idx + 1,
       formatDateTime(r.date).date,
-      r.vehicleType,
+      r.vehicleNumber || '—',
       r.quarryName || '—',
       r.price.toLocaleString(),
       Number(r.quantity || 0).toFixed(2),
@@ -470,6 +511,70 @@ const Buyers = () => {
                 />
               </div>
               <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">Vehicle Numbers</label>
+                <div className="flex gap-2 mb-2">
+                  <input
+                    type="text"
+                    value={newVehicle}
+                    onChange={(e) => setNewVehicle(formatVehicleInput(e.target.value))}
+                    className="flex-1 border border-slate-300 rounded-lg p-2.5 uppercase focus:ring-2 focus:ring-blue-500 outline-none"
+                    placeholder="TN 74 AE 2003 or TMR 7177"
+                  />
+                  <button type="button" onClick={addVehicleToForm} className="px-3 bg-green-600 text-white rounded-lg text-sm font-medium hover:bg-green-700">Add</button>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  {(formData.vehicles || []).map((v, idx) => {
+                    const isEditing = editingVehicleIdx === idx;
+                    if (isEditing) {
+                      return (
+                        <input
+                          key={idx}
+                          type="text"
+                          value={editingVehicleVal}
+                          onChange={(e) => setEditingVehicleVal(formatVehicleInput(e.target.value))}
+                          onBlur={() => saveVehicleEdit(idx)}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') {
+                              e.preventDefault();
+                              saveVehicleEdit(idx);
+                            } else if (e.key === 'Escape') {
+                              setEditingVehicleIdx(null);
+                            }
+                          }}
+                          autoFocus
+                          className="w-36 border border-blue-400 bg-white rounded-full px-3 py-1 text-xs font-mono uppercase focus:ring-2 focus:ring-blue-500 outline-none"
+                        />
+                      );
+                    }
+                    return (
+                      <span key={idx} className="inline-flex items-center gap-1.5 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-full px-3 py-1.5 text-xs font-mono text-slate-800 transition">
+                        <CargoIcon className="h-3.5 w-3.5 text-slate-400" />
+                        <span>{v.number}</span>
+                        <button 
+                          type="button" 
+                          onClick={() => {
+                            setEditingVehicleIdx(idx);
+                            setEditingVehicleVal(v.number);
+                          }} 
+                          className="text-slate-400 hover:text-blue-600 p-0.5 rounded transition-colors cursor-pointer"
+                          title="Edit Vehicle"
+                        >
+                          <EditIcon className="h-3.5 w-3.5" />
+                        </button>
+                        <button 
+                          type="button" 
+                          onClick={() => removeVehicleFromForm(idx)} 
+                          className="text-slate-400 hover:text-red-600 p-0.5 rounded transition-colors font-bold cursor-pointer"
+                          title="Remove Vehicle"
+                        >
+                          &times;
+                        </button>
+                      </span>
+                    );
+                  })}
+                </div>
+              </div>
+              <div>
                 <label className="block text-sm font-medium text-slate-700 mb-1">Address</label>
                 <textarea
                   name="address" rows="3" value={formData.address} onChange={handleChange}
@@ -623,7 +728,7 @@ const Buyers = () => {
                           {buyerDetails.bills?.slice(0, 5).map((load) => (
                             <tr key={load._id} className="hover:bg-slate-50">
                               <td className="p-3 text-slate-500">{formatDateTime(load.date).date}</td>
-                              <td className="p-3 font-semibold text-slate-700">{load.vehicleType}</td>
+                              <td className="p-3 font-semibold text-slate-700">{load.vehicleNumber || '—'}</td>
                               <td className="p-3 text-right font-medium text-slate-800">₹{load.price.toLocaleString()}</td>
                             </tr>
                           ))}
@@ -698,8 +803,8 @@ const Buyers = () => {
                     <thead className="bg-slate-50 border-b border-slate-200 text-slate-500 font-semibold">
                       <tr>
                         <th className="p-4">Date</th>
-                        <th className="p-4">Vehicle Type</th>
-                        <th className="p-4">Quarry Name</th>
+                        <th className="p-4">Vehicle Number</th>
+                        <th className="p-4">Material</th>
                         <th className="p-4 text-right">Price</th>
                         <th className="p-4 text-right">Quantity</th>
                         <th className="p-4 text-right">Total Cost</th>
@@ -714,7 +819,7 @@ const Buyers = () => {
                         return (
                           <tr key={load._id} className={`hover:bg-slate-50/80 transition ${hasPending ? 'bg-rose-50/10' : ''}`}>
                             <td className="p-4 text-slate-500">{formatDateTime(load.date).date}</td>
-                            <td className="p-4 text-slate-800 font-semibold">{load.vehicleType}</td>
+                            <td className="p-4 text-slate-800 font-semibold">{load.vehicleNumber || '—'}</td>
                             <td className="p-4 text-slate-600">{load.quarryName || '—'}</td>
                             <td className="p-4 text-right text-slate-600">₹{load.price.toLocaleString()}</td>
                             <td className="p-4 text-right text-slate-600">{Number(load.quantity || 0).toFixed(2)} {load.unitType}</td>
@@ -802,7 +907,7 @@ const Buyers = () => {
                                       {pay.allocationDetails?.map((alloc, idx) => {
                                         const loadDetail = buyerDetails.bills?.find((b) => b._id === alloc.loadId);
                                         const loadInfo = loadDetail
-                                          ? `${formatDateTime(loadDetail.date).date} (${loadDetail.vehicleType})`
+                                          ? `${formatDateTime(loadDetail.date).date} (${loadDetail.vehicleNumber || '—'})`
                                           : 'Load';
                                         return (
                                           <div key={idx} className="bg-white border border-slate-200/80 rounded-lg p-2.5 shadow-sm text-xs font-mono">

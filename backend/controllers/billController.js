@@ -9,6 +9,16 @@ import { recordPayment, recalculateCustomerBalances } from '../services/paymentS
 
 const normalizeVehicle = normalizeVehicleNumber;
 
+const roundToNearestTen = (amount) => {
+  const rounded = Math.round(amount);
+  const lastDigit = rounded % 10;
+  if (lastDigit < 5) {
+    return rounded - lastDigit;
+  } else {
+    return rounded + (10 - lastDigit);
+  }
+};
+
 const generateBillNumber = async () => {
   const count = await Bill.countDocuments();
   return `KBM-${String(count + 1).padStart(5, '0')}`;
@@ -136,7 +146,7 @@ export const createBill = async (req, res, next) => {
       ? (material.pricePerTon ?? material.currentPrice)
       : material.currentPrice;
     const effectivePrice = pricePerUnit ?? defaultPrice;
-    const totalAmount = quantity * effectivePrice;
+    const totalAmount = roundToNearestTen(quantity * effectivePrice);
     const passFee = passAmount != null ? Number(passAmount) : 0;
     const permissionCost = Number.isFinite(passFee) ? passFee : 0;
     const grandTotal = totalAmount + permissionCost;
@@ -219,7 +229,7 @@ export const updateBill = async (req, res, next) => {
     if (pricePerUnit != null) bill.pricePerUnit = pricePerUnit;
     if (passAmount != null) bill.passAmount = Number(passAmount) || 0;
 
-    bill.totalAmount = bill.quantity * bill.pricePerUnit;
+    bill.totalAmount = roundToNearestTen(bill.quantity * bill.pricePerUnit);
     
     // Save bill and trigger recalculation of allocations
     await bill.save();

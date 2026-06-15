@@ -1,6 +1,7 @@
 import Buyer from '../models/Buyer.js';
 import Load from '../models/Load.js';
 import BuyerPayment from '../models/BuyerPayment.js';
+import { normalizeVehicleNumber, validateVehicleNumber } from '../utils/vehicleNumber.js';
 
 
 export const getBuyers = async (req, res, next) => {
@@ -14,13 +15,21 @@ export const getBuyers = async (req, res, next) => {
 
 export const createBuyer = async (req, res, next) => {
   try {
-    const { name, phone, address } = req.body;
+    const { name, phone, address, vehicles = [] } = req.body;
     if (!name || !phone) {
       res.status(400);
       throw new Error('Name and phone number are required');
     }
 
-    const buyer = await Buyer.create({ name, phone, address });
+    const mappedVehicles = vehicles.map((v) => ({ number: normalizeVehicleNumber(v.number || v) }));
+    for (const v of mappedVehicles) {
+      const vehicleError = validateVehicleNumber(v.number);
+      if (vehicleError) {
+        return res.status(400).json({ message: vehicleError });
+      }
+    }
+
+    const buyer = await Buyer.create({ name, phone, address, vehicles: mappedVehicles });
     res.status(201).json({
       ...buyer.toObject(),
       auditDetails: `Created buyer: ${name} (${phone})`
@@ -38,16 +47,61 @@ export const updateBuyer = async (req, res, next) => {
       throw new Error('Buyer not found');
     }
 
-    const { name, phone, address } = req.body;
+    const { name, phone, address, vehicles } = req.body;
     if (name !== undefined) buyer.name = name;
     if (phone !== undefined) buyer.phone = phone;
     if (address !== undefined) buyer.address = address;
+    if (Array.isArray(vehicles)) {
+      buyer.vehicles = vehicles.map((v) => {
+        const number = normalizeVehicleNumber(v.number);
+        const vehicleError = validateVehicleNumber(number);
+        if (vehicleError) {
+          const err = new Error(vehicleError);
+          err.statusCode = 400;
+          throw err;
+        }
+        return {
+          _id: v._id,
+          number,
+          addedAt: v.addedAt || new Date()
+        };
+      });
+    }
 
     const updated = await buyer.save();
     res.json({
       ...updated.toObject(),
       auditDetails: `Updated buyer: ${updated.name}`
     });
+  } catch (err) {
+    if (err.statusCode) res.status(err.statusCode);
+    next(err);
+  }
+};
+
+export const addBuyerVehicle = async (req, res, next) => {
+  try {
+    const { number } = req.body;
+    if (!number || !String(number).trim()) {
+      return res.status(400).json({ message: 'Vehicle number is required' });
+    }
+
+    const buyer = await Buyer.findById(req.params.id);
+    if (!buyer || buyer.isDeleted) {
+      return res.status(404).json({ message: 'Buyer not found' });
+    }
+
+    const normalized = normalizeVehicleNumber(number);
+    const vehicleError = validateVehicleNumber(normalized);
+    if (vehicleError) {
+      return res.status(400).json({ message: vehicleError });
+    }
+    const exists = buyer.vehicles.some((v) => normalizeVehicleNumber(v.number) === normalized);
+    if (!exists) {
+      buyer.vehicles.push({ number: normalized });
+      await buyer.save();
+    }
+    res.status(200).json(buyer);
   } catch (err) {
     next(err);
   }

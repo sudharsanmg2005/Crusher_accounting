@@ -1,5 +1,6 @@
 import Load from '../models/Load.js';
 import Buyer from '../models/Buyer.js';
+import { normalizeVehicleNumber, validateVehicleNumber } from '../utils/vehicleNumber.js';
 
 export const getLoads = async (req, res, next) => {
   try {
@@ -29,7 +30,7 @@ export const getLoads = async (req, res, next) => {
       filter.$or = [
         { quarryName: regex },
         { buyerNameSnapshot: regex },
-        { vehicleType: regex }
+        { vehicleNumber: regex }
       ];
     }
 
@@ -42,7 +43,7 @@ export const getLoads = async (req, res, next) => {
 
 export const createLoad = async (req, res, next) => {
   try {
-    const { vehicleType, date, quarryName, buyerId, price, quantity, unitType } = req.body;
+    const { vehicleNumber, date, quarryName, buyerId, price, quantity, unitType } = req.body;
     
     if (!buyerId) {
       res.status(400);
@@ -55,8 +56,21 @@ export const createLoad = async (req, res, next) => {
       throw new Error('Buyer not found');
     }
 
+    const normalizedVehicle = vehicleNumber ? normalizeVehicleNumber(vehicleNumber) : '';
+    if (normalizedVehicle) {
+      const vehicleError = validateVehicleNumber(normalizedVehicle);
+      if (vehicleError) {
+        return res.status(400).json({ message: vehicleError });
+      }
+      const exists = buyerRecord.vehicles.some((v) => normalizeVehicleNumber(v.number) === normalizedVehicle);
+      if (!exists) {
+        buyerRecord.vehicles.push({ number: normalizedVehicle });
+        await buyerRecord.save();
+      }
+    }
+
     const load = await Load.create({
-      vehicleType,
+      vehicleNumber: normalizedVehicle,
       date: date ? new Date(date) : new Date(),
       quarryName: quarryName ? quarryName.trim() : undefined,
       buyer: buyerId,
@@ -68,7 +82,7 @@ export const createLoad = async (req, res, next) => {
 
     res.status(201).json({
       ...load.toObject(),
-      auditDetails: `Created load: Vehicle ${vehicleType}, Buyer ${buyerRecord.name}, Quarry ${quarryName || 'N/A'}, Price ${price}`
+      auditDetails: `Created load: Vehicle ${normalizedVehicle || 'N/A'}, Buyer ${buyerRecord.name}, Material/Quarry ${quarryName || 'N/A'}, Price ${price}`
     });
   } catch (err) {
     next(err);
@@ -83,14 +97,35 @@ export const updateLoad = async (req, res, next) => {
       throw new Error('Load not found');
     }
 
-    const { vehicleType, date, quarryName, buyerId, price, quantity, unitType } = req.body;
+    const { vehicleNumber, date, quarryName, buyerId, price, quantity, unitType } = req.body;
     
     if (buyerId !== undefined && !buyerId) {
       res.status(400);
       throw new Error('Buyer is required');
     }
 
-    if (vehicleType !== undefined) load.vehicleType = vehicleType;
+    if (vehicleNumber !== undefined) {
+      const normalizedVehicle = vehicleNumber ? normalizeVehicleNumber(vehicleNumber) : '';
+      if (normalizedVehicle) {
+        const vehicleError = validateVehicleNumber(normalizedVehicle);
+        if (vehicleError) {
+          return res.status(400).json({ message: vehicleError });
+        }
+        const bId = buyerId !== undefined ? buyerId : load.buyer;
+        if (bId) {
+          const buyerRecord = await Buyer.findById(bId);
+          if (buyerRecord) {
+            const exists = buyerRecord.vehicles.some((v) => normalizeVehicleNumber(v.number) === normalizedVehicle);
+            if (!exists) {
+              buyerRecord.vehicles.push({ number: normalizedVehicle });
+              await buyerRecord.save();
+            }
+          }
+        }
+      }
+      load.vehicleNumber = normalizedVehicle;
+    }
+
     if (date !== undefined) load.date = new Date(date);
     
     if (quarryName !== undefined) {
@@ -105,6 +140,14 @@ export const updateLoad = async (req, res, next) => {
       }
       load.buyer = buyerId;
       load.buyerNameSnapshot = buyerRecord.name;
+
+      if (load.vehicleNumber) {
+        const exists = buyerRecord.vehicles.some((v) => normalizeVehicleNumber(v.number) === load.vehicleNumber);
+        if (!exists) {
+          buyerRecord.vehicles.push({ number: load.vehicleNumber });
+          await buyerRecord.save();
+        }
+      }
     }
 
     if (price !== undefined) load.price = price;
@@ -114,7 +157,7 @@ export const updateLoad = async (req, res, next) => {
     const updated = await load.save();
     res.json({
       ...updated.toObject(),
-      auditDetails: `Updated load ID ${updated._id}: Vehicle ${updated.vehicleType}, Buyer ${updated.buyerNameSnapshot}, Quarry ${updated.quarryName || 'N/A'}`
+      auditDetails: `Updated load ID ${updated._id}: Vehicle ${updated.vehicleNumber || 'N/A'}, Buyer ${updated.buyerNameSnapshot}, Material/Quarry ${updated.quarryName || 'N/A'}`
     });
   } catch (err) {
     next(err);
@@ -134,7 +177,7 @@ export const deleteLoad = async (req, res, next) => {
 
     res.json({
       message: 'Load removed',
-      auditDetails: `Deleted load ID ${load._id}: Vehicle ${load.vehicleType}, Buyer ${load.buyerNameSnapshot}`
+      auditDetails: `Deleted load ID ${load._id}: Vehicle ${load.vehicleNumber || 'N/A'}, Buyer ${load.buyerNameSnapshot}`
     });
   } catch (err) {
     next(err);

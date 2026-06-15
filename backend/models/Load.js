@@ -2,7 +2,7 @@ import mongoose from 'mongoose';
 
 const loadSchema = new mongoose.Schema(
   {
-    vehicleType: { type: String, required: true, trim: true },
+    vehicleNumber: { type: String, trim: true, default: '' },
     date: { type: Date, default: Date.now },
     quarryName: { type: String, trim: true },
     buyer: { type: mongoose.Schema.Types.ObjectId, ref: 'Buyer', required: true },

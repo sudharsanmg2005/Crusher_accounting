@@ -17,8 +17,18 @@ const emptyForm = () => ({
   passAmount: '',
   useManualPrice: false,
   manualPrice: '',
-  customDate: ''
+  customDate: new Date().toISOString().split('T')[0]
 });
+
+const roundToNearestTen = (amount) => {
+  const rounded = Math.round(amount);
+  const lastDigit = rounded % 10;
+  if (lastDigit < 5) {
+    return rounded - lastDigit;
+  } else {
+    return rounded + (10 - lastDigit);
+  }
+};
 
 const Bills = () => {
   const { user } = useAuth();
@@ -31,7 +41,7 @@ const Bills = () => {
   const [editModalOpen, setEditModalOpen] = useState(false);
   const [editingBill, setEditingBill] = useState(null);
   const [formData, setFormData] = useState(emptyForm());
-  const [editFormData, setEditFormData] = useState({ vehicleNumber: '', quantity: '', quantityUnit: 'unit', pricePerUnit: '' });
+  const [editFormData, setEditFormData] = useState({ vehicleNumber: '', quantity: '', quantityUnit: 'unit', pricePerUnit: '', date: '' });
   
   // State for payment editing/deleting
   const [editPaymentModalOpen, setEditPaymentModalOpen] = useState(false);
@@ -184,7 +194,7 @@ const Bills = () => {
           : material.currentPrice;
         const price = formData.useManualPrice ? Number(formData.manualPrice) || 0 : defaultPrice;
         setSelectedMaterialPrice(price);
-        setCalculatedTotal(price * Number(formData.quantity));
+        setCalculatedTotal(roundToNearestTen(price * Number(formData.quantity)));
       }
     } else {
       setCalculatedTotal(0);
@@ -250,7 +260,8 @@ const Bills = () => {
       vehicleNumber: bill.vehicleNumber || '',
       quantity: bill.quantity,
       quantityUnit: bill.quantityUnit || 'unit',
-      pricePerUnit: bill.pricePerUnit
+      pricePerUnit: bill.pricePerUnit,
+      date: bill.date ? new Date(bill.date).toISOString().split('T')[0] : ''
     });
     setEditModalOpen(true);
   };
@@ -263,6 +274,7 @@ const Bills = () => {
     }
     try {
       await api.put(`/bills/${editingBill._id}`, {
+        date: editFormData.date,
         vehicleNumber: editFormData.vehicleNumber || '',
         quantity: Number(editFormData.quantity),
         quantityUnit: editFormData.quantityUnit,
@@ -770,16 +782,16 @@ const Bills = () => {
                 </div>
 
                 {canWrite && (
-                  <div className="col-span-2 border border-slate-200 rounded-lg p-2 bg-slate-50">
-                    <details className="group">
-                      <summary className="list-none flex items-center justify-between cursor-pointer text-xs font-semibold text-slate-600 uppercase select-none">
-                        <span>Backdate Bill / Custom Date</span>
-                        <ChevronDownIcon className="h-4 w-4 transition-transform group-open:rotate-180" />
-                      </summary>
-                      <div className="mt-2 pt-2 border-t border-slate-200">
-                        <input type="date" name="customDate" value={formData.customDate} onChange={handleChange} className="w-full border border-slate-300 rounded-lg p-1.5 text-xs focus:ring-2 focus:ring-blue-500 outline-none bg-white" />
-                      </div>
-                    </details>
+                  <div className="col-span-2">
+                    <label className="block text-xs font-semibold text-slate-500 mb-1 uppercase tracking-wider">Date *</label>
+                    <input
+                      type="date"
+                      name="customDate"
+                      required
+                      value={formData.customDate}
+                      onChange={handleChange}
+                      className="w-full border border-slate-300 rounded-lg p-2 focus:ring-2 focus:ring-blue-500 outline-none text-sm bg-white text-slate-800"
+                    />
                   </div>
                 )}
               </div>
@@ -825,6 +837,16 @@ const Bills = () => {
               <button onClick={() => setEditModalOpen(false)} className="text-slate-400 hover:text-slate-600 text-2xl leading-none">&times;</button>
             </div>
             <form onSubmit={handleEditSubmit} className="p-6 space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">Date *</label>
+                <input
+                  type="date"
+                  required
+                  value={editFormData.date}
+                  onChange={(e) => setEditFormData({ ...editFormData, date: e.target.value })}
+                  className="w-full border border-slate-300 rounded-lg p-2.5 focus:ring-2 focus:ring-blue-500 outline-none text-sm bg-white text-slate-800"
+                />
+              </div>
               <div>
                 <label className="block text-sm font-medium text-slate-700 mb-1">Vehicle Number</label>
                 <input
