@@ -430,43 +430,77 @@ const LoadManagement = () => {
       y = 18;
     }
 
-    // Aggregates summary by Buyer Name / Quarry Name
-    const byBuyer = {};
+    // Grand Totals
+    let grandBilled = 0;
+    let grandPaid = 0;
+    let grandOutstanding = 0;
+
+    // Aggregates by Buyer
+    const buyerAgg = {}; // buyerName -> { billed, paid, pending }
+
     listToExport.forEach((l) => {
-      const key = `${l.buyerNameSnapshot || '—'} (${l.quarryName || '—'})`;
-      byBuyer[key] = (byBuyer[key] || 0) + (l.price * l.quantity);
+      const billed = Number(l.price || 0) * Number(l.quantity || 0);
+      const paid = Number(l.allocatedAmount || 0);
+      const pending = Number(l.pendingAmount || 0);
+
+      grandBilled += billed;
+      grandPaid += paid;
+      grandOutstanding += pending;
+
+      const bName = l.buyerNameSnapshot || '—';
+      if (!buyerAgg[bName]) {
+        buyerAgg[bName] = { billed: 0, paid: 0, pending: 0 };
+      }
+      buyerAgg[bName].billed += billed;
+      buyerAgg[bName].paid += paid;
+      buyerAgg[bName].pending += pending;
     });
 
-    const summaryHead = [['BUYER & QUARRY NAME', 'TOTAL AMOUNT (Rs.)']];
-    const summaryBody = Object.entries(byBuyer).map(([buyer, amt]) => [
-      buyer,
-      amt.toLocaleString()
-    ]);
-    summaryBody.push(['GRAND TOTAL AMOUNT', totals.totalPrice.toLocaleString()]);
+    const grandHead = [['SUMMARY', 'AMOUNT (Rs.)']];
+    const grandBody = [
+      ['GRAND TOTAL LOAD COST', grandBilled.toLocaleString()],
+      ['GRAND TOTAL PAID', grandPaid.toLocaleString()],
+      ['GRAND TOTAL OUTSTANDING', grandOutstanding.toLocaleString()]
+    ];
 
-    const leftRightMargin = 14;
-    const detailsColWidth = 100;
-    const amountColWidth = pageWidth - leftRightMargin * 2 - detailsColWidth;
-    const tableWidth = detailsColWidth + amountColWidth;
+    doc.setFontSize(10);
+    doc.setFont(undefined, 'bold');
+    doc.text('Grand Summary:', 14, y - 4);
 
     autoTable(doc, {
-      head: summaryHead,
-      body: summaryBody,
+      head: grandHead,
+      body: grandBody,
       startY: y,
       theme: 'grid',
-      tableWidth,
-      styles: { fontSize: 9, cellPadding: 2.5 },
-      headStyles: { fillColor: [37, 99, 235], textColor: [255, 255, 255], fontStyle: 'bold' },
-      columnStyles: {
-        0: { halign: 'left', cellWidth: detailsColWidth },
-        1: { halign: 'right', cellWidth: amountColWidth }
-      },
-      margin: { left: leftRightMargin, right: leftRightMargin },
-      didParseCell: function (data) {
-        if (data.row.index === summaryBody.length - 1) {
-          data.cell.styles.fontStyle = 'bold';
-        }
-      }
+      styles: { fontSize: 8, cellPadding: 2 },
+      headStyles: { fillColor: [37, 99, 235], textColor: [255, 255, 255], fontStyle: 'bold' }
+    });
+
+    y = (doc.lastAutoTable?.finalY || y) + 12;
+    if (y > pageHeight - 65) {
+      doc.addPage();
+      y = 18;
+    }
+
+    const buyerHead = [['BUYER NAME', 'TOTAL COST (Rs.)', 'TOTAL PAID (Rs.)', 'TOTAL OUTSTANDING (Rs.)']];
+    const buyerBody = Object.entries(buyerAgg).map(([name, data]) => [
+      name,
+      data.billed.toLocaleString(),
+      data.paid.toLocaleString(),
+      data.pending.toLocaleString()
+    ]);
+
+    doc.setFontSize(10);
+    doc.setFont(undefined, 'bold');
+    doc.text('Summary By Buyer:', 14, y - 4);
+
+    autoTable(doc, {
+      head: buyerHead,
+      body: buyerBody,
+      startY: y,
+      theme: 'grid',
+      styles: { fontSize: 8, cellPadding: 2 },
+      headStyles: { fillColor: [15, 23, 42], textColor: [255, 255, 255], fontStyle: 'bold' }
     });
 
     const rangeSlug = rangeLabel

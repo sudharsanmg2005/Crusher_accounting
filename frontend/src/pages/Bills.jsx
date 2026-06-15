@@ -278,28 +278,77 @@ const Bills = () => {
       y = 18;
     }
 
-    // Aggregates summary by Customer Name / Material
-    const byCustomer = {};
+    // Grand Totals
+    let grandBilled = 0;
+    let grandPaid = 0;
+    let grandOutstanding = 0;
+    
+    // Aggregates by Customer
+    const customerAgg = {}; // customerName -> { billed, paid, pending }
+
     listToExport.forEach((b) => {
-      const key = `${b.customerNameSnapshot || '—'} (${b.materialNameSnapshot || '—'})`;
-      const amount = Number(b.totalAmount || 0) + Number(b.passAmount || 0);
-      byCustomer[key] = (byCustomer[key] || 0) + amount;
+      const billed = Number(b.totalAmount || 0) + Number(b.passAmount || 0);
+      const paid = Number(b.allocatedAmount || 0);
+      const pending = Number(b.pendingAmount || 0);
+
+      grandBilled += billed;
+      grandPaid += paid;
+      grandOutstanding += pending;
+
+      const cName = b.customerNameSnapshot || '—';
+      if (!customerAgg[cName]) {
+        customerAgg[cName] = { billed: 0, paid: 0, pending: 0 };
+      }
+      customerAgg[cName].billed += billed;
+      customerAgg[cName].paid += paid;
+      customerAgg[cName].pending += pending;
     });
 
-    const summaryHead = [['CUSTOMER & MATERIAL NAME', 'TOTAL AMOUNT (Rs.)']];
-    const summaryBody = Object.entries(byCustomer).map(([key, val]) => [key, val.toLocaleString()]);
+    const grandHead = [['SUMMARY', 'AMOUNT (Rs.)']];
+    const grandBody = [
+      ['GRAND TOTAL BILLED', grandBilled.toLocaleString()],
+      ['GRAND TOTAL PAID', grandPaid.toLocaleString()],
+      ['GRAND TOTAL OUTSTANDING', grandOutstanding.toLocaleString()]
+    ];
 
     doc.setFontSize(10);
     doc.setFont(undefined, 'bold');
-    doc.text('Summary By Customer & Material:', 14, y - 4);
+    doc.text('Grand Summary:', 14, y - 4);
 
     autoTable(doc, {
-      head: summaryHead,
-      body: summaryBody,
+      head: grandHead,
+      body: grandBody,
       startY: y,
       theme: 'grid',
       styles: { fontSize: 8, cellPadding: 2 },
       headStyles: { fillColor: [37, 99, 235], textColor: [255, 255, 255], fontStyle: 'bold' }
+    });
+
+    y = (doc.lastAutoTable?.finalY || y) + 12;
+    if (y > pageHeight - 65) {
+      doc.addPage();
+      y = 18;
+    }
+
+    const customerHead = [['CUSTOMER NAME', 'TOTAL BILLED (Rs.)', 'TOTAL PAID (Rs.)', 'TOTAL OUTSTANDING (Rs.)']];
+    const customerBody = Object.entries(customerAgg).map(([name, data]) => [
+      name,
+      data.billed.toLocaleString(),
+      data.paid.toLocaleString(),
+      data.pending.toLocaleString()
+    ]);
+
+    doc.setFontSize(10);
+    doc.setFont(undefined, 'bold');
+    doc.text('Summary By Customer:', 14, y - 4);
+
+    autoTable(doc, {
+      head: customerHead,
+      body: customerBody,
+      startY: y,
+      theme: 'grid',
+      styles: { fontSize: 8, cellPadding: 2 },
+      headStyles: { fillColor: [15, 23, 42], textColor: [255, 255, 255], fontStyle: 'bold' }
     });
 
     const filePrefix = customerName ? customerName.replaceAll(' ', '_') : 'customer_bills';
