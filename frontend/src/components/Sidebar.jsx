@@ -10,7 +10,6 @@ import {
   PackageIcon,
   ReceiptIcon,
   WalletIcon,
-  LineChartIcon,
   ShieldCheckIcon,
   CargoIcon
 } from './Icons';
@@ -47,7 +46,6 @@ const Sidebar = ({ isOpen, onClose }) => {
     { name: 'Buyers', path: '/buyers', icon: UserShieldIcon },
     { name: 'Loads', path: '/loads', icon: CargoIcon },
     { name: 'Expenses', path: '/expenses', icon: WalletIcon },
-    { name: 'Reports', path: '/reports', icon: LineChartIcon },
     { name: 'Materials', path: '/materials', icon: PackageIcon },
   ];
  

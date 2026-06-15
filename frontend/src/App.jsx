@@ -9,7 +9,6 @@ import Bills from './pages/Bills';
 import LoadManagement from './pages/LoadManagement';
 import Buyers from './pages/Buyers';
 import Expenses from './pages/Expenses';
-import Reports from './pages/Reports';
 import Login from './pages/Login';
 import Landing from './pages/Landing';
 import Admins from './pages/Admins';
@@ -86,14 +85,6 @@ const App = () => {
               element={
                 <ProtectedRoute>
                   <Expenses />
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/reports"
-              element={
-                <ProtectedRoute>
-                  <Reports />
                 </ProtectedRoute>
               }
             />
