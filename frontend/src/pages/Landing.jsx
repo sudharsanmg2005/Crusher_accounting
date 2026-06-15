@@ -11,10 +11,7 @@ const Landing = () => {
     if (loading) return;
     if (user) {
       navigate('/dashboard', { replace: true });
-      return;
     }
-
-    navigate('/login', { replace: true });
   }, [user, loading, navigate]);
 
   const goToLogin = () => {
