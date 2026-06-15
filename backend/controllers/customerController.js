@@ -164,10 +164,27 @@ export const getCustomerHistory = async (req, res, next) => {
       }
     }
 
+    const allBillsOfCustomer = await Bill.find({ customer: customerId, isDeleted: false }, 'date');
+    const billDateMap = new Map(allBillsOfCustomer.map(b => [b._id.toString(), b.date]));
+
     let totalPaymentsAmount = 0;
     let lastPaymentDate = null;
+    const start = startDate ? new Date(startDate) : null;
+    if (start) start.setHours(0, 0, 0, 0);
+
     for (const p of payments) {
-      totalPaymentsAmount += (p.amount || 0);
+      let effectiveAmount = p.amount || 0;
+      if (start) {
+        let allocatedBeforeStart = 0;
+        for (const alloc of (p.allocationDetails || [])) {
+          const billDate = billDateMap.get(alloc.billId.toString());
+          if (billDate && new Date(billDate) < start) {
+            allocatedBeforeStart += alloc.allocatedAmount;
+          }
+        }
+        effectiveAmount = Math.max(0, effectiveAmount - allocatedBeforeStart);
+      }
+      totalPaymentsAmount += effectiveAmount;
       if (!lastPaymentDate || new Date(p.paymentDate) > new Date(lastPaymentDate)) {
         lastPaymentDate = p.paymentDate;
       }
@@ -187,7 +204,12 @@ export const getCustomerHistory = async (req, res, next) => {
       overallPaid += (p.amount || 0);
     }
 
-    const totalOutstandingAmount = Math.max(0, overallBilled - overallPaid);
+    let totalOutstandingAmount = 0;
+    if (startDate || endDate) {
+      totalOutstandingAmount = Math.max(0, totalBillsAmount - totalPaymentsAmount);
+    } else {
+      totalOutstandingAmount = Math.max(0, overallBilled - overallPaid);
+    }
 
     const summary = {
       totalBillsAmount,

@@ -171,10 +171,27 @@ export const getBuyerById = async (req, res, next) => {
       }
     }
 
+    const allLoadsOfBuyer = await Load.find({ buyer: buyerId, isDeleted: false }, 'date');
+    const loadDateMap = new Map(allLoadsOfBuyer.map(l => [l._id.toString(), l.date]));
+
     let totalPaymentsAmount = 0;
     let lastPaymentDate = null;
+    const start = startDate ? new Date(startDate) : null;
+    if (start) start.setHours(0, 0, 0, 0);
+
     for (const p of payments) {
-      totalPaymentsAmount += p.amount;
+      let effectiveAmount = p.amount || 0;
+      if (start) {
+        let allocatedBeforeStart = 0;
+        for (const alloc of (p.allocationDetails || [])) {
+          const loadDate = loadDateMap.get(alloc.loadId.toString());
+          if (loadDate && new Date(loadDate) < start) {
+            allocatedBeforeStart += alloc.allocatedAmount;
+          }
+        }
+        effectiveAmount = Math.max(0, effectiveAmount - allocatedBeforeStart);
+      }
+      totalPaymentsAmount += effectiveAmount;
       if (!lastPaymentDate || new Date(p.paymentDate) > new Date(lastPaymentDate)) {
         lastPaymentDate = p.paymentDate;
       }
@@ -185,7 +202,13 @@ export const getBuyerById = async (req, res, next) => {
 
     const overallBilled = allLoadsForOutstanding.reduce((sum, l) => sum + l.price * l.quantity, 0);
     const overallPaid = allPaymentsForOutstanding.reduce((sum, p) => sum + p.amount, 0);
-    const totalOutstandingAmount = Math.max(0, overallBilled - overallPaid);
+    
+    let totalOutstandingAmount = 0;
+    if (startDate || endDate) {
+      totalOutstandingAmount = Math.max(0, totalLoadsAmount - totalPaymentsAmount);
+    } else {
+      totalOutstandingAmount = Math.max(0, overallBilled - overallPaid);
+    }
 
     const summary = {
       totalBillsAmount: totalLoadsAmount,
