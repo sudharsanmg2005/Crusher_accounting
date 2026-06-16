@@ -233,7 +233,7 @@ const LoadManagement = () => {
     }
     const vehicle = formData.vehicleMode === 'none' ? '' : (formData.vehicleNumber || '');
     if (vehicle && !isValidVehicleNumber(vehicle)) {
-      alert('Vehicle number must be TN 74 AE 2003 or TMR 7177 format');
+      alert('Vehicle number must be TN 74 2003, TN 74 AE 2003, or TMR 7177 format');
       return;
     }
     try {

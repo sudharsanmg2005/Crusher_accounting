@@ -58,7 +58,7 @@ const Customers = () => {
   const saveVehicleEdit = (index) => {
     const formatted = formatVehicleInput(editingVehicleVal);
     if (!isValidVehicleNumber(formatted)) {
-      alert('Vehicle number must be TN 74 AE 2003 or TMR 7177 format');
+      alert('Vehicle number must be TN 74 2003, TN 74 AE 2003, or TMR 7177 format');
       return;
     }
     const updatedVehicles = [...formData.vehicles];
@@ -126,7 +126,7 @@ const Customers = () => {
     const formatted = formatVehicleInput(newVehicle);
     if (!formatted) return;
     if (!isValidVehicleNumber(formatted)) {
-      alert('Vehicle number must be TN 74 AE 2003 or TMR 7177 format');
+      alert('Vehicle number must be TN 74 2003, TN 74 AE 2003, or TMR 7177 format');
       return;
     }
     if (formData.vehicles.some((v) => v.number === formatted)) return;
