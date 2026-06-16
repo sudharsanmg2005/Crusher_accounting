@@ -61,21 +61,22 @@ body {
 
 /* Hover effect - Light mode */
 .data-table tbody tr:hover {
-  background-image: linear-gradient(to right, rgba(37, 99, 235, 0.06), rgba(244, 63, 94, 0.03)) !important;
+  background-image: linear-gradient(to right, rgba(37, 99, 235, 0.08), rgba(244, 63, 94, 0.04)) !important;
 }
 
 .data-table tbody tr:hover td {
   background-color: transparent !important;
-  border-top-color: rgba(37, 99, 235, 0.2) !important;
-  border-bottom-color: rgba(37, 99, 235, 0.2) !important;
+  border-top-color: rgba(37, 99, 235, 0.25) !important;
+  border-bottom-color: rgba(37, 99, 235, 0.25) !important;
+  color: #0f172a !important; /* text slate-900 */
 }
 
 .data-table tbody tr:hover td:first-child {
-  border-left-color: rgba(37, 99, 235, 0.2) !important;
+  border-left-color: rgba(37, 99, 235, 0.25) !important;
 }
 
 .data-table tbody tr:hover td:last-child {
-  border-right-color: rgba(37, 99, 235, 0.2) !important;
+  border-right-color: rgba(37, 99, 235, 0.25) !important;
 }
 
 /* Dark mode overrides */
@@ -84,20 +85,22 @@ body {
 }
 
 .dark .data-table tbody tr:hover {
-  background-image: linear-gradient(to right, rgba(59, 130, 246, 0.12), rgba(244, 63, 94, 0.06)) !important;
+  background-image: linear-gradient(to right, rgba(59, 130, 246, 0.16), rgba(244, 63, 94, 0.08)) !important;
 }
 
 .dark .data-table tbody tr:hover td {
-  border-top-color: rgba(59, 130, 246, 0.4) !important;
-  border-bottom-color: rgba(59, 130, 246, 0.4) !important;
+  background-color: transparent !important;
+  border-top-color: rgba(59, 130, 246, 0.5) !important;
+  border-bottom-color: rgba(59, 130, 246, 0.5) !important;
+  color: #ffffff !important; /* text-white */
 }
 
 .dark .data-table tbody tr:hover td:first-child {
-  border-left-color: rgba(59, 130, 246, 0.4) !important;
+  border-left-color: rgba(59, 130, 246, 0.5) !important;
 }
 
 .dark .data-table tbody tr:hover td:last-child {
-  border-right-color: rgba(59, 130, 246, 0.4) !important;
+  border-right-color: rgba(59, 130, 246, 0.5) !important;
 }
 
 @keyframes fade-in {
