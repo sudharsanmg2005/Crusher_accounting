@@ -11,6 +11,7 @@ import {
 } from 'chart.js';
 import { Bar, Pie } from 'react-chartjs-2';
 import api from '../api';
+import { useTheme } from '../ThemeContext';
 
 ChartJS.register(
   CategoryScale,
@@ -23,6 +24,8 @@ ChartJS.register(
 );
 
 const Dashboard = () => {
+  const { theme } = useTheme();
+  const isDarkMode = theme === 'dark';
   const [stats, setStats] = useState({
     totalCustomers: 0,
     totalBills: 0,
@@ -161,10 +164,30 @@ const Dashboard = () => {
   }, [rawData, reportType, dateRange]);
 
   const displayStatCards = [
-    { title: 'Total Revenue', value: `₹${computedTotals.revenue.toLocaleString()}`, color: 'bg-green-50 text-green-700', border: 'border-green-200' },
-    { title: 'Pending Payments', value: `₹${computedTotals.pending.toLocaleString()}`, color: 'bg-orange-50 text-orange-700', border: 'border-orange-200' },
-    { title: 'Total Expenses', value: `₹${computedTotals.expenses.toLocaleString()}`, color: 'bg-red-50 text-red-700', border: 'border-red-200' },
-    { title: 'Customers', value: computedTotals.customers, color: 'bg-blue-50 text-blue-700', border: 'border-blue-200' },
+    { 
+      title: 'Total Revenue', 
+      value: `₹${computedTotals.revenue.toLocaleString()}`, 
+      color: 'bg-green-50 dark:bg-green-950/20 text-green-700 dark:text-green-400', 
+      border: 'border-green-200 dark:border-green-900/50' 
+    },
+    { 
+      title: 'Pending Payments', 
+      value: `₹${computedTotals.pending.toLocaleString()}`, 
+      color: 'bg-orange-50 dark:bg-orange-950/20 text-orange-700 dark:text-orange-400', 
+      border: 'border-orange-200 dark:border-orange-900/50' 
+    },
+    { 
+      title: 'Total Expenses', 
+      value: `₹${computedTotals.expenses.toLocaleString()}`, 
+      color: 'bg-red-50 dark:bg-red-950/20 text-red-700 dark:text-red-400', 
+      border: 'border-red-200 dark:border-red-900/50' 
+    },
+    { 
+      title: 'Customers', 
+      value: computedTotals.customers, 
+      color: 'bg-blue-50 dark:bg-blue-950/20 text-blue-700 dark:text-blue-400', 
+      border: 'border-blue-200 dark:border-blue-900/50' 
+    },
   ];
 
   // build chart datasets from rawData based on timeframe
@@ -265,6 +288,46 @@ const Dashboard = () => {
 
   const { barData, pieData } = buildTrendData();
 
+  const chartOptions = {
+    maintainAspectRatio: false,
+    plugins: {
+      legend: {
+        labels: {
+          color: isDarkMode ? '#cbd5e1' : '#334155'
+        }
+      }
+    },
+    scales: {
+      x: {
+        grid: {
+          color: isDarkMode ? 'rgba(71, 85, 105, 0.2)' : 'rgba(226, 232, 240, 0.8)'
+        },
+        ticks: {
+          color: isDarkMode ? '#94a3b8' : '#64748b'
+        }
+      },
+      y: {
+        grid: {
+          color: isDarkMode ? 'rgba(71, 85, 105, 0.2)' : 'rgba(226, 232, 240, 0.8)'
+        },
+        ticks: {
+          color: isDarkMode ? '#94a3b8' : '#64748b'
+        }
+      }
+    }
+  };
+
+  const pieOptions = {
+    maintainAspectRatio: false,
+    plugins: {
+      legend: {
+        labels: {
+          color: isDarkMode ? '#cbd5e1' : '#334155'
+        }
+      }
+    }
+  };
+
   if (loading) {
     return <div className="flex justify-center items-center h-full"><div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div></div>;
   }
@@ -272,12 +335,12 @@ const Dashboard = () => {
   return (
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-        <h1 className="text-2xl font-bold text-slate-800">Dashboard</h1>
+        <h1 className="text-2xl font-bold text-slate-800 dark:text-slate-100">Dashboard</h1>
         <div className="flex items-center w-full sm:w-auto">
-          <div className="flex flex-col sm:flex-row sm:items-center bg-white border border-slate-300 rounded-lg shadow-sm p-3 gap-3 w-full sm:w-auto">
+          <div className="flex flex-col sm:flex-row sm:items-center bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-800 rounded-lg shadow-sm p-3 gap-3 w-full sm:w-auto transition-colors duration-200">
             <div className="w-full sm:w-auto">
-              <label className="block text-xs font-semibold text-slate-500 mb-1 uppercase tracking-wider">Report Type</label>
-              <select value={reportType} onChange={(e) => setReportType(e.target.value)} className="w-full border border-slate-300 rounded-lg p-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none bg-white">
+              <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1 uppercase tracking-wider">Report Type</label>
+              <select value={reportType} onChange={(e) => setReportType(e.target.value)} className="w-full border border-slate-300 dark:border-slate-700 rounded-lg p-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100">
                 <option value="monthly">Monthly</option>
                 <option value="weekly">Weekly</option>
                 <option value="range">Selected Days</option>
@@ -285,16 +348,15 @@ const Dashboard = () => {
             </div>
 
             <div className="w-full sm:w-auto">
-              <label className="block text-xs font-semibold text-slate-500 mb-1 uppercase tracking-wider">Start Date</label>
-              <input type="date" name="startDate" value={dateRange.startDate} onChange={(e) => setDateRange(prev => ({ ...prev, startDate: e.target.value }))} disabled={reportType !== 'range'} className="w-full border border-slate-300 rounded-lg p-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none disabled:bg-slate-50" />
+              <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1 uppercase tracking-wider">Start Date</label>
+              <input type="date" name="startDate" value={dateRange.startDate} onChange={(e) => setDateRange(prev => ({ ...prev, startDate: e.target.value }))} disabled={reportType !== 'range'} className="w-full border border-slate-300 dark:border-slate-700 rounded-lg p-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none disabled:bg-slate-50 dark:disabled:bg-slate-800/40 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100" />
             </div>
 
             <div className="w-full sm:w-auto">
-              <label className="block text-xs font-semibold text-slate-500 mb-1 uppercase tracking-wider">End Date</label>
-              <input type="date" name="endDate" value={dateRange.endDate} onChange={(e) => setDateRange(prev => ({ ...prev, endDate: e.target.value }))} disabled={reportType !== 'range'} className="w-full border border-slate-300 rounded-lg p-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none disabled:bg-slate-50" />
+              <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1 uppercase tracking-wider">End Date</label>
+              <input type="date" name="endDate" value={dateRange.endDate} onChange={(e) => setDateRange(prev => ({ ...prev, endDate: e.target.value }))} disabled={reportType !== 'range'} className="w-full border border-slate-300 dark:border-slate-700 rounded-lg p-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none disabled:bg-slate-50 dark:disabled:bg-slate-800/40 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100" />
             </div>
           </div>
-          {/* sort toggle removed per request */}
         </div>
       </div>
 
@@ -311,15 +373,15 @@ const Dashboard = () => {
       {/* Charts */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <div className="card">
-          <h2 className="text-lg font-bold text-slate-800 mb-4 border-b pb-2">Revenue Trends</h2>
+          <h2 className="text-lg font-bold text-slate-800 dark:text-slate-100 mb-4 border-b border-slate-200 dark:border-slate-800 pb-2">Revenue Trends</h2>
           <div className="h-64 flex items-center justify-center">
-             <Bar data={barData} options={{ maintainAspectRatio: false }} />
+             <Bar data={barData} options={chartOptions} />
           </div>
         </div>
         <div className="card">
-          <h2 className="text-lg font-bold text-slate-800 mb-4 border-b pb-2">Financial Overview</h2>
+          <h2 className="text-lg font-bold text-slate-800 dark:text-slate-100 mb-4 border-b border-slate-200 dark:border-slate-800 pb-2">Financial Overview</h2>
           <div className="h-64 flex items-center justify-center">
-            <Pie data={pieData} options={{ maintainAspectRatio: false }} />
+            <Pie data={pieData} options={pieOptions} />
           </div>
         </div>
       </div>

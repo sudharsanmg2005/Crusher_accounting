@@ -31,10 +31,10 @@ const Sidebar = ({ isOpen, onClose }) => {
   };
 
   const linkStyles = ({ isActive }) =>
-    `flex items-center space-x-3 px-4 py-3 rounded-lg transition-colors font-medium ${
+    `flex items-center space-x-3 px-4 py-3 rounded-lg transition-all duration-200 font-medium ${
       isActive
         ? 'bg-blue-600 text-white shadow-md'
-        : 'text-slate-600 hover:bg-blue-50 hover:text-blue-800'
+        : 'text-slate-600 dark:text-slate-300 hover:bg-blue-50 dark:hover:bg-slate-800 hover:text-blue-800 dark:hover:text-blue-400'
     }`;
 
   const navItems = [
@@ -54,14 +54,14 @@ const Sidebar = ({ isOpen, onClose }) => {
       {/* Mobile Sidebar Overlay/Backdrop */}
       {isOpen && (
         <div
-          className="fixed inset-0 bg-slate-900/50 z-40 md:hidden transition-opacity duration-300"
+          className="fixed inset-0 bg-slate-900/50 dark:bg-slate-950/60 z-40 md:hidden transition-opacity duration-300"
           onClick={onClose}
         />
       )}
 
       {/* Sidebar Content */}
       <aside
-        className={`bg-white border-r border-slate-200 shadow-sm flex flex-col transition-all duration-300 z-50
+        className={`bg-white dark:bg-slate-900 border-r border-slate-200 dark:border-slate-800 shadow-sm flex flex-col transition-all duration-300 z-50
           fixed md:sticky top-16 md:top-16 left-0 h-[calc(100vh-4rem)] md:h-[calc(100vh-4rem)] w-64
           ${isOpen ? 'translate-x-0' : '-translate-x-full'} md:translate-x-0
         `}
@@ -71,14 +71,14 @@ const Sidebar = ({ isOpen, onClose }) => {
           <div className="flex items-center gap-3">
             <div 
               onClick={handleLogoClick}
-              className="h-14 w-14 md:h-16 md:w-16 rounded-full bg-white border border-slate-200 ring-2 ring-blue-600 flex items-center justify-center overflow-hidden shadow-sm shrink-0 cursor-pointer hover:scale-105 transition-transform duration-200"
+              className="h-14 w-14 md:h-16 md:w-16 rounded-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 ring-2 ring-blue-600 flex items-center justify-center overflow-hidden shadow-sm shrink-0 cursor-pointer hover:scale-105 transition-transform duration-200"
               title="Zoom Logo"
             >
               <img src={logoUrl} alt="Krishna Blue Metals" className="h-full w-full object-contain" />
             </div>
             <div className="leading-tight">
-              <div className="text-sm font-extrabold text-slate-800 tracking-wide">KRISHNA BLUE METALS</div>
-              <div className="text-xs font-medium text-slate-500">{user?.role ? `${user.role.toUpperCase()}` : 'ADMIN'}</div>
+              <div className="text-sm font-extrabold text-slate-800 dark:text-slate-100 tracking-wide">KRISHNA BLUE METALS</div>
+              <div className="text-xs font-medium text-slate-500 dark:text-slate-400">{user?.role ? `${user.role.toUpperCase()}` : 'ADMIN'}</div>
             </div>
           </div>
           <button
@@ -90,7 +90,7 @@ const Sidebar = ({ isOpen, onClose }) => {
         </div>
 
         <div className="px-4">
-          <h3 className="text-xs font-semibold text-slate-400 uppercase tracking-wider mt-2 mb-1">Menu</h3>
+          <h3 className="text-xs font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wider mt-2 mb-1">Menu</h3>
         </div>
 
         <div className="flex-1 px-4 space-y-2 overflow-y-auto w-full pb-3">
@@ -116,7 +116,7 @@ const Sidebar = ({ isOpen, onClose }) => {
           <button
             type="button"
             onClick={onLogout}
-            className="w-full bg-slate-800 text-white border border-slate-800 hover:bg-slate-700 rounded-lg font-semibold py-2.5 transition shadow-sm"
+            className="w-full bg-slate-800 dark:bg-slate-800 text-white border border-slate-800 dark:border-slate-700 hover:bg-slate-700 dark:hover:bg-slate-700 rounded-lg font-semibold py-2.5 transition-colors duration-200 shadow-sm"
           >
             Logout
           </button>

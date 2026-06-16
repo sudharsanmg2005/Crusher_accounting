@@ -29,11 +29,11 @@ const App = () => {
   const isPublicPage = location.pathname === '/login' || location.pathname === '/';
 
   return (
-    <div className="h-screen flex flex-col overflow-hidden">
+    <div className="h-screen flex flex-col overflow-hidden bg-slate-50 dark:bg-slate-950 text-slate-800 dark:text-slate-100 transition-colors duration-200">
       {!isPublicPage && <Navbar onToggleSidebar={() => setSidebarOpen((prev) => !prev)} />}
       <div className="flex flex-1 min-h-0 relative">
         {!isPublicPage && <Sidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />}
-        <main className={`flex-1 overflow-y-auto min-h-0 min-w-0 ${isPublicPage ? '' : 'p-4 lg:p-6'}`}>
+        <main className={`flex-1 overflow-y-auto min-h-0 min-w-0 ${isPublicPage ? '' : 'p-4 lg:p-6 bg-slate-50 dark:bg-slate-950'}`}>
           <Routes>
             <Route path="/" element={<Landing />} />
             <Route path="/login" element={<Login />} />
