@@ -816,25 +816,7 @@ const Bills = () => {
         </div>
       </div>
 
-      <div className="card p-4 border border-slate-200 bg-white shrink-0">
-        <div className="text-center font-extrabold tracking-wider text-lg">{billStatementInfo.title}</div>
-        <div className="text-center text-sm text-slate-600 mt-1">{billStatementInfo.rangeLabel}</div>
 
-        <div className="mt-4 grid grid-cols-1 sm:grid-cols-3 gap-3">
-          <div className="text-center bg-slate-50 border border-slate-200 rounded-lg p-3">
-            <div className="text-xs font-semibold text-slate-500 uppercase tracking-wider">TOTAL AMOUNT</div>
-            <div className="text-base font-bold text-slate-800">₹{filteredTotals.total.toLocaleString()}</div>
-          </div>
-          <div className="text-center bg-slate-50 border border-slate-200 rounded-lg p-3">
-            <div className="text-xs font-semibold text-slate-500 uppercase tracking-wider">RECEIVED AMOUNT</div>
-            <div className="text-base font-bold text-slate-800">₹{filteredTotals.paid.toLocaleString()}</div>
-          </div>
-          <div className="text-center bg-slate-50 border border-slate-200 rounded-lg p-3">
-            <div className="text-xs font-semibold text-slate-500 uppercase tracking-wider">TOTAL BALANCE</div>
-            <div className="text-base font-bold text-slate-800">₹{filteredTotals.pending.toLocaleString()}</div>
-          </div>
-        </div>
-      </div>
 
       <div className="card overflow-hidden p-0 border border-slate-200 flex-1 flex flex-col min-h-0 min-w-0">
         {loading ? (

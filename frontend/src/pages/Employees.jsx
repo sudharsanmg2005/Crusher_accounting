@@ -88,6 +88,29 @@ const Employees = () => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [formData, setFormData] = useState({ name: '', phone: '', designation: '', dailyWages: '', salaryType: 'Daily', customSalary: '', status: 'Active' });
 
+  // Directory Filters, Search, and Hover states
+  const [searchQuery, setSearchQuery] = useState('');
+  const [filterDesignation, setFilterDesignation] = useState('');
+  const [filterStatus, setFilterStatus] = useState('');
+  const [hoveredRowId, setHoveredRowId] = useState(null);
+  const [hoveredAction, setHoveredAction] = useState(null);
+  const [unmarkedCount, setUnmarkedCount] = useState(0);
+
+  const fetchUnmarkedCount = async () => {
+    try {
+      const today = getLocalDateString();
+      const { data } = await api.get(`/employees/attendance?startDate=${today}&endDate=${today}`);
+      const count = data.filter(item => !item.statuses[today] || item.statuses[today] === 'Unmarked').length;
+      setUnmarkedCount(count);
+    } catch (error) {
+      console.error('Error fetching unmarked attendance count', error);
+    }
+  };
+
+  useEffect(() => {
+    fetchUnmarkedCount();
+  }, []);
+
   // --- TAB 2: ATTENDANCE STATE ---
   const [attendanceDate, setAttendanceDate] = useState(getLocalDateString());
   const [attendanceMode, setAttendanceMode] = useState('week');
@@ -225,6 +248,7 @@ const Employees = () => {
     try {
       const { data } = await api.get('/employees');
       setEmployees(data);
+      fetchUnmarkedCount();
     } catch (error) {
       console.error('Error fetching employees', error);
     } finally {
@@ -372,6 +396,7 @@ const Employees = () => {
       await api.post('/employees/attendance', { attendance });
       alert('Attendance saved successfully!');
       fetchAttendance();
+      fetchUnmarkedCount();
       
       // Auto-align Salaries month/year and switch to Salaries tab
       if (weekDates.length > 0) {
@@ -487,6 +512,46 @@ const Employees = () => {
     }
   };
 
+  const designations = useMemo(() => {
+    const set = new Set(employees.map(e => {
+      const d = e.designation ? e.designation.trim() : 'Labour';
+      return d.charAt(0).toUpperCase() + d.slice(1).toLowerCase();
+    }));
+    return Array.from(set);
+  }, [employees]);
+
+  const filteredEmployees = useMemo(() => {
+    return employees.filter(emp => {
+      const name = emp.name ? emp.name.toLowerCase() : '';
+      const phone = emp.phone ? emp.phone : '';
+      const matchesSearch = 
+        name.includes(searchQuery.toLowerCase()) ||
+        phone.includes(searchQuery);
+      
+      const empDesignation = (emp.designation || 'Labour').trim().toLowerCase();
+      const matchesDesignation = 
+        !filterDesignation || 
+        empDesignation === filterDesignation.toLowerCase();
+        
+      const matchesStatus = 
+        !filterStatus || 
+        emp.status === filterStatus;
+        
+      return matchesSearch && matchesDesignation && matchesStatus;
+    });
+  }, [employees, searchQuery, filterDesignation, filterStatus]);
+
+  const getDesignationStyle = (designation) => {
+    const d = (designation || 'Labour').trim().toLowerCase();
+    if (d === 'manager') {
+      return 'bg-blue-50 dark:bg-blue-950/40 text-blue-700 dark:text-blue-300 border border-blue-100 dark:border-blue-900/60';
+    }
+    if (d === 'supervisor') {
+      return 'bg-purple-50 dark:bg-purple-950/40 text-purple-700 dark:text-purple-300 border border-purple-100 dark:border-purple-900/60';
+    }
+    return 'bg-slate-50 dark:bg-slate-800/40 text-slate-600 dark:text-slate-400 border border-slate-200 dark:border-slate-700';
+  };
+
   return (
     <div className="space-y-6 flex flex-col h-full">
       {/* Title Header */}
@@ -505,38 +570,96 @@ const Employees = () => {
         )}
       </div>
 
-      {/* Tabs Selector */}
-      <div className="flex border-b border-slate-200 shrink-0 overflow-x-auto whitespace-nowrap scrollbar-none">
-        <button
-          onClick={() => setActiveTab('directory')}
-          className={`py-2 px-4 font-semibold text-sm border-b-2 transition cursor-pointer flex-shrink-0 ${
-            activeTab === 'directory'
-              ? 'border-blue-600 text-blue-600'
-              : 'border-transparent text-slate-500 hover:text-slate-800'
-          }`}
-        >
-          <span className="inline-flex items-center gap-2"><FolderIcon className="h-4 w-4" /> Employees Directory</span>
-        </button>
-        <button
-          onClick={() => setActiveTab('attendance')}
-          className={`py-2 px-4 font-semibold text-sm border-b-2 transition cursor-pointer flex-shrink-0 ${
-            activeTab === 'attendance'
-              ? 'border-blue-600 text-blue-600'
-              : 'border-transparent text-slate-500 hover:text-slate-800'
-          }`}
-        >
-          <span className="inline-flex items-center gap-2"><CalendarIcon className="h-4 w-4" /> Mark Attendance</span>
-        </button>
-        <button
-          onClick={() => setActiveTab('salaries')}
-          className={`py-2 px-4 font-semibold text-sm border-b-2 transition cursor-pointer flex-shrink-0 ${
-            activeTab === 'salaries'
-              ? 'border-blue-600 text-blue-600'
-              : 'border-transparent text-slate-500 hover:text-slate-800'
-          }`}
-        >
-          <span className="inline-flex items-center gap-2"><MoneyIcon className="h-4 w-4" /> Salaries & Payroll</span>
-        </button>
+      {/* Tabs Selector & Filters */}
+      <div className="flex flex-col md:flex-row md:items-center justify-between border-b border-slate-200 dark:border-slate-800 shrink-0 gap-4 pb-0">
+        <div className="flex overflow-x-auto whitespace-nowrap scrollbar-none">
+          <button
+            onClick={() => setActiveTab('directory')}
+            className={`py-2 px-4 font-semibold text-sm border-b-2 transition cursor-pointer flex-shrink-0 ${
+              activeTab === 'directory'
+                ? 'border-blue-600 text-blue-600'
+                : 'border-transparent text-slate-500 hover:text-slate-800'
+            }`}
+          >
+            <span className="inline-flex items-center gap-2">
+              <FolderIcon className="h-4 w-4" /> Employees Directory
+            </span>
+          </button>
+          <button
+            onClick={() => setActiveTab('attendance')}
+            className={`py-2 px-4 font-semibold text-sm border-b-2 transition cursor-pointer flex-shrink-0 ${
+              activeTab === 'attendance'
+                ? 'border-blue-600 text-blue-600'
+                : 'border-transparent text-slate-500 hover:text-slate-800'
+            }`}
+          >
+            <span className="inline-flex items-center gap-2">
+              <CalendarIcon className="h-4 w-4" /> Mark Attendance
+              {unmarkedCount > 0 && (
+                <span className="ml-1 px-1.5 py-0.5 text-xs font-semibold bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300 rounded-full">
+                  {unmarkedCount}
+                </span>
+              )}
+            </span>
+          </button>
+          <button
+            onClick={() => setActiveTab('salaries')}
+            className={`py-2 px-4 font-semibold text-sm border-b-2 transition cursor-pointer flex-shrink-0 ${
+              activeTab === 'salaries'
+                ? 'border-blue-600 text-blue-600'
+                : 'border-transparent text-slate-500 hover:text-slate-800'
+            }`}
+          >
+            <span className="inline-flex items-center gap-2">
+              <MoneyIcon className="h-4 w-4" /> Salaries & Payroll
+            </span>
+          </button>
+        </div>
+
+        {activeTab === 'directory' && (
+          <div className="flex flex-wrap items-center gap-2 pb-2 md:pb-0">
+            {/* Designation Filter */}
+            <select
+              value={filterDesignation}
+              onChange={(e) => setFilterDesignation(e.target.value)}
+              className="border border-slate-300 dark:border-slate-700 rounded-lg px-3 py-1.5 text-sm focus:ring-2 focus:ring-blue-500 outline-none bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300"
+            >
+              <option value="">Designation</option>
+              {designations.map((d) => (
+                <option key={d} value={d}>
+                  {d}
+                </option>
+              ))}
+            </select>
+
+            {/* Status Filter */}
+            <select
+              value={filterStatus}
+              onChange={(e) => setFilterStatus(e.target.value)}
+              className="border border-slate-300 dark:border-slate-700 rounded-lg px-3 py-1.5 text-sm focus:ring-2 focus:ring-blue-500 outline-none bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300"
+            >
+              <option value="">Status</option>
+              <option value="Active">Active</option>
+              <option value="Inactive">Inactive</option>
+            </select>
+
+            {/* Search Input */}
+            <div className="relative w-full sm:w-64">
+              <span className="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none">
+                <svg className="h-4 w-4 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                </svg>
+              </span>
+              <input
+                type="text"
+                placeholder="Search by name, phone..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="border border-slate-300 dark:border-slate-700 rounded-lg pl-9 pr-3 py-1.5 text-sm focus:ring-2 focus:ring-blue-500 outline-none w-full bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300"
+              />
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Dynamic Tab Body */}
@@ -544,59 +667,93 @@ const Employees = () => {
         
         {/* --- TAB 1: DIRECTORY --- */}
         {activeTab === 'directory' && (
-          <div className="card overflow-hidden p-0 border border-slate-200 h-full flex flex-col">
+          <div className="card overflow-hidden p-0 border border-slate-200 dark:border-slate-800 h-full flex flex-col">
             {loading ? (
               <div className="p-8 text-center text-slate-500">Loading directory...</div>
-            ) : employees.length === 0 ? (
-              <div className="p-8 text-center text-slate-500 italic">No employees found. Add your first employee!</div>
+            ) : filteredEmployees.length === 0 ? (
+              <div className="p-8 text-center text-slate-500 italic">No employees found matching the filters.</div>
             ) : (
-              <div className="overflow-auto flex-1">
-                <table className="w-full text-left border-collapse">
-                  <thead className="sticky top-0 bg-slate-50 shadow-sm z-10">
-                    <tr className="border-b border-slate-200 text-sm text-slate-600 uppercase tracking-wider">
-                      <th className="p-4 font-semibold">Name</th>
-                      <th className="p-4 font-semibold">Phone</th>
-                      <th className="p-4 font-semibold">Designation</th>
-                      <th className="p-4 font-semibold">Daily Wage (₹)</th>
-                      <th className="p-4 font-semibold">Status</th>
-                      <th className="p-4 font-semibold text-right">Actions</th>
+              <div className="overflow-auto flex-1 p-2">
+                <table className="w-full text-left border-separate border-spacing-y-1.5">
+                  <thead className="sticky top-0 bg-slate-50 dark:bg-slate-900/90 shadow-sm z-10">
+                    <tr className="border-b border-slate-200 dark:border-slate-800 text-sm text-slate-600 dark:text-slate-400 uppercase tracking-wider">
+                      <th className="p-4 font-semibold">NAME</th>
+                      <th className="p-4 font-semibold">PHONE</th>
+                      <th className="p-4 font-semibold">DESIGNATION</th>
+                      <th className="p-4 font-semibold">DAILY WAGE (₹)</th>
+                      <th className="p-4 font-semibold">STATUS</th>
+                      <th className="p-4 font-semibold">ACTIONS</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-slate-100 whitespace-nowrap">
-                    {employees.map((emp) => (
-                      <tr key={emp._id} className="hover:bg-slate-50 transition">
-                        <td className="p-4 font-semibold text-slate-800">{emp.name}</td>
-                        <td className="p-4 text-slate-600 font-medium">{emp.phone || '-'}</td>
-                        <td className="p-4 text-slate-600">
-                          <span className="bg-slate-100 text-slate-700 border border-slate-200 px-2 py-0.5 rounded text-xs font-semibold">{emp.designation || 'Labour'}</span>
+                  <tbody className="whitespace-nowrap">
+                    {filteredEmployees.map((emp) => (
+                      <tr 
+                        key={emp._id} 
+                        onMouseEnter={() => setHoveredRowId(emp._id)}
+                        onMouseLeave={() => { setHoveredRowId(null); setHoveredAction(null); }}
+                        className={`transition-all duration-150 ${
+                          hoveredRowId === emp._id
+                            ? hoveredAction === 'delete'
+                              ? 'bg-gradient-to-r from-blue-50/80 to-rose-50/60 dark:from-blue-950/20 dark:to-rose-950/10'
+                              : 'bg-gradient-to-r from-blue-50/50 to-slate-50/50 dark:from-blue-950/10 dark:to-slate-900/10'
+                            : ''
+                        }`}
+                      >
+                        <td className={`p-4 font-semibold text-slate-800 dark:text-slate-200 transition-all ${
+                          hoveredRowId === emp._id ? 'border-t border-b border-l border-blue-200 dark:border-blue-800 rounded-l-lg' : 'border-t border-b border-l border-transparent'
+                        }`}>{emp.name}</td>
+                        <td className={`p-4 text-slate-600 dark:text-slate-400 font-medium transition-all ${
+                          hoveredRowId === emp._id ? 'border-t border-b border-blue-200 dark:border-blue-800' : 'border-t border-b border-transparent'
+                        }`}>{emp.phone || '-'}</td>
+                        <td className={`p-4 text-slate-600 dark:text-slate-400 transition-all ${
+                          hoveredRowId === emp._id ? 'border-t border-b border-blue-200 dark:border-blue-800' : 'border-t border-b border-transparent'
+                        }`}>
+                          <span className={`px-2.5 py-0.5 rounded text-xs font-semibold ${getDesignationStyle(emp.designation)}`}>{emp.designation || 'Labour'}</span>
                         </td>
-                        <td className="p-4 font-bold text-slate-800">₹{emp.dailyWages.toLocaleString()}</td>
-                        <td className="p-4">
-                          <span className={`px-2 py-0.5 rounded-full text-xs font-semibold border ${emp.status === 'Active' ? 'bg-green-50 text-green-700 border-green-200' : 'bg-red-50 text-red-700 border-red-200'}`}>
+                        <td className={`p-4 font-bold text-slate-800 dark:text-slate-200 transition-all ${
+                          hoveredRowId === emp._id ? 'border-t border-b border-blue-200 dark:border-blue-800' : 'border-t border-b border-transparent'
+                        }`}>{emp.dailyWages ? `₹${emp.dailyWages.toLocaleString()}` : '—'}</td>
+                        <td className={`p-4 transition-all ${
+                          hoveredRowId === emp._id ? 'border-t border-b border-blue-200 dark:border-blue-800' : 'border-t border-b border-transparent'
+                        }`}>
+                          <span className={`px-2.5 py-0.5 rounded-full text-xs font-semibold border ${emp.status === 'Active' ? 'bg-green-50 text-green-700 dark:text-green-300 border-green-200 dark:border-green-800/60' : 'bg-red-50 text-red-700 dark:text-red-300 border-red-200 dark:border-red-800/60'}`}>
                             {emp.status}
                           </span>
                         </td>
-                        <td className="p-4 text-right space-x-3">
+                        <td className={`p-4 space-x-3 transition-all ${
+                          hoveredRowId === emp._id ? 'border-t border-b border-r border-blue-200 dark:border-blue-800 rounded-r-lg' : 'border-t border-b border-r border-transparent'
+                        }`}>
                           <button 
                             onClick={() => setAttendanceHistoryEmp(emp)} 
-                            className="text-emerald-600 hover:text-emerald-800 hover:bg-emerald-50 p-2 rounded-lg transition-colors inline-flex items-center cursor-pointer"
+                            className="text-slate-400 dark:text-slate-500 hover:text-emerald-600 dark:hover:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-950/30 p-2 rounded-lg transition-colors inline-flex items-center cursor-pointer"
                             title="View Attendance Track"
                           >
                             <CalendarIcon className="h-5 w-5" />
                           </button>
                           <button 
                             onClick={() => handleEditEmployee(emp)} 
-                            className="text-blue-600 hover:text-blue-800 hover:bg-blue-50 p-2 rounded-lg transition-colors inline-flex items-center cursor-pointer"
+                            className="text-slate-400 dark:text-slate-500 hover:text-blue-600 dark:hover:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-950/30 p-2 rounded-lg transition-colors inline-flex items-center cursor-pointer"
                             title="Edit Employee"
                           >
                             <EditIcon className="h-5 w-5" />
                           </button>
                           <button 
                             onClick={() => handleDeleteEmployee(emp._id)} 
-                            className="text-red-600 hover:text-red-800 hover:bg-red-50 p-2 rounded-lg transition-colors inline-flex items-center cursor-pointer"
-                            title="Delete Employee"
+                            onMouseEnter={() => setHoveredAction('delete')}
+                            onMouseLeave={() => { setHoveredAction(null); }}
+                            className={`p-2 rounded-lg transition-all inline-flex items-center cursor-pointer relative ${
+                              hoveredRowId === emp._id && hoveredAction === 'delete'
+                                ? 'bg-red-100 dark:bg-rose-950/40 border border-red-300 dark:border-red-900 text-red-600 dark:text-red-400 shadow-sm'
+                                : 'text-slate-400 dark:text-slate-500 hover:text-red-600 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/30 border border-transparent'
+                            }`}
                           >
                             <TrashIcon className="h-5 w-5" />
+                            {hoveredRowId === emp._id && hoveredAction === 'delete' && (
+                              <div className="absolute bottom-full mb-2 left-1/2 -translate-x-1/2 z-50 bg-slate-900 text-white text-xs font-semibold py-1.5 px-3 rounded shadow-lg whitespace-nowrap pointer-events-none">
+                                Remove {emp.name}? ({emp.designation || 'Labour'})
+                                <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-slate-900"></div>
+                              </div>
+                            )}
                           </button>
                         </td>
                       </tr>
