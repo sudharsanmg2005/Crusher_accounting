@@ -429,9 +429,9 @@ const Admins = ({ embedded = false }) => {
         <div className="2xl:col-span-2 space-y-6">
           <Panel title="Active Admins" subtitle="Change permissions instantly or archive login access.">
             <div className="overflow-x-auto">
-              <table className="w-full text-left border-collapse">
-                <thead className="bg-white border-b border-slate-200 text-xs text-slate-500 uppercase tracking-wider">
-                  <tr>
+              <table className="data-table">
+                <thead className="sticky top-0 bg-slate-50 dark:bg-slate-900 shadow-sm z-10 text-xs text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+                  <tr className="border-b border-slate-200 dark:border-slate-800">
                     <th className="p-4 font-semibold">Admin</th>
                     <th className="p-4 font-semibold">Role</th>
                     <th className="p-4 font-semibold">Access</th>
@@ -439,9 +439,9 @@ const Admins = ({ embedded = false }) => {
                     <th className="p-4 font-semibold text-right">Actions</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-slate-100">
+                <tbody className="whitespace-nowrap">
                   {loading ? <EmptyRow colSpan={5} label="Loading admins..." /> : activeAdmins.length === 0 ? <EmptyRow colSpan={5} label="No active admins found." /> : activeAdmins.map((admin) => (
-                    <tr key={admin.id} className="hover:bg-slate-50 transition">
+                    <tr key={admin.id}>
                       <td className="p-4">
                         <div className="font-semibold text-slate-900">{admin.name}</div>
                         <div className="text-sm text-slate-500">{admin.username}</div>
@@ -514,18 +514,18 @@ const Admins = ({ embedded = false }) => {
 
           <Panel title="Archived Admins" subtitle="Archived admins cannot log in, but their logs remain visible.">
             <div className="overflow-x-auto">
-              <table className="w-full text-left border-collapse">
-                <thead className="bg-white border-b border-slate-200 text-xs text-slate-500 uppercase tracking-wider">
-                  <tr>
+              <table className="data-table">
+                <thead className="sticky top-0 bg-slate-50 dark:bg-slate-900 shadow-sm z-10 text-xs text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+                  <tr className="border-b border-slate-200 dark:border-slate-800">
                     <th className="p-4 font-semibold">Admin</th>
                     <th className="p-4 font-semibold">Previous Access</th>
                     <th className="p-4 font-semibold">Archived At</th>
                     <th className="p-4 font-semibold text-right">Logs</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-slate-100">
+                <tbody className="whitespace-nowrap">
                   {deletedAdmins.length === 0 ? <EmptyRow colSpan={4} label="No archived admins found." /> : deletedAdmins.map((admin) => (
-                    <tr key={admin.id} className="hover:bg-slate-50 transition">
+                    <tr key={admin.id}>
                       <td className="p-4">
                         <div className="font-semibold text-slate-900">{admin.name}</div>
                         <div className="text-sm text-slate-500">{admin.username}</div>
@@ -605,19 +605,19 @@ const Admins = ({ embedded = false }) => {
           summary={[{ label: 'Deleted records', value: filteredArchivedRecords.length }]}
         />
         <div className="overflow-x-auto">
-          <table className="w-full text-left border-collapse">
-            <thead className="bg-white border-b border-slate-200 text-xs text-slate-500 uppercase tracking-wider">
-              <tr>
-                <th className="p-4 font-semibold">Type</th>
-                <th className="p-4 font-semibold">Name / Details</th>
-                <th className="p-4 font-semibold">Deleted At</th>
-                <th className="p-4 font-semibold text-right">Value</th>
-                <th className="p-4 font-semibold text-right">Action</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100">
-              {filteredArchivedRecords.length === 0 ? <EmptyRow colSpan={5} label="No deleted records match filters." /> : filteredArchivedRecords.map((record) => (
-                <tr key={`${record.backupType}-${record._id}`} className="hover:bg-slate-50 transition">
+          <table className="data-table">
+                <thead className="sticky top-0 bg-slate-50 dark:bg-slate-900 shadow-sm z-10 text-xs text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+                  <tr className="border-b border-slate-200 dark:border-slate-800">
+                    <th className="p-4 font-semibold">Type</th>
+                    <th className="p-4 font-semibold">Name / Details</th>
+                    <th className="p-4 font-semibold">Deleted At</th>
+                    <th className="p-4 font-semibold text-right">Value</th>
+                    <th className="p-4 font-semibold text-right">Action</th>
+                  </tr>
+                </thead>
+                <tbody className="whitespace-nowrap">
+                  {filteredArchivedRecords.length === 0 ? <EmptyRow colSpan={5} label="No deleted records match filters." /> : filteredArchivedRecords.map((record) => (
+                    <tr key={`${record.backupType}-${record._id}`}>
                   <td className="p-4 text-slate-600">{record.backupType}</td>
                   <td className="p-4">
                     <div className="font-semibold text-slate-900">{getBackupName(record)}</div>

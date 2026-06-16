@@ -25,15 +25,79 @@ body {
 
 /* Consistent table look across pages */
 .data-table {
-  @apply w-full text-left border-collapse;
+  @apply w-full text-left;
+  border-collapse: separate !important;
+  border-spacing: 0 4px !important;
 }
 
 .data-table th {
   @apply p-4 font-semibold text-sm text-slate-600 dark:text-slate-400 uppercase tracking-wider bg-slate-50 dark:bg-slate-900/50 border-b border-slate-200 dark:border-slate-800;
 }
 
-.data-table td {
-  @apply p-4 text-sm text-slate-700 dark:text-slate-300 border-b border-slate-100 dark:border-slate-800/60;
+.data-table tbody tr {
+  position: relative;
+  transition: all 150ms ease-in-out;
+  background-color: transparent !important;
+}
+
+.data-table tbody tr td {
+  @apply p-4 text-sm text-slate-700 dark:text-slate-300 transition-all duration-150;
+  background-color: white;
+  border-top: 1px solid transparent;
+  border-bottom: 1px solid transparent;
+}
+
+.data-table tbody tr td:first-child {
+  border-left: 1px solid transparent;
+  border-top-left-radius: 8px;
+  border-bottom-left-radius: 8px;
+}
+
+.data-table tbody tr td:last-child {
+  border-right: 1px solid transparent;
+  border-top-right-radius: 8px;
+  border-bottom-right-radius: 8px;
+}
+
+/* Hover effect - Light mode */
+.data-table tbody tr:hover {
+  background-image: linear-gradient(to right, rgba(37, 99, 235, 0.06), rgba(244, 63, 94, 0.03)) !important;
+}
+
+.data-table tbody tr:hover td {
+  background-color: transparent !important;
+  border-top-color: rgba(37, 99, 235, 0.2) !important;
+  border-bottom-color: rgba(37, 99, 235, 0.2) !important;
+}
+
+.data-table tbody tr:hover td:first-child {
+  border-left-color: rgba(37, 99, 235, 0.2) !important;
+}
+
+.data-table tbody tr:hover td:last-child {
+  border-right-color: rgba(37, 99, 235, 0.2) !important;
+}
+
+/* Dark mode overrides */
+.dark .data-table tbody tr td {
+  background-color: rgb(15, 23, 42) !important; /* slate-900 */
+}
+
+.dark .data-table tbody tr:hover {
+  background-image: linear-gradient(to right, rgba(59, 130, 246, 0.12), rgba(244, 63, 94, 0.06)) !important;
+}
+
+.dark .data-table tbody tr:hover td {
+  border-top-color: rgba(59, 130, 246, 0.4) !important;
+  border-bottom-color: rgba(59, 130, 246, 0.4) !important;
+}
+
+.dark .data-table tbody tr:hover td:first-child {
+  border-left-color: rgba(59, 130, 246, 0.4) !important;
+}
+
+.dark .data-table tbody tr:hover td:last-child {
+  border-right-color: rgba(59, 130, 246, 0.4) !important;
 }
 
 @keyframes fade-in {

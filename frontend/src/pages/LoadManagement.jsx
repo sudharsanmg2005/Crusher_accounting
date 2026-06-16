@@ -813,9 +813,9 @@ const LoadManagement = () => {
           <div className="p-8 text-center text-slate-500 border-t border-slate-100 italic">No loads recorded for the selected filter.</div>
         ) : (
           <div className="overflow-auto flex-1 min-h-0 min-w-0">
-            <table className="w-full text-left border-collapse">
-              <thead className="sticky top-0 bg-slate-50 shadow-sm z-10 w-full min-w-max">
-                <tr className="border-b border-slate-200 text-sm text-slate-600 uppercase tracking-wider">
+            <table className="data-table">
+              <thead className="sticky top-0 bg-slate-50 dark:bg-slate-900 shadow-sm z-10 w-full min-w-max">
+                <tr className="border-b border-slate-200 dark:border-slate-800 text-sm text-slate-600 dark:text-slate-400 uppercase tracking-wider">
                   <th className="p-4 font-semibold whitespace-nowrap">Date</th>
                   <th className="p-4 font-semibold whitespace-nowrap">Vehicle Number</th>
                   <th className="p-4 font-semibold whitespace-nowrap">Material</th>
@@ -826,9 +826,9 @@ const LoadManagement = () => {
                   <th className="p-4 font-semibold text-right">Actions</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-100 whitespace-nowrap">
+              <tbody className="whitespace-nowrap">
                 {filteredLoads.map((load) => (
-                  <tr key={load._id} className="hover:bg-slate-50 transition">
+                  <tr key={load._id}>
                     <td className="p-4 text-slate-600 whitespace-nowrap">{new Date(load.date).toLocaleDateString()}</td>
                     <td className="p-4 font-medium text-slate-800 whitespace-nowrap">{load.vehicleNumber || '—'}</td>
                     <td className="p-4 text-slate-600 whitespace-nowrap">{load.quarryName || '—'}</td>

@@ -824,9 +824,9 @@ const Employees = () => {
                 <div className="p-8 text-center text-slate-500 italic">No active employees found to mark attendance.</div>
               ) : (
                 <div className="overflow-auto flex-1">
-                  <table className="w-full text-left border-collapse table-fixed min-w-[800px]">
-                    <thead className="sticky top-0 bg-slate-50 shadow-sm z-10 text-xs">
-                      <tr className="border-b border-slate-200 text-slate-600 uppercase tracking-wider">
+                  <table className="data-table table-fixed min-w-[800px]">
+                    <thead className="sticky top-0 bg-slate-50 dark:bg-slate-900 shadow-sm z-10 text-xs">
+                      <tr className="border-b border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400 uppercase tracking-wider">
                         <th className="p-4 w-12 text-center">
                           <input
                             type="checkbox"
@@ -849,9 +849,9 @@ const Employees = () => {
                         ))}
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-slate-100 text-sm">
+                    <tbody className="text-sm">
                       {attendanceList.map((item) => (
-                        <tr key={item.employeeId} className="hover:bg-slate-50/50 transition">
+                        <tr key={item.employeeId}>
                           <td className="p-4 text-center">
                             <input
                               type="checkbox"
@@ -956,9 +956,9 @@ const Employees = () => {
                 <div className="p-8 text-center text-slate-500 italic">No employee data to compute salary.</div>
               ) : (
                 <div className="overflow-auto flex-1">
-                  <table className="w-full text-left border-collapse">
-                    <thead className="sticky top-0 bg-slate-50 shadow-sm z-10">
-                      <tr className="border-b border-slate-200 text-sm text-slate-600 uppercase tracking-wider">
+                  <table className="data-table">
+                    <thead className="sticky top-0 bg-slate-50 dark:bg-slate-900 shadow-sm z-10">
+                      <tr className="border-b border-slate-200 dark:border-slate-800 text-sm text-slate-600 dark:text-slate-400 uppercase tracking-wider">
                         <th className="p-4 font-semibold">Employee</th>
                         <th className="p-4 font-semibold whitespace-nowrap">Daily Rate</th>
                         <th className="p-4 font-semibold whitespace-nowrap">New Days</th>
@@ -971,14 +971,14 @@ const Employees = () => {
                         <th className="p-4 font-semibold text-right">Transactions</th>
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-slate-100 whitespace-nowrap text-sm">
+                    <tbody className="whitespace-nowrap text-sm">
                       {salaries.map((record) => {
                         const hasHistory = record.history && record.history.length > 0;
                         const isHistoryOpen = historyEmpId === record.employee._id;
                         
                         return (
                           <React.Fragment key={record.employee._id}>
-                            <tr className="hover:bg-slate-50/50 transition">
+                            <tr>
                               <td className="p-4">
                                 <div className="font-bold text-slate-800 flex items-center gap-2">
                                   {record.employee.name}
@@ -1372,14 +1372,14 @@ const Employees = () => {
                   </div>
                 ) : (
                   <div className="border border-slate-200 rounded-xl overflow-hidden max-h-[40vh] overflow-y-auto shadow-inner bg-white">
-                    <table className="w-full text-left border-collapse">
-                      <thead className="bg-slate-50 sticky top-0 border-b border-slate-100 text-xs text-slate-500 uppercase tracking-wider">
+                    <table className="data-table">
+                      <thead className="bg-slate-50 dark:bg-slate-900 sticky top-0 border-b border-slate-100 dark:border-slate-800 text-xs text-slate-500 dark:text-slate-400 uppercase tracking-wider">
                         <tr>
                           <th className="p-3 font-semibold">Date</th>
                           <th className="p-3 font-semibold text-right">Status</th>
                         </tr>
                       </thead>
-                      <tbody className="divide-y divide-slate-100 text-sm">
+                      <tbody className="text-sm">
                         {attendanceLogs.map((log) => {
                           const dateStr = log.date;
                           const d = new Date(dateStr);
@@ -1391,7 +1391,7 @@ const Employees = () => {
                             : '';
 
                           return (
-                            <tr key={log._id} className="hover:bg-slate-50 transition">
+                            <tr key={log._id}>
                               <td className="p-3 font-medium text-slate-700">
                                 <div>{formattedDate}</div>
                                 <div className="text-xs text-slate-400 font-normal">{weekday}</div>

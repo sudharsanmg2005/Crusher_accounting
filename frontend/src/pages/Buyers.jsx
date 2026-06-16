@@ -475,9 +475,9 @@ const Buyers = () => {
           </div>
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full text-left border-collapse">
+            <table className="data-table">
               <thead>
-                <tr className="bg-slate-50 border-b border-slate-200 text-sm text-slate-600 uppercase tracking-wider">
+                <tr className="bg-slate-50 dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 text-sm text-slate-600 dark:text-slate-400 uppercase tracking-wider">
                   <th className="p-4 font-semibold">Name</th>
                   <th className="p-4 font-semibold">Phone</th>
                   <th className="p-4 font-semibold">Vehicles</th>
@@ -485,15 +485,15 @@ const Buyers = () => {
                   <th className="p-4 font-semibold text-right">Actions</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-100">
+              <tbody className="whitespace-nowrap">
                 {filteredBuyers.map((b) => {
                   const vehicles = b.vehicles || [];
                   const vehicleCount = vehicles.length;
                   const isExpanded = expandedVehicleId === b._id;
-
+ 
                   return (
                     <React.Fragment key={b._id}>
-                      <tr className="hover:bg-slate-50 transition">
+                      <tr>
                         <td className="p-4 font-medium text-slate-800">{b.name}</td>
                         <td className="p-4 text-slate-600">{b.phone || '-'}</td>
                         <td className="p-4 text-slate-600 text-sm">

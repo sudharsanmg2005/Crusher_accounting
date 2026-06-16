@@ -277,9 +277,9 @@ const SuperAdminDashboard = () => {
           <div className="p-4 space-y-6">
             <div>
               <h3 className="text-sm font-bold text-slate-800 uppercase tracking-wide mb-3">Live Bills</h3>
-              <div className="overflow-auto border border-slate-200 rounded-lg">
-                <table className="w-full text-left text-sm">
-                  <thead className="bg-slate-50 border-b border-slate-200 text-xs uppercase text-slate-600">
+              <div className="overflow-auto">
+                <table className="data-table">
+                  <thead className="bg-slate-50 dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 text-xs uppercase text-slate-600 dark:text-slate-400">
                     <tr>
                       <th className="p-3">Date</th>
                       <th className="p-3">Time</th>
@@ -291,14 +291,14 @@ const SuperAdminDashboard = () => {
                       <th className="p-3 text-right">Pending</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-slate-100">
+                  <tbody>
                     {filteredLiveBills.length === 0 ? (
                       <tr><td colSpan={8} className="p-6 text-center text-slate-500">No bills match filters.</td></tr>
                     ) : (
                       filteredLiveBills.map((bill) => {
                         const dt = formatDateTime(bill.date);
                         return (
-                          <tr key={bill._id} className="hover:bg-slate-50">
+                          <tr key={bill._id}>
                             <td className="p-3 text-slate-600">{dt.date}</td>
                             <td className="p-3 text-slate-600">{dt.time}</td>
                             <td className="p-3 font-semibold text-slate-900">{bill.customerNameSnapshot}</td>
@@ -318,9 +318,9 @@ const SuperAdminDashboard = () => {
 
             <div>
               <h3 className="text-sm font-bold text-slate-800 uppercase tracking-wide mb-3">Live Expenses</h3>
-              <div className="overflow-auto border border-slate-200 rounded-lg">
-                <table className="w-full text-left text-sm">
-                  <thead className="bg-slate-50 border-b border-slate-200 text-xs uppercase text-slate-600">
+              <div className="overflow-auto">
+                <table className="data-table">
+                  <thead className="bg-slate-50 dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 text-xs uppercase text-slate-600 dark:text-slate-400">
                     <tr>
                       <th className="p-3">Date</th>
                       <th className="p-3">Time</th>
@@ -329,14 +329,14 @@ const SuperAdminDashboard = () => {
                       <th className="p-3 text-right">Amount</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-slate-100">
+                  <tbody>
                     {filteredLiveExpenses.length === 0 ? (
                       <tr><td colSpan={5} className="p-6 text-center text-slate-500">No expenses match filters.</td></tr>
                     ) : (
                       filteredLiveExpenses.map((expense) => {
                         const dt = formatDateTime(expense.date);
                         return (
-                          <tr key={expense._id} className="hover:bg-slate-50">
+                          <tr key={expense._id}>
                             <td className="p-3 text-slate-600">{dt.date}</td>
                             <td className="p-3 text-slate-600">{dt.time}</td>
                             <td className="p-3 font-semibold text-slate-900">{expense.type}</td>

@@ -92,18 +92,18 @@ const Materials = () => {
            <div className="p-8 text-center text-slate-500 border-t border-slate-100 italic">No materials found. Add your first material!</div>
         ) : (
           <div className="overflow-auto flex-1 min-h-0 min-w-0">
-            <table className="w-full text-left border-collapse">
-              <thead className="sticky top-0 bg-slate-50 shadow-sm z-10 w-full min-w-max">
-                <tr className="border-b border-slate-200 text-sm text-slate-600 uppercase tracking-wider">
+            <table className="data-table">
+              <thead className="sticky top-0 bg-slate-50 dark:bg-slate-900 shadow-sm z-10 w-full min-w-max">
+                <tr className="border-b border-slate-200 dark:border-slate-800 text-sm text-slate-600 dark:text-slate-400 uppercase tracking-wider">
                   <th className="p-4 font-semibold w-1/2">Material Name</th>
                   <th className="p-4 font-semibold whitespace-nowrap">Price / Unit (₹)</th>
                   <th className="p-4 font-semibold whitespace-nowrap">Price / Ton (₹)</th>
                   <th className="p-4 font-semibold text-right w-1/4">Actions</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-100 whitespace-nowrap">
+              <tbody className="whitespace-nowrap">
                 {materials.map((m) => (
-                  <tr key={m._id} className="hover:bg-slate-50 transition">
+                  <tr key={m._id}>
                     <td className="p-4 font-medium text-slate-800">{m.name}</td>
                     <td className="p-4 text-slate-600 font-semibold">₹{m.currentPrice}</td>
                     <td className="p-4 text-slate-600 font-semibold">₹{m.pricePerTon ?? m.currentPrice}</td>
