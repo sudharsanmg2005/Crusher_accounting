@@ -804,21 +804,7 @@ const LoadManagement = () => {
         </div>
       </div>
 
-      {/* Summary totals */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 shrink-0">
-        <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-sm flex flex-col justify-center">
-          <span className="text-xs font-semibold text-slate-500 uppercase">Total Load Value</span>
-          <span className="text-xl font-bold text-slate-800 mt-1">₹{totals.totalPrice.toLocaleString()}</span>
-        </div>
-        <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-sm flex flex-col justify-center">
-          <span className="text-xs font-semibold text-slate-500 uppercase">Total Qty (Tons)</span>
-          <span className="text-xl font-bold text-slate-800 mt-1">{totals.totalTons.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} tons</span>
-        </div>
-        <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-sm flex flex-col justify-center">
-          <span className="text-xs font-semibold text-slate-500 uppercase">Total Qty (Units)</span>
-          <span className="text-xl font-bold text-slate-800 mt-1">{totals.totalUnits.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} units</span>
-        </div>
-      </div>
+
 
       <div className="card overflow-hidden p-0 border border-slate-200 flex-1 flex flex-col min-h-0 min-w-0">
         {loading ? (
