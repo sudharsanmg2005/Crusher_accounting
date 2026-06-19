@@ -4,6 +4,7 @@ import jsPDF from 'jspdf';
 import { autoTable } from 'jspdf-autotable';
 import { useConfirm } from '../components/ConfirmDialog';
 import { EditIcon, TrashIcon } from '../components/Icons';
+import { useAuth } from '../AuthContext';
 
 const toYMD = (d) => {
   const year = d.getFullYear();
@@ -13,7 +14,10 @@ const toYMD = (d) => {
 };
 
 const Expenses = () => {
+  const { user } = useAuth();
   const confirm = useConfirm();
+  const canWrite = user?.role === 'super_admin' || user?.accessLevel === 'full_access';
+
   const today = useMemo(() => new Date(), []);
 
   const initialMonthlyRange = useMemo(() => {
@@ -364,17 +368,19 @@ const Expenses = () => {
             Download PDF
           </button>
 
-          <button 
-            type="button"
-            onClick={() => { 
-              setFormData({ date: new Date().toISOString().split('T')[0], type: '', description: '', amount: '' }); 
-              setCustomType('');
-              setIsModalOpen(true); 
-            }}
-            className="bg-green-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-green-700 transition shadow-md whitespace-nowrap cursor-pointer w-full sm:w-auto justify-center inline-flex items-center"
-          >
-            + Add Expense
-          </button>
+          {canWrite && (
+            <button 
+              type="button"
+              onClick={() => { 
+                setFormData({ date: new Date().toISOString().split('T')[0], type: '', description: '', amount: '' }); 
+                setCustomType('');
+                setIsModalOpen(true); 
+              }}
+              className="bg-green-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-green-700 transition shadow-md whitespace-nowrap cursor-pointer w-full sm:w-auto justify-center inline-flex items-center"
+            >
+              + Add Expense
+            </button>
+          )}
         </div>
       </div>
 
@@ -392,7 +398,7 @@ const Expenses = () => {
                   <th className="p-4 font-semibold w-1/5 whitespace-nowrap">Type</th>
                   <th className="p-4 font-semibold w-2/5">Description</th>
                   <th className="p-4 font-semibold w-1/5 whitespace-nowrap">Amount (₹)</th>
-                  <th className="p-4 font-semibold text-right w-1/5">Actions</th>
+                  {canWrite && <th className="p-4 font-semibold text-right w-1/5">Actions</th>}
                 </tr>
               </thead>
               <tbody className="whitespace-nowrap md:whitespace-normal">
@@ -402,43 +408,45 @@ const Expenses = () => {
                     <td className="p-4 font-medium text-slate-800 whitespace-nowrap"><span className="bg-slate-100 px-2 py-1 rounded text-sm border border-slate-200">{exp.type}</span></td>
                     <td className="p-4 text-slate-600 min-w-[200px] break-words">{exp.description || '-'}</td>
                     <td className="p-4 text-slate-800 font-bold whitespace-nowrap">₹{exp.amount.toLocaleString()}</td>
-                    <td className="p-4 text-right space-x-2 whitespace-nowrap">
-                      {exp.isSynced ? (
-                        <>
-                          <button 
-                            disabled
-                            className="text-slate-400 cursor-not-allowed p-2 rounded-lg inline-flex items-center opacity-50" 
-                            title={`This expense is synced from ${exp.syncSource}. Manage it at the source.`}
-                          >
-                            <EditIcon className="h-5 w-5" />
-                          </button>
-                          <button 
-                            disabled
-                            className="text-slate-400 cursor-not-allowed p-2 rounded-lg inline-flex items-center opacity-50" 
-                            title={`This expense is synced from ${exp.syncSource}. Manage it at the source.`}
-                          >
-                            <TrashIcon className="h-5 w-5" />
-                          </button>
-                        </>
-                      ) : (
-                        <>
-                          <button 
-                            onClick={() => handleEdit(exp)} 
-                            className="text-blue-600 hover:text-blue-800 hover:bg-blue-50 p-2 rounded-lg transition-colors inline-flex items-center" 
-                            title="Edit Expense"
-                          >
-                            <EditIcon className="h-5 w-5" />
-                          </button>
-                          <button 
-                            onClick={() => handleDelete(exp._id)} 
-                            className="text-red-600 hover:text-red-800 hover:bg-red-50 p-2 rounded-lg transition-colors inline-flex items-center" 
-                            title="Delete Expense"
-                          >
-                            <TrashIcon className="h-5 w-5" />
-                          </button>
-                        </>
-                      )}
-                    </td>
+                    {canWrite && (
+                      <td className="p-4 text-right space-x-2 whitespace-nowrap">
+                        {exp.isSynced ? (
+                          <>
+                            <button 
+                              onClick={() => alert(`This expense is synced from ${exp.syncSource}. Please manage it at the source.`)}
+                              className="text-slate-400 hover:text-slate-500 hover:bg-slate-100 p-2 rounded-lg inline-flex items-center" 
+                              title={`This expense is synced from ${exp.syncSource}. Manage it at the source.`}
+                            >
+                              <EditIcon className="h-5 w-5" />
+                            </button>
+                            <button 
+                              onClick={() => alert(`This expense is synced from ${exp.syncSource}. Please manage it at the source.`)}
+                              className="text-slate-400 hover:text-slate-500 hover:bg-slate-100 p-2 rounded-lg inline-flex items-center" 
+                              title={`This expense is synced from ${exp.syncSource}. Manage it at the source.`}
+                            >
+                              <TrashIcon className="h-5 w-5" />
+                            </button>
+                          </>
+                        ) : (
+                          <>
+                            <button 
+                              onClick={() => handleEdit(exp)} 
+                              className="text-blue-600 hover:text-blue-800 hover:bg-blue-50 p-2 rounded-lg transition-colors inline-flex items-center" 
+                              title="Edit Expense"
+                            >
+                              <EditIcon className="h-5 w-5" />
+                            </button>
+                            <button 
+                              onClick={() => handleDelete(exp._id)} 
+                              className="text-red-600 hover:text-red-800 hover:bg-red-50 p-2 rounded-lg transition-colors inline-flex items-center" 
+                              title="Delete Expense"
+                            >
+                              <TrashIcon className="h-5 w-5" />
+                            </button>
+                          </>
+                        )}
+                      </td>
+                    )}
                   </tr>
                 ))}
               </tbody>
