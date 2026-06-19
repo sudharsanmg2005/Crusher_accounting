@@ -230,7 +230,7 @@ const Expenses = () => {
         alert('Please specify an expense type');
         return;
       }
-      if (expenseType.toLowerCase() === 'load') {
+      if (expenseType.toLowerCase() === 'load' && !formData._id) {
         alert('Expense type "Load" is reserved for buyer payments. Please record buyer payments in Load Management/Buyers.');
         return;
       }
@@ -256,10 +256,6 @@ const Expenses = () => {
   };
 
   const handleEdit = (expense) => {
-    if (expense.isSynced) {
-      alert(`This expense is synced from ${expense.syncSource}. It cannot be edited directly.`);
-      return;
-    }
     const isPredefined = ['Fuel', 'Maintenance', 'Labour', 'Electricity', 'Rent'].includes(expense.type);
     setFormData({ 
       ...expense, 
@@ -272,11 +268,6 @@ const Expenses = () => {
   };
 
   const handleDelete = async (id) => {
-    const expense = expenses.find(e => e._id === id);
-    if (expense?.isSynced) {
-      alert(`This expense is synced from ${expense.syncSource}. It cannot be deleted directly.`);
-      return;
-    }
     const ok = await confirm({
       title: 'Delete expense',
       message: 'Are you sure you want to delete this expense?',
@@ -410,41 +401,20 @@ const Expenses = () => {
                     <td className="p-4 text-slate-800 font-bold whitespace-nowrap">₹{exp.amount.toLocaleString()}</td>
                     {canWrite && (
                       <td className="p-4 text-right space-x-2 whitespace-nowrap">
-                        {exp.isSynced ? (
-                          <>
-                            <button 
-                              onClick={() => alert(`This expense is synced from ${exp.syncSource}. Please manage it at the source.`)}
-                              className="text-slate-400 hover:text-slate-500 hover:bg-slate-100 p-2 rounded-lg inline-flex items-center" 
-                              title={`This expense is synced from ${exp.syncSource}. Manage it at the source.`}
-                            >
-                              <EditIcon className="h-5 w-5" />
-                            </button>
-                            <button 
-                              onClick={() => alert(`This expense is synced from ${exp.syncSource}. Please manage it at the source.`)}
-                              className="text-slate-400 hover:text-slate-500 hover:bg-slate-100 p-2 rounded-lg inline-flex items-center" 
-                              title={`This expense is synced from ${exp.syncSource}. Manage it at the source.`}
-                            >
-                              <TrashIcon className="h-5 w-5" />
-                            </button>
-                          </>
-                        ) : (
-                          <>
-                            <button 
-                              onClick={() => handleEdit(exp)} 
-                              className="text-blue-600 hover:text-blue-800 hover:bg-blue-50 p-2 rounded-lg transition-colors inline-flex items-center" 
-                              title="Edit Expense"
-                            >
-                              <EditIcon className="h-5 w-5" />
-                            </button>
-                            <button 
-                              onClick={() => handleDelete(exp._id)} 
-                              className="text-red-600 hover:text-red-800 hover:bg-red-50 p-2 rounded-lg transition-colors inline-flex items-center" 
-                              title="Delete Expense"
-                            >
-                              <TrashIcon className="h-5 w-5" />
-                            </button>
-                          </>
-                        )}
+                        <button 
+                          onClick={() => handleEdit(exp)} 
+                          className="text-blue-600 hover:text-blue-800 hover:bg-blue-50 p-2 rounded-lg transition-colors inline-flex items-center" 
+                          title={exp.isSynced ? `Edit Expense (Synced from ${exp.syncSource})` : "Edit Expense"}
+                        >
+                          <EditIcon className="h-5 w-5" />
+                        </button>
+                        <button 
+                          onClick={() => handleDelete(exp._id)} 
+                          className="text-red-600 hover:text-red-800 hover:bg-red-50 p-2 rounded-lg transition-colors inline-flex items-center" 
+                          title={exp.isSynced ? `Delete Expense (Synced from ${exp.syncSource})` : "Delete Expense"}
+                        >
+                          <TrashIcon className="h-5 w-5" />
+                        </button>
                       </td>
                     )}
                   </tr>

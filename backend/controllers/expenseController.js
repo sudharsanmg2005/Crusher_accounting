@@ -86,32 +86,7 @@ export const updateExpense = async (req, res, next) => {
       throw new Error('Expense type cannot be changed to "Load".');
     }
 
-    // Check if the expense is synced, and if so, prevent updates via this controller
-    if (expense.type === 'Load' || expense.type === 'Labour') {
-      const BuyerPayment = (await import('../models/BuyerPayment.js')).default;
-      const SalaryPayment = (await import('../models/SalaryPayment.js')).default;
-      let isSynced = false;
-      let syncSource = '';
-
-      if (expense.type === 'Load') {
-        const hasPayment = await BuyerPayment.exists({ expenseId: expense._id });
-        if (hasPayment) {
-          isSynced = true;
-          syncSource = 'Buyer Payment';
-        }
-      } else if (expense.type === 'Labour') {
-        const hasPayment = await SalaryPayment.exists({ 'history.expenseRef': expense._id });
-        if (hasPayment) {
-          isSynced = true;
-          syncSource = 'Employee Salary';
-        }
-      }
-
-      if (isSynced) {
-        res.status(400);
-        throw new Error(`This expense is synced from ${syncSource} and cannot be modified directly.`);
-      }
-    }
+    // Allow updating synced expenses. The updates will propagate to the source.
 
     const oldAmount = expense.amount;
     const oldDate = expense.date;
@@ -196,32 +171,7 @@ export const deleteExpense = async (req, res, next) => {
       throw new Error('Expense not found');
     }
 
-    // Check if the expense is synced, and if so, prevent deletion via this controller
-    if (expense.type === 'Load' || expense.type === 'Labour') {
-      const BuyerPayment = (await import('../models/BuyerPayment.js')).default;
-      const SalaryPayment = (await import('../models/SalaryPayment.js')).default;
-      let isSynced = false;
-      let syncSource = '';
-
-      if (expense.type === 'Load') {
-        const hasPayment = await BuyerPayment.exists({ expenseId: expense._id });
-        if (hasPayment) {
-          isSynced = true;
-          syncSource = 'Buyer Payment';
-        }
-      } else if (expense.type === 'Labour') {
-        const hasPayment = await SalaryPayment.exists({ 'history.expenseRef': expense._id });
-        if (hasPayment) {
-          isSynced = true;
-          syncSource = 'Employee Salary';
-        }
-      }
-
-      if (isSynced) {
-        res.status(400);
-        throw new Error(`This expense is synced from ${syncSource} and cannot be deleted directly.`);
-      }
-    }
+    // Allow deleting synced expenses. The deletion will propagate to the source.
 
     expense.isDeleted = true;
     await expense.save();
