@@ -1,6 +1,6 @@
 import { recordBuyerPayment, recalculateBuyerBalances } from '../services/buyerPaymentService.js';
 import BuyerPayment from '../models/BuyerPayment.js';
-import Load from '../models/Load.js';
+import Load, { roundToNearestTen } from '../models/Load.js';
 import Expense from '../models/Expense.js';
 import Buyer from '../models/Buyer.js';
 
@@ -50,7 +50,7 @@ export const updateBuyerPayment = async (req, res, next) => {
       const allLoads = await Load.find({ buyer: buyerId, isDeleted: false });
       const allPayments = await BuyerPayment.find({ buyerId });
 
-      const totalLoadCost = allLoads.reduce((sum, l) => sum + l.price * l.quantity, 0);
+      const totalLoadCost = allLoads.reduce((sum, l) => sum + (l.totalAmount ?? roundToNearestTen(l.price * l.quantity)), 0);
       const totalPaidOther = allPayments
         .filter((p) => p._id.toString() !== payment._id.toString())
         .reduce((sum, p) => sum + p.amount, 0);

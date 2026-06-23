@@ -1,6 +1,6 @@
 import mongoose from 'mongoose';
 import Buyer from '../models/Buyer.js';
-import Load from '../models/Load.js';
+import Load, { roundToNearestTen } from '../models/Load.js';
 import BuyerPayment from '../models/BuyerPayment.js';
 import Expense from '../models/Expense.js';
 
@@ -57,7 +57,7 @@ export const recordBuyerPayment = async ({ buyerId, amount, date, notes, paidBy 
     const pendingLoads = [];
 
     for (const load of loads) {
-      const pending = (load.price * load.quantity) - (load.allocatedAmount || 0);
+      const pending = (load.totalAmount ?? roundToNearestTen(load.price * load.quantity)) - (load.allocatedAmount || 0);
       if (pending > 0) {
         totalOutstanding += pending;
         pendingLoads.push({ load, pending });
@@ -146,7 +146,7 @@ export const recalculateBuyerBalances = async (buyerId, providedSession = null) 
       for (const load of loads) {
         if (remaining <= 0) break;
 
-        const pending = (load.price * load.quantity) - (load.allocatedAmount || 0);
+        const pending = (load.totalAmount ?? roundToNearestTen(load.price * load.quantity)) - (load.allocatedAmount || 0);
 
         if (pending > 0) {
           const allocate = Math.min(remaining, pending);
@@ -173,7 +173,7 @@ export const recalculateBuyerBalances = async (buyerId, providedSession = null) 
         type: 'load',
         date: load.date,
         createdAt: load.createdAt,
-        amount: load.price * load.quantity
+        amount: load.totalAmount ?? roundToNearestTen(load.price * load.quantity)
       });
     }
 

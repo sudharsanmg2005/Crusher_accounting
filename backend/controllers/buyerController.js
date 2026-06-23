@@ -1,5 +1,5 @@
 import Buyer from '../models/Buyer.js';
-import Load from '../models/Load.js';
+import Load, { roundToNearestTen } from '../models/Load.js';
 import BuyerPayment from '../models/BuyerPayment.js';
 import { normalizeVehicleNumber, validateVehicleNumber } from '../utils/vehicleNumber.js';
 
@@ -164,7 +164,7 @@ export const getBuyerById = async (req, res, next) => {
     let totalLoadsCount = 0;
     let lastLoadDate = null;
     for (const l of loads) {
-      totalLoadsAmount += l.price * l.quantity;
+      totalLoadsAmount += l.totalAmount ?? roundToNearestTen(l.price * l.quantity);
       totalLoadsCount++;
       if (!lastLoadDate || new Date(l.date) > new Date(lastLoadDate)) {
         lastLoadDate = l.date;
@@ -200,7 +200,7 @@ export const getBuyerById = async (req, res, next) => {
     const allLoadsForOutstanding = await Load.find({ buyer: buyerId, isDeleted: false });
     const allPaymentsForOutstanding = await BuyerPayment.find({ buyerId });
 
-    const overallBilled = allLoadsForOutstanding.reduce((sum, l) => sum + l.price * l.quantity, 0);
+    const overallBilled = allLoadsForOutstanding.reduce((sum, l) => sum + (l.totalAmount ?? roundToNearestTen(l.price * l.quantity)), 0);
     const overallPaid = allPaymentsForOutstanding.reduce((sum, p) => sum + p.amount, 0);
     
     let totalOutstandingAmount = 0;
@@ -231,7 +231,7 @@ export const getBuyerById = async (req, res, next) => {
         date: l.date,
         type: 'Load Created',
         reference: '—',
-        debit: l.price * l.quantity,
+        debit: l.totalAmount ?? roundToNearestTen(l.price * l.quantity),
         credit: 0,
         createdAt: l.createdAt
       });

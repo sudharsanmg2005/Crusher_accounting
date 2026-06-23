@@ -8,6 +8,16 @@ import { formatVehicleInput, isValidVehicleNumber } from '../utils/vehicleNumber
 import jsPDF from 'jspdf';
 import { autoTable } from 'jspdf-autotable';
 
+const roundToNearestTen = (amount) => {
+  const rounded = Math.round(amount);
+  const lastDigit = rounded % 10;
+  if (lastDigit < 5) {
+    return rounded - lastDigit;
+  } else {
+    return rounded + (10 - lastDigit);
+  }
+};
+
 const Buyers = () => {
   const { user } = useAuth();
   const confirm = useConfirm();
@@ -933,8 +943,9 @@ const Buyers = () => {
                     </thead>
                     <tbody className="divide-y divide-slate-100">
                       {buyerDetails.bills?.map((load) => {
-                        const hasPending = (load.price * load.quantity) - (load.allocatedAmount || 0) > 0;
-                        const pendingAmount = (load.price * load.quantity) - (load.allocatedAmount || 0);
+                        const totalLoadCost = load.totalAmount ?? roundToNearestTen(load.price * load.quantity);
+                        const hasPending = totalLoadCost - (load.allocatedAmount || 0) > 0;
+                        const pendingAmount = totalLoadCost - (load.allocatedAmount || 0);
                         return (
                           <tr key={load._id} className={`hover:bg-slate-50/80 transition ${hasPending ? 'bg-rose-50/10' : ''}`}>
                             <td className="p-4 text-slate-500">{formatDateTime(load.date).date}</td>
@@ -942,7 +953,7 @@ const Buyers = () => {
                             <td className="p-4 text-slate-600">{load.quarryName || '—'}</td>
                             <td className="p-4 text-right text-slate-600">₹{load.price.toLocaleString()}</td>
                             <td className="p-4 text-right text-slate-600">{Number(load.quantity || 0).toFixed(2)} {load.unitType || 'tons'}</td>
-                            <td className="p-4 text-right font-bold text-slate-800">₹{(load.price * load.quantity).toLocaleString()}</td>
+                            <td className="p-4 text-right font-bold text-slate-800">₹{totalLoadCost.toLocaleString()}</td>
                             <td className="p-4 text-right text-emerald-600">₹{(load.allocatedAmount || 0).toLocaleString()}</td>
                             <td className={`p-4 text-right font-bold ${hasPending ? 'text-rose-600' : 'text-slate-500'}`}>
                               ₹{pendingAmount.toLocaleString()}

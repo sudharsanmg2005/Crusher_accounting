@@ -14,6 +14,16 @@ const toYMD = (d) => {
   return `${year}-${month}-${day}`;
 };
 
+const roundToNearestTen = (amount) => {
+  const rounded = Math.round(amount);
+  const lastDigit = rounded % 10;
+  if (lastDigit < 5) {
+    return rounded - lastDigit;
+  } else {
+    return rounded + (10 - lastDigit);
+  }
+};
+
 const LoadManagement = () => {
   const { user } = useAuth();
   const confirm = useConfirm();
@@ -353,7 +363,7 @@ const LoadManagement = () => {
   const totals = useMemo(() => {
     return filteredLoads.reduce(
       (acc, load) => {
-        acc.totalPrice += Number(load.price || 0) * Number(load.quantity || 0);
+        acc.totalPrice += load.totalAmount ?? roundToNearestTen(Number(load.price || 0) * Number(load.quantity || 0));
         if (load.unitType === 'tons') {
           acc.totalTons += Number(load.quantity || 0);
         } else {
@@ -440,7 +450,7 @@ const LoadManagement = () => {
       const qty = Number(l.quantity || 0).toFixed(2);
       const unitType = l.unitType || 'tons';
       const price = l.price.toLocaleString();
-      const total = (l.price * l.quantity).toLocaleString();
+      const total = (l.totalAmount ?? roundToNearestTen(l.price * l.quantity)).toLocaleString();
 
       return selectedBuyerId
         ? [sNo, date, vehicle, material, qty, unitType, price, total]
@@ -522,7 +532,7 @@ const LoadManagement = () => {
       const buyerAgg = {};
 
       listToExport.forEach((l) => {
-        const billed = Number(l.price || 0) * Number(l.quantity || 0);
+        const billed = l.totalAmount ?? roundToNearestTen(Number(l.price || 0) * Number(l.quantity || 0));
         const paid = Number(l.allocatedAmount || 0);
         const pending = Number(l.pendingAmount || 0);
 
@@ -835,7 +845,7 @@ const LoadManagement = () => {
                     <td className="p-4 text-slate-600 whitespace-nowrap">{load.buyerNameSnapshot || '—'}</td>
                     <td className="p-4 text-right text-slate-600 whitespace-nowrap">₹{load.price.toLocaleString()}</td>
                     <td className="p-4 text-right text-slate-600 whitespace-nowrap font-mono">{Number(load.quantity || 0).toFixed(2)} <span className="text-xs text-slate-400 font-sans">{load.unitType || 'tons'}</span></td>
-                    <td className="p-4 text-right text-slate-800 font-bold whitespace-nowrap">₹{(load.price * load.quantity).toLocaleString()}</td>
+                    <td className="p-4 text-right text-slate-800 font-bold whitespace-nowrap">₹{(load.totalAmount ?? roundToNearestTen(load.price * load.quantity)).toLocaleString()}</td>
                     <td className="p-4 text-right space-x-3 whitespace-nowrap">
                       {canWrite && (
                         <>
@@ -1035,7 +1045,7 @@ const LoadManagement = () => {
               {formData.price && formData.quantity && (
                 <div className="bg-slate-50 border border-slate-200 rounded-lg p-3 text-sm flex justify-between items-center">
                   <span className="font-medium text-slate-600">Calculated Value:</span>
-                  <span className="font-extrabold text-slate-800 text-lg">₹{(Number(formData.price) * Number(formData.quantity)).toLocaleString()}</span>
+                  <span className="font-extrabold text-slate-800 text-lg">₹{roundToNearestTen(Number(formData.price) * Number(formData.quantity)).toLocaleString()}</span>
                 </div>
               )}
 
