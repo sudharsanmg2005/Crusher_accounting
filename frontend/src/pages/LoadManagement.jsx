@@ -547,7 +547,8 @@ const LoadManagement = () => {
 
       // Table 1: Individual loads list
       const head = [['S.NO', 'DATE', 'VEHICLE NUMBER', 'MATERIAL', 'QTY', 'UNIT TYPE', 'PRICE (Rs.)', 'TOTAL (Rs.)']];
-      const body = listToExport.map((l, idx) => [
+      const sortedList = [...listToExport].sort((a, b) => new Date(a.date) - new Date(b.date));
+      const body = sortedList.map((l, idx) => [
         idx + 1,
         new Date(l.date).toLocaleDateString(),
         l.vehicleNumber || '—',
@@ -605,12 +606,7 @@ const LoadManagement = () => {
         margin: { left: leftRightMargin, right: leftRightMargin }
       });
 
-      y = doc.lastAutoTable.finalY;
-      doc.setFontSize(7.5);
-      doc.setFont(undefined, 'normal');
-      doc.setTextColor(100, 116, 139); // slate-500
-      doc.text('* Formulas: GRAND TOTAL = GRAND TOTAL LOAD COST + PREVIOUS BALANCE | TOTAL BALANCE = GRAND TOTAL - AMOUNT PAID', 14, y + 5);
-      y = y + 12;
+      y = doc.lastAutoTable.finalY + 12;
 
       // Render payment history in timeline if there are payments
       const paymentsInTimeline = fullPayments.filter(p => {

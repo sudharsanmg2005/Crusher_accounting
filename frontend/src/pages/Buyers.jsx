@@ -341,7 +341,8 @@ const Buyers = () => {
 
     const yStartTable = 36;
     const head = [['S.NO', 'DATE', 'VEHICLE NUMBER', 'MATERIAL', 'PRICE (Rs.)', 'QUANTITY', 'TOTAL VALUE (Rs.)', 'ALLOCATED (Rs.)', 'PENDING (Rs.)']];
-    const body = (buyerDetails.bills || []).map((r, idx) => [
+    const sortedBills = [...(buyerDetails.bills || [])].sort((a, b) => new Date(a.date) - new Date(b.date));
+    const body = sortedBills.map((r, idx) => [
       idx + 1,
       formatDateTime(r.date).date,
       r.vehicleNumber || '—',
@@ -404,12 +405,7 @@ const Buyers = () => {
       margin: { left: leftRightMargin, right: leftRightMargin }
     });
 
-    y = doc.lastAutoTable.finalY;
-    doc.setFontSize(7.5);
-    doc.setFont(undefined, 'normal');
-    doc.setTextColor(100, 116, 139); // slate-500
-    doc.text('* Formulas: GRAND TOTAL = GRAND TOTAL LOAD COST + PREVIOUS BALANCE | TOTAL BALANCE = GRAND TOTAL - AMOUNT PAID', 14, y + 5);
-    y = y + 8; // Adjust y to include the note height
+    y = doc.lastAutoTable.finalY + 8;
 
     // Render payment history table
     if (buyerDetails.payments && buyerDetails.payments.length > 0) {
