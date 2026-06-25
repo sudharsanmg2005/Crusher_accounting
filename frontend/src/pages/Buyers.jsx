@@ -368,11 +368,22 @@ const Buyers = () => {
       y = 18;
     }
 
-    const totalsHead = [['DETAILS', 'AMOUNT']];
+    const selectedBilled = buyerDetails.summary?.totalBillsAmount || 0;
+    const selectedPaid = buyerDetails.summary?.totalPaidAmount || 0;
+    const selectedOutstanding = buyerDetails.summary?.totalOutstandingAmount || 0;
+
+    const overallBilled = buyerDetails.summary?.overallBilled || selectedBilled;
+    const overallPaid = buyerDetails.summary?.overallPaid || selectedPaid;
+    const overallOutstanding = buyerDetails.summary?.overallOutstanding || selectedOutstanding;
+
+    const previousOutstanding = Math.max(0, overallOutstanding - selectedOutstanding);
+
+    const totalsHead = [['STATEMENT SUMMARY', 'AMOUNT']];
     const totalsBody = [
-      ['TOTAL LOAD COST', `Rs. ${Number(buyerDetails.summary?.totalBillsAmount || 0).toLocaleString()}`],
-      ['TOTAL PAID', `Rs. ${Number(buyerDetails.summary?.totalPaidAmount || 0).toLocaleString()}`],
-      ['OUTSTANDING BALANCE', `Rs. ${Number(buyerDetails.summary?.totalOutstandingAmount || 0).toLocaleString()}`]
+      ['GRAND TOTAL LOAD COST', `Rs. ${Number(selectedBilled).toLocaleString()}`],
+      ['PREVIOUS BALANCE', `Rs. ${Number(previousOutstanding).toLocaleString()}`],
+      ['AMOUNT PAID', `Rs. ${Number(selectedPaid).toLocaleString()}`],
+      ['TOTAL BALANCE', `Rs. ${Number(overallOutstanding).toLocaleString()}`]
     ];
 
     const leftRightMargin = 14;

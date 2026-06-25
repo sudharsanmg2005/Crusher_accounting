@@ -337,8 +337,6 @@ const Customers = () => {
     const overallPaid = customerDetails.summary?.overallPaid || selectedPaid;
     const overallOutstanding = customerDetails.summary?.overallOutstanding || selectedOutstanding;
 
-    const previousBilled = Math.max(0, overallBilled - selectedBilled);
-    const previousPaid = Math.max(0, overallPaid - selectedPaid);
     const previousOutstanding = Math.max(0, overallOutstanding - selectedOutstanding);
 
     const yStartTable = 36;
@@ -372,12 +370,9 @@ const Customers = () => {
 
     const totalsHead = [['STATEMENT SUMMARY', 'AMOUNT']];
     const totalsBody = [
-      ['TOTAL BILLED AMOUNT', `Rs. ${Number(selectedBilled).toLocaleString()}`],
-      ['TOTAL PAID', `Rs. ${Number(selectedPaid).toLocaleString()}`],
-      ['OUTSTANDING BALANCE', `Rs. ${Number(selectedOutstanding).toLocaleString()}`],
-      ['PREVIOUS BILLED', `Rs. ${Number(previousBilled).toLocaleString()}`],
-      ['PREVIOUS PAID', `Rs. ${Number(previousPaid).toLocaleString()}`],
+      ['GRAND TOTAL BILLED', `Rs. ${Number(selectedBilled).toLocaleString()}`],
       ['PREVIOUS BALANCE', `Rs. ${Number(previousOutstanding).toLocaleString()}`],
+      ['AMOUNT RECEIVED', `Rs. ${Number(selectedPaid).toLocaleString()}`],
       ['TOTAL BALANCE', `Rs. ${Number(overallOutstanding).toLocaleString()}`]
     ];
 
