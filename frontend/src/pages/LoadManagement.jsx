@@ -577,9 +577,8 @@ const LoadManagement = () => {
       const totalsHead = [['STATEMENT SUMMARY', 'AMOUNT']];
       const totalsBody = [
         ['GRAND TOTAL LOAD COST', `Rs. ${Number(grandTotal).toLocaleString()}`],
-        ['OLD BALANCE', `Rs. ${Number(oldBalance).toLocaleString()}`],
-        ['TOTAL AMOUNT', `Rs. ${Number(totalAmount).toLocaleString()}`],
-        ['AMOUNT RECEIVED', `Rs. ${Number(amountReceived).toLocaleString()}`],
+        ['PREVIOUS BALANCE', `Rs. ${Number(oldBalance).toLocaleString()}`],
+        ['AMOUNT PAID', `Rs. ${Number(amountReceived).toLocaleString()}`],
         ['TOTAL BALANCE', `Rs. ${Number(totalBalance).toLocaleString()}`]
       ];
 

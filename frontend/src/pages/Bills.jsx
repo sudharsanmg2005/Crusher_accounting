@@ -462,8 +462,7 @@ const Bills = () => {
       const totalsHead = [['STATEMENT SUMMARY', 'AMOUNT']];
       const totalsBody = [
         ['GRAND TOTAL BILLED', `Rs. ${Number(grandTotal).toLocaleString()}`],
-        ['OLD BALANCE', `Rs. ${Number(oldBalance).toLocaleString()}`],
-        ['TOTAL AMOUNT', `Rs. ${Number(totalAmount).toLocaleString()}`],
+        ['PREVIOUS BALANCE', `Rs. ${Number(oldBalance).toLocaleString()}`],
         ['AMOUNT RECEIVED', `Rs. ${Number(amountReceived).toLocaleString()}`],
         ['TOTAL BALANCE', `Rs. ${Number(totalBalance).toLocaleString()}`]
       ];
