@@ -365,9 +365,11 @@ const Customers = () => {
     }
 
     const totalsHead = [['STATEMENT SUMMARY', 'AMOUNT']];
+    const grandTotalSum = selectedBilled + previousOutstanding;
     const totalsBody = [
       ['GRAND TOTAL BILLED', `Rs. ${Number(selectedBilled).toLocaleString()}`],
       ['PREVIOUS BALANCE', `Rs. ${Number(previousOutstanding).toLocaleString()}`],
+      ['GRAND TOTAL', `Rs. ${Number(grandTotalSum).toLocaleString()}`],
       ['AMOUNT RECEIVED', `Rs. ${Number(selectedPaid).toLocaleString()}`],
       ['TOTAL BALANCE', `Rs. ${Number(selectedOutstanding).toLocaleString()}`]
     ];
@@ -396,7 +398,7 @@ const Customers = () => {
     doc.setFontSize(7.5);
     doc.setFont(undefined, 'normal');
     doc.setTextColor(100, 116, 139); // slate-500
-    doc.text('* Formula: TOTAL BALANCE = PREVIOUS BALANCE + GRAND TOTAL BILLED - AMOUNT RECEIVED', 14, y + 5);
+    doc.text('* Formulas: GRAND TOTAL = GRAND TOTAL BILLED + PREVIOUS BALANCE | TOTAL BALANCE = GRAND TOTAL - AMOUNT RECEIVED', 14, y + 5);
     y = y + 8; // Adjust y to include the note height
 
     // Render payment history table

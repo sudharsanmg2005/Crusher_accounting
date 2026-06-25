@@ -575,11 +575,14 @@ const LoadManagement = () => {
 
       // Table 2: Financial Summary
       const totalsHead = [['STATEMENT SUMMARY', 'AMOUNT']];
+      const grandTotalSum = grandTotal + oldBalance;
+      const totalBalanceCalculated = grandTotalSum - amountReceived;
       const totalsBody = [
         ['GRAND TOTAL LOAD COST', `Rs. ${Number(grandTotal).toLocaleString()}`],
         ['PREVIOUS BALANCE', `Rs. ${Number(oldBalance).toLocaleString()}`],
+        ['GRAND TOTAL', `Rs. ${Number(grandTotalSum).toLocaleString()}`],
         ['AMOUNT PAID', `Rs. ${Number(amountReceived).toLocaleString()}`],
-        ['TOTAL BALANCE', `Rs. ${Number(totalBalance).toLocaleString()}`]
+        ['TOTAL BALANCE', `Rs. ${Number(totalBalanceCalculated).toLocaleString()}`]
       ];
 
       const leftRightMargin = 14;
@@ -606,7 +609,7 @@ const LoadManagement = () => {
       doc.setFontSize(7.5);
       doc.setFont(undefined, 'normal');
       doc.setTextColor(100, 116, 139); // slate-500
-      doc.text('* Formula: TOTAL BALANCE = PREVIOUS BALANCE + GRAND TOTAL LOAD COST - AMOUNT PAID', 14, y + 5);
+      doc.text('* Formulas: GRAND TOTAL = GRAND TOTAL LOAD COST + PREVIOUS BALANCE | TOTAL BALANCE = GRAND TOTAL - AMOUNT PAID', 14, y + 5);
       y = y + 12;
 
       // Render payment history in timeline if there are payments
