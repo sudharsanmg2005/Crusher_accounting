@@ -7,7 +7,7 @@ export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
 
-  const token = sessionStorage.getItem('token');
+  const token = localStorage.getItem('token');
 
   useEffect(() => {
     const bootstrap = async () => {
@@ -20,7 +20,7 @@ export const AuthProvider = ({ children }) => {
         const res = await api.get('/auth/me');
         setUser(res.data);
       } catch (err) {
-        sessionStorage.removeItem('token');
+        localStorage.removeItem('token');
         setUser(null);
       } finally {
         setLoading(false);
@@ -32,7 +32,7 @@ export const AuthProvider = ({ children }) => {
   }, []);
 
   const logout = () => {
-    sessionStorage.removeItem('token');
+    localStorage.removeItem('token');
     setUser(null);
   };
 
@@ -40,7 +40,7 @@ export const AuthProvider = ({ children }) => {
     if (!user) return;
 
     let timeoutId;
-    const idleTime = 30 * 60 * 1000; // 30 minutes in milliseconds
+    const idleTime = 60 * 60 * 1000; // 60 minutes (1 hour) in milliseconds
 
     const handleAutoLogout = () => {
       logout();
@@ -72,7 +72,7 @@ export const AuthProvider = ({ children }) => {
 
   const login = async ({ username, password }) => {
     const res = await api.post('/auth/login', { username, password });
-    sessionStorage.setItem('token', res.data.token);
+    localStorage.setItem('token', res.data.token);
     setUser(res.data.user);
   };
 
