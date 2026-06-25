@@ -176,25 +176,33 @@ export const getBuyerById = async (req, res, next) => {
 
     let totalPaymentsAmount = 0;
     let lastPaymentDate = null;
-    const start = startDate ? new Date(startDate) : null;
-    if (start) start.setHours(0, 0, 0, 0);
-
     for (const p of payments) {
-      let effectiveAmount = p.amount || 0;
-      if (start) {
-        let allocatedBeforeStart = 0;
-        for (const alloc of (p.allocationDetails || [])) {
-          const loadDate = loadDateMap.get(alloc.loadId.toString());
-          if (loadDate && new Date(loadDate) < start) {
-            allocatedBeforeStart += alloc.allocatedAmount;
-          }
-        }
-        effectiveAmount = Math.max(0, effectiveAmount - allocatedBeforeStart);
-      }
-      totalPaymentsAmount += effectiveAmount;
+      totalPaymentsAmount += p.amount || 0;
       if (!lastPaymentDate || new Date(p.paymentDate) > new Date(lastPaymentDate)) {
         lastPaymentDate = p.paymentDate;
       }
+    }
+
+    // Previous outstanding (balance before startDate)
+    let previousOutstanding = 0;
+    if (startDate) {
+      const start = new Date(startDate);
+      start.setHours(0, 0, 0, 0);
+
+      const loadsBefore = await Load.find({
+        buyer: buyerId,
+        isDeleted: false,
+        date: { $lt: start }
+      });
+      const loadsBeforeAmount = loadsBefore.reduce((sum, l) => sum + (l.totalAmount ?? roundToNearestTen(l.price * l.quantity)), 0);
+
+      const paymentsBefore = await BuyerPayment.find({
+        buyerId,
+        paymentDate: { $lt: start }
+      });
+      const paymentsBeforeAmount = paymentsBefore.reduce((sum, p) => sum + (p.amount || 0), 0);
+
+      previousOutstanding = Math.max(0, loadsBeforeAmount - paymentsBeforeAmount);
     }
 
     const allLoadsForOutstanding = await Load.find({ buyer: buyerId, isDeleted: false });
@@ -205,7 +213,22 @@ export const getBuyerById = async (req, res, next) => {
     
     let totalOutstandingAmount = 0;
     if (startDate || endDate) {
-      totalOutstandingAmount = Math.max(0, totalLoadsAmount - totalPaymentsAmount);
+      let loadsEndFilter = { buyer: buyerId, isDeleted: false };
+      let paymentsEndFilter = { buyerId };
+      if (endDate) {
+        const end = new Date(endDate);
+        end.setHours(23, 59, 59, 999);
+        loadsEndFilter.date = { $lte: end };
+        paymentsEndFilter.paymentDate = { $lte: end };
+      }
+      
+      const loadsUpToEnd = await Load.find(loadsEndFilter);
+      const paymentsUpToEnd = await BuyerPayment.find(paymentsEndFilter);
+
+      const loadsUpToEndAmount = loadsUpToEnd.reduce((sum, l) => sum + (l.totalAmount ?? roundToNearestTen(l.price * l.quantity)), 0);
+      const paymentsUpToEndAmount = paymentsUpToEnd.reduce((sum, p) => sum + (p.amount || 0), 0);
+
+      totalOutstandingAmount = Math.max(0, loadsUpToEndAmount - paymentsUpToEndAmount);
     } else {
       totalOutstandingAmount = Math.max(0, overallBilled - overallPaid);
     }
@@ -213,6 +236,7 @@ export const getBuyerById = async (req, res, next) => {
     const summary = {
       totalBillsAmount: totalLoadsAmount,
       totalPaidAmount: totalPaymentsAmount,
+      previousOutstanding,
       totalOutstandingAmount,
       totalBillsCount: totalLoadsCount,
       lastBillDate: lastLoadDate,

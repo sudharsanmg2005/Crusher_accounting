@@ -487,7 +487,12 @@ const Bills = () => {
         margin: { left: leftRightMargin, right: leftRightMargin }
       });
 
-      y = doc.lastAutoTable.finalY + 12;
+      y = doc.lastAutoTable.finalY;
+      doc.setFontSize(7.5);
+      doc.setFont(undefined, 'normal');
+      doc.setTextColor(100, 116, 139); // slate-500
+      doc.text('* Formula: TOTAL BALANCE = PREVIOUS BALANCE + GRAND TOTAL BILLED - AMOUNT RECEIVED', 14, y + 5);
+      y = y + 12;
 
       // Render payment history in timeline if there are payments
       const paymentsInTimeline = fullPayments.filter(p => {

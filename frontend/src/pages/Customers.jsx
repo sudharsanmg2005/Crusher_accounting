@@ -333,11 +333,7 @@ const Customers = () => {
     const selectedPaid = customerDetails.summary?.totalPaidAmount || 0;
     const selectedOutstanding = customerDetails.summary?.totalOutstandingAmount || 0;
 
-    const overallBilled = customerDetails.summary?.overallBilled || selectedBilled;
-    const overallPaid = customerDetails.summary?.overallPaid || selectedPaid;
-    const overallOutstanding = customerDetails.summary?.overallOutstanding || selectedOutstanding;
-
-    const previousOutstanding = Math.max(0, overallOutstanding - selectedOutstanding);
+    const previousOutstanding = customerDetails.summary?.previousOutstanding || 0;
 
     const yStartTable = 36;
     const head = [['S.NO', 'DATE', 'VEHICLE NO', 'MATERIAL', 'PRICE (Rs.)', 'QUANTITY', 'TOTAL (Rs.)', 'PASS AMT (Rs.)', 'GRAND TOTAL (Rs.)']];
@@ -373,7 +369,7 @@ const Customers = () => {
       ['GRAND TOTAL BILLED', `Rs. ${Number(selectedBilled).toLocaleString()}`],
       ['PREVIOUS BALANCE', `Rs. ${Number(previousOutstanding).toLocaleString()}`],
       ['AMOUNT RECEIVED', `Rs. ${Number(selectedPaid).toLocaleString()}`],
-      ['TOTAL BALANCE', `Rs. ${Number(overallOutstanding).toLocaleString()}`]
+      ['TOTAL BALANCE', `Rs. ${Number(selectedOutstanding).toLocaleString()}`]
     ];
 
     const leftRightMargin = 14;
@@ -397,6 +393,11 @@ const Customers = () => {
     });
 
     y = doc.lastAutoTable.finalY;
+    doc.setFontSize(7.5);
+    doc.setFont(undefined, 'normal');
+    doc.setTextColor(100, 116, 139); // slate-500
+    doc.text('* Formula: TOTAL BALANCE = PREVIOUS BALANCE + GRAND TOTAL BILLED - AMOUNT RECEIVED', 14, y + 5);
+    y = y + 8; // Adjust y to include the note height
 
     // Render payment history table
     if (customerDetails.payments && customerDetails.payments.length > 0) {
