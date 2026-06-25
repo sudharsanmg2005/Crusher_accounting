@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" fill="none">
+  <!-- Background circle -->
+  <circle cx="50" cy="50" r="48" fill="#0f172a" />
+  <!-- Overlapping geometric loops forming a premium monochrome spiral quarry wheel emblem -->
+  <g stroke="#ffffff" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M50 50 C50 32, 68 32, 68 50 C68 68, 50 68, 50 50 Z" />
+    <path d="M50 50 C50 32, 32 32, 32 50 C32 68, 50 68, 50 50 Z" />
+    <path d="M50 50 C68 50, 68 68, 50 68 C32 68, 32 50, 50 50 Z" />
+    <path d="M50 50 C68 50, 68 32, 50 32 C32 32, 32 50, 50 50 Z" />
+    <path d="M50 50 C59 36, 74 44, 65 59 C56 74, 41 66, 50 50 Z" />
+    <path d="M50 50 C41 36, 26 44, 35 59 C44 74, 59 66, 50 50 Z" />
+  </g>
+</svg>

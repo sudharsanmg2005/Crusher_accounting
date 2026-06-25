@@ -3,6 +3,7 @@ import api from '../api';
 import { useAuth } from '../AuthContext';
 import { useConfirm } from '../components/ConfirmDialog';
 import { HistoryIcon, ChevronDownIcon, DocumentIcon, EditIcon, TrashIcon } from '../components/Icons';
+import SearchableSelect from '../components/SearchableSelect';
 import { formatVehicleInput, isValidVehicleNumber } from '../utils/vehicleNumber';
 import { downloadBillPdf } from '../utils/billPdf';
 import { formatDateTime } from '../utils/dateTime';
@@ -998,13 +999,15 @@ const Bills = () => {
                 <div className="col-span-2">
                   <label className="block text-xs font-semibold text-slate-500 uppercase">Customer *</label>
                   <div className="flex gap-2 mt-1">
-                    <select 
-                      name="customer" required value={formData.customer} onChange={handleChange}
-                      className="flex-1 border border-slate-300 rounded-lg p-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition bg-white"
-                    >
-                      <option value="" disabled>Select Customer</option>
-                      {customers.map(c => <option key={c._id} value={c._id}>{c.name}</option>)}
-                    </select>
+                    <div className="flex-1">
+                      <SearchableSelect
+                        options={customers.map(c => ({ value: c._id, label: c.name }))}
+                        value={formData.customer}
+                        onChange={(val) => setFormData(prev => ({ ...prev, customer: val }))}
+                        placeholder="Select Customer"
+                        required
+                      />
+                    </div>
                     {canWrite && (
                       <button type="button" onClick={() => setIsCreateCustomerOpen(true)} className="px-3 py-2 bg-green-600 text-white rounded-lg text-sm font-medium hover:bg-green-700 transition shrink-0">+ New</button>
                     )}

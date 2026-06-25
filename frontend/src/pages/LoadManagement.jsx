@@ -5,6 +5,7 @@ import { autoTable } from 'jspdf-autotable';
 import { useConfirm } from '../components/ConfirmDialog';
 import { useAuth } from '../AuthContext';
 import { EditIcon, TrashIcon } from '../components/Icons';
+import SearchableSelect from '../components/SearchableSelect';
 import { formatVehicleInput, isValidVehicleNumber } from '../utils/vehicleNumber';
 
 const toYMD = (d) => {
@@ -899,18 +900,15 @@ const LoadManagement = () => {
               <div>
                 <label className="block text-sm font-medium text-slate-700 mb-1">Buyer *</label>
                 <div className="flex gap-2">
-                  <select
-                    name="buyerId"
-                    required
-                    value={formData.buyerId || ''}
-                    onChange={handleChange}
-                    className="flex-1 border border-slate-300 rounded-lg p-2.5 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition bg-white text-sm text-slate-800"
-                  >
-                    <option value="" disabled>Select Buyer *</option>
-                    {buyers.map(b => (
-                      <option key={b._id} value={b._id}>{b.name}</option>
-                    ))}
-                  </select>
+                  <div className="flex-1">
+                    <SearchableSelect
+                      options={buyers.map(b => ({ value: b._id, label: b.name }))}
+                      value={formData.buyerId}
+                      onChange={(val) => setFormData(prev => ({ ...prev, buyerId: val }))}
+                      placeholder="Select Buyer"
+                      required
+                    />
+                  </div>
                   {canWrite && (
                     <button
                       type="button"
