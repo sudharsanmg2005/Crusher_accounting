@@ -94,15 +94,24 @@ const Bills = () => {
     const search = filters.search.trim().toLowerCase();
 
     if (search) {
-      result = result.filter((bill) =>
-        [bill.customerNameSnapshot, bill.vehicleNumber, bill.materialNameSnapshot]
-          .filter(Boolean)
-          .some((value) => value.toLowerCase().includes(search))
-      );
+      result = result.filter((bill) => {
+        const customer = customers.find(c => c._id === (bill.customer?._id || bill.customer));
+        const customerName = customer ? customer.name : (bill.customerNameSnapshot || '');
+        const vehicle = bill.vehicleNumber || '';
+        const material = bill.materialNameSnapshot || '';
+        const billNum = bill.billNumber || '';
+        return customerName.toLowerCase().includes(search) ||
+               vehicle.toLowerCase().includes(search) ||
+               material.toLowerCase().includes(search) ||
+               billNum.toLowerCase().includes(search);
+      });
     }
 
     if (filters.customerId) {
-      result = result.filter((bill) => String(bill.customer || '') === filters.customerId);
+      result = result.filter((bill) => {
+        const billCustId = bill.customer?._id || bill.customer || '';
+        return String(billCustId) === filters.customerId;
+      });
     }
 
     if (filters.status) {
@@ -155,7 +164,7 @@ const Bills = () => {
     }
 
     return result;
-  }, [bills, filters]);
+  }, [bills, filters, customers]);
 
   const filteredTotals = useMemo(() => {
     return filteredBills.reduce(
@@ -860,7 +869,9 @@ const Bills = () => {
                         </button>
                       </td>
                       <td className="p-4 text-slate-600 font-medium whitespace-nowrap">{billDateTime.date}</td>
-                      <td className="p-4 text-slate-800 font-semibold">{bill.customerNameSnapshot}</td>
+                      <td className="p-4 text-slate-800 font-semibold">
+                        {customers.find(c => c._id === (bill.customer?._id || bill.customer))?.name || bill.customerNameSnapshot}
+                      </td>
                       <td className="p-4 text-slate-600"><span className="bg-slate-100 px-2 py-1 rounded border border-slate-200 text-xs font-mono whitespace-nowrap">{bill.vehicleNumber || '—'}</span></td>
                       <td className="p-4 text-slate-600 text-sm">
                         <div className="font-medium text-slate-800">{bill.materialNameSnapshot}</div>
