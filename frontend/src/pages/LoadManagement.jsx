@@ -378,22 +378,7 @@ const LoadManagement = () => {
 
   const downloadPdf = async () => {
     const listToExport = filteredLoads;
-    if (listToExport.length === 0) return;
-
-    let buyerSummary = null;
-    let buyerPayments = [];
-    if (selectedBuyerId) {
-      try {
-        const params = new URLSearchParams();
-        if (dateRange.startDate) params.append('startDate', dateRange.startDate);
-        if (dateRange.endDate) params.append('endDate', dateRange.endDate);
-        const { data } = await api.get(`/buyers/${selectedBuyerId}?${params.toString()}`);
-        buyerSummary = data.summary;
-        buyerPayments = data.payments || [];
-      } catch (err) {
-        console.error('Error fetching buyer details for PDF', err);
-      }
-    }
+    if (listToExport.length === 0 && !selectedBuyerId) return;
 
     const doc = new jsPDF();
     const pageWidth = doc.internal.pageSize.getWidth();
@@ -407,24 +392,12 @@ const LoadManagement = () => {
       doc.text(str, (pageWidth - w) / 2, xY);
     };
 
-    const selectedBuyer = buyers.find((b) => b._id === selectedBuyerId);
-    const buyerName = selectedBuyer ? selectedBuyer.name : '';
-
-    let titleParts = [];
-    if (buyerName) {
-      titleParts.push(buyerName.toUpperCase());
-    }
-    if (selectedQuarryName) {
-      titleParts.push(selectedQuarryName.toUpperCase());
-    }
-
-    const titleText = titleParts.length > 0
-      ? `${titleParts.join(' - ')} LOAD STATEMENT`
-      : 'LOAD MANAGEMENT REPORT';
-
-    centerText(titleText, 19, 12, 'bold');
-
+    // Calculate dates for range label and query params
     let rangeLabel = 'All Time';
+    let queryParams = {};
+    let startDateVal = null;
+    let endDateVal = null;
+
     if (reportType !== 'all' && dateRange.startDate && dateRange.endDate) {
       const formatDateDots = (d) => {
         if (!d) return '';
@@ -432,75 +405,182 @@ const LoadManagement = () => {
         return `${dd}.${mm}.${yy}`;
       };
       rangeLabel = `${formatDateDots(dateRange.startDate)} - ${formatDateDots(dateRange.endDate)}`;
-    }
-    centerText(rangeLabel, 26, 9);
-
-    doc.setDrawColor(200, 200, 200);
-    doc.line(14, 29, pageWidth - 14, 29);
-
-    const head = selectedBuyerId 
-      ? [['S.NO', 'DATE', 'VEHICLE NUMBER', 'MATERIAL', 'QTY', 'UNIT TYPE', 'PRICE (Rs.)', 'TOTAL (Rs.)']]
-      : [['S.NO', 'DATE', 'VEHICLE NUMBER', 'MATERIAL', 'BUYER NAME', 'QTY', 'UNIT TYPE', 'PRICE (Rs.)', 'TOTAL (Rs.)']];
-
-    const body = listToExport.map((l, idx) => {
-      const sNo = idx + 1;
-      const date = new Date(l.date).toLocaleDateString();
-      const vehicle = l.vehicleNumber || '—';
-      const material = l.quarryName || '—';
-      const buyerName = l.buyerNameSnapshot || '—';
-      const qty = Number(l.quantity || 0).toFixed(2);
-      const unitType = l.unitType || 'tons';
-      const price = l.price.toLocaleString();
-      const total = (l.totalAmount ?? roundToNearestTen(l.price * l.quantity)).toLocaleString();
-
-      return selectedBuyerId
-        ? [sNo, date, vehicle, material, qty, unitType, price, total]
-        : [sNo, date, vehicle, material, buyerName, qty, unitType, price, total];
-    });
-
-    autoTable(doc, {
-      head,
-      body,
-      startY: 36,
-      theme: 'grid',
-      styles: { fontSize: 8, cellPadding: 2.5 },
-      headStyles: { fillColor: [245, 246, 250], textColor: [15, 23, 42], fontStyle: 'bold' }
-    });
-
-    let y = (doc.lastAutoTable?.finalY || 36) + 12;
-    if (y > pageHeight - 65) {
-      doc.addPage();
-      y = 18;
+      queryParams = { startDate: dateRange.startDate, endDate: dateRange.endDate };
+      startDateVal = new Date(dateRange.startDate + 'T00:00:00');
+      endDateVal = new Date(dateRange.endDate + 'T23:59:59');
     }
 
-    if (selectedBuyerId && buyerSummary) {
-      const selectedBilled = buyerSummary.totalBillsAmount || 0;
-      const selectedPaid = buyerSummary.totalPaidAmount || 0;
-      const selectedOutstanding = buyerSummary.totalOutstandingAmount || 0;
+    const selectedBuyer = buyers.find((b) => b._id === selectedBuyerId);
+    const buyerName = selectedBuyer ? selectedBuyer.name : '';
 
-      const overallBilled = buyerSummary.overallBilled || selectedBilled;
-      const overallPaid = buyerSummary.overallPaid || selectedPaid;
-      const overallOutstanding = buyerSummary.overallOutstanding || selectedOutstanding;
+    if (!selectedBuyerId) {
+      // 1. ALL BUYERS SUMMARY REPORT
+      centerText('BUYER LOAD SUMMARY REPORT', 19, 12, 'bold');
+      centerText(rangeLabel, 26, 9);
+      doc.setDrawColor(200, 200, 200);
+      doc.line(14, 29, pageWidth - 14, 29);
 
-      const previousBilled = Math.max(0, overallBilled - selectedBilled);
-      const previousPaid = Math.max(0, overallPaid - selectedPaid);
-      const previousOutstanding = Math.max(0, overallOutstanding - selectedOutstanding);
+      let outstandingData = [];
+      try {
+        const params = new URLSearchParams(queryParams);
+        const { data } = await api.get(`/reports/outstanding-buyers?${params.toString()}`);
+        outstandingData = data || [];
+      } catch (err) {
+        console.error('Error fetching buyer outstanding report for PDF', err);
+      }
 
+      // Aggregate counts from listToExport
+      const loadCountMap = {};
+      listToExport.forEach(l => {
+        const bid = (l.buyer?._id || l.buyer || '').toString();
+        if (bid) {
+          loadCountMap[bid] = (loadCountMap[bid] || 0) + 1;
+        }
+      });
+
+      // Filter active buyers
+      const activeBuyers = outstandingData.filter(item => 
+        (loadCountMap[item.buyerId] || 0) > 0 || (item.outstandingBalance || 0) > 0
+      );
+
+      const head = [['S.NO', 'BUYER NAME', 'NO OF LOADS', 'GRAND TOTAL COST (Rs.)', 'PENDING AMOUNT (Rs.)']];
+      const body = activeBuyers.map((item, idx) => [
+        idx + 1,
+        item.buyerName || '—',
+        loadCountMap[item.buyerId] || 0,
+        Number(item.totalLoadsAmount || 0).toLocaleString(),
+        Number(item.outstandingBalance || 0).toLocaleString()
+      ]);
+
+      autoTable(doc, {
+        head,
+        body,
+        startY: 36,
+        theme: 'grid',
+        styles: { fontSize: 8, cellPadding: 2.5 },
+        headStyles: { fillColor: [245, 246, 250], textColor: [15, 23, 42], fontStyle: 'bold' }
+      });
+
+      let y = (doc.lastAutoTable?.finalY || 36) + 12;
+      if (y > pageHeight - 45) {
+        doc.addPage();
+        y = 18;
+      }
+
+      let grandBilled = 0;
+      let grandPending = 0;
+      activeBuyers.forEach(b => {
+        grandBilled += b.totalLoadsAmount || 0;
+        grandPending += b.outstandingBalance || 0;
+      });
+
+      const grandHead = [['GRAND SUMMARY', 'AMOUNT (Rs.)']];
+      const grandBody = [
+        ['GRAND TOTAL COST', grandBilled.toLocaleString()],
+        ['GRAND TOTAL PENDING', grandPending.toLocaleString()]
+      ];
+
+      doc.setFontSize(10);
+      doc.setFont(undefined, 'bold');
+      doc.text('Grand Summary:', 14, y - 4);
+
+      autoTable(doc, {
+        head: grandHead,
+        body: grandBody,
+        startY: y,
+        theme: 'grid',
+        styles: { fontSize: 8.5, cellPadding: 2.5 },
+        headStyles: { fillColor: [37, 99, 235], textColor: [255, 255, 255], fontStyle: 'bold' }
+      });
+
+      doc.save('buyer_loads_summary.pdf');
+    } else {
+      // 2. EACH BUYER STATEMENT REPORT
+      let titleParts = [];
+      if (buyerName) titleParts.push(buyerName.toUpperCase());
+      if (selectedQuarryName) titleParts.push(selectedQuarryName.toUpperCase());
+      const titleText = `${titleParts.join(' - ')} STATEMENT`;
+
+      centerText(titleText, 19, 12, 'bold');
+      centerText(rangeLabel, 26, 9);
+      doc.setDrawColor(200, 200, 200);
+      doc.line(14, 29, pageWidth - 14, 29);
+
+      // Fetch full history to calculate old balance correctly
+      let fullLedger = [];
+      let fullPayments = [];
+      try {
+        const { data } = await api.get(`/buyers/${selectedBuyerId}`);
+        fullLedger = data.ledger || [];
+        fullPayments = data.payments || [];
+      } catch (err) {
+        console.error('Error fetching buyer details for PDF', err);
+      }
+
+      // Calculate balance values
+      const sortedLedger = [...fullLedger].sort((a, b) => new Date(a.date) - new Date(b.date));
+      let oldBalance = 0;
+      if (startDateVal) {
+        const beforeEntries = sortedLedger.filter(e => new Date(e.date) < startDateVal);
+        if (beforeEntries.length > 0) {
+          oldBalance = beforeEntries[beforeEntries.length - 1].runningBalance;
+        }
+      }
+
+      let grandTotal = 0;
+      let amountReceived = 0;
+
+      sortedLedger.forEach(entry => {
+        const entryDate = new Date(entry.date);
+        const inRange = (!startDateVal || entryDate >= startDateVal) && (!endDateVal || entryDate <= endDateVal);
+        if (inRange) {
+          if (entry.transactionType === 'Load Created') {
+            grandTotal += entry.debit;
+          } else if (entry.transactionType === 'Payment Made') {
+            amountReceived += entry.credit;
+          }
+        }
+      });
+
+      const totalAmount = grandTotal + oldBalance;
+      const totalBalance = totalAmount - amountReceived;
+
+      // Table 1: Individual loads list
+      const head = [['S.NO', 'DATE', 'VEHICLE NUMBER', 'MATERIAL', 'QTY', 'UNIT TYPE', 'PRICE (Rs.)', 'TOTAL (Rs.)']];
+      const body = listToExport.map((l, idx) => [
+        idx + 1,
+        new Date(l.date).toLocaleDateString(),
+        l.vehicleNumber || '—',
+        l.quarryName || '—',
+        Number(l.quantity || 0).toFixed(2),
+        l.unitType || 'tons',
+        Number(l.price || 0).toLocaleString(),
+        (l.totalAmount ?? roundToNearestTen(l.price * l.quantity)).toLocaleString()
+      ]);
+
+      autoTable(doc, {
+        head,
+        body,
+        startY: 36,
+        theme: 'grid',
+        styles: { fontSize: 8, cellPadding: 2.5 },
+        headStyles: { fillColor: [245, 246, 250], textColor: [15, 23, 42], fontStyle: 'bold' }
+      });
+
+      let y = (doc.lastAutoTable?.finalY || 36) + 12;
       if (y > pageHeight - 65) {
         doc.addPage();
         y = 18;
       }
 
-      // Single Statement Summary Table
+      // Table 2: Financial Summary
       const totalsHead = [['STATEMENT SUMMARY', 'AMOUNT']];
       const totalsBody = [
-        ['TOTAL LOAD COST', `Rs. ${Number(selectedBilled).toLocaleString()}`],
-        ['TOTAL PAID', `Rs. ${Number(selectedPaid).toLocaleString()}`],
-        ['OUTSTANDING BALANCE', `Rs. ${Number(selectedOutstanding).toLocaleString()}`],
-        ['PREVIOUS BILLED', `Rs. ${Number(previousBilled).toLocaleString()}`],
-        ['PREVIOUS PAID', `Rs. ${Number(previousPaid).toLocaleString()}`],
-        ['PREVIOUS BALANCE', `Rs. ${Number(previousOutstanding).toLocaleString()}`],
-        ['TOTAL BALANCE', `Rs. ${Number(overallOutstanding).toLocaleString()}`]
+        ['GRAND TOTAL LOAD COST', `Rs. ${Number(grandTotal).toLocaleString()}`],
+        ['OLD BALANCE', `Rs. ${Number(oldBalance).toLocaleString()}`],
+        ['TOTAL AMOUNT', `Rs. ${Number(totalAmount).toLocaleString()}`],
+        ['AMOUNT RECEIVED', `Rs. ${Number(amountReceived).toLocaleString()}`],
+        ['TOTAL BALANCE', `Rs. ${Number(totalBalance).toLocaleString()}`]
       ];
 
       const leftRightMargin = 14;
@@ -523,135 +603,47 @@ const LoadManagement = () => {
         margin: { left: leftRightMargin, right: leftRightMargin }
       });
 
-      y = doc.lastAutoTable.finalY;
-    } else {
-      // General loads report summary tables
-      let grandBilled = 0;
-      let grandPaid = 0;
-      let grandOutstanding = 0;
+      y = doc.lastAutoTable.finalY + 12;
 
-      const buyerAgg = {};
+      // Render payment history in timeline if there are payments
+      const paymentsInTimeline = fullPayments.filter(p => {
+        const pdate = new Date(p.paymentDate || p.date);
+        return (!startDateVal || pdate >= startDateVal) && (!endDateVal || pdate <= endDateVal);
+      });
 
-      listToExport.forEach((l) => {
-        const billed = l.totalAmount ?? roundToNearestTen(Number(l.price || 0) * Number(l.quantity || 0));
-        const paid = Number(l.allocatedAmount || 0);
-        const pending = Number(l.pendingAmount || 0);
-
-        grandBilled += billed;
-        grandPaid += paid;
-        grandOutstanding += pending;
-
-        const bName = l.buyerNameSnapshot || '—';
-        if (!buyerAgg[bName]) {
-          buyerAgg[bName] = { billed: 0, paid: 0, pending: 0 };
+      if (paymentsInTimeline.length > 0) {
+        if (y > pageHeight - 55) {
+          doc.addPage();
+          y = 18;
         }
-        buyerAgg[bName].billed += billed;
-        buyerAgg[bName].paid += paid;
-        buyerAgg[bName].pending += pending;
-      });
 
-      const grandHead = [['GRAND SUMMARY', 'AMOUNT (Rs.)']];
-      const grandBody = [
-        ['GRAND TOTAL LOAD COST', grandBilled.toLocaleString()],
-        ['GRAND TOTAL PAID', grandPaid.toLocaleString()],
-        ['GRAND TOTAL OUTSTANDING', grandOutstanding.toLocaleString()]
-      ];
+        doc.setFontSize(10);
+        doc.setFont(undefined, 'bold');
+        doc.text('PAYMENTS MADE IN TIMELINE:', 14, y - 4);
 
-      doc.setFontSize(10);
-      doc.setFont(undefined, 'bold');
-      doc.text('Grand Summary:', 14, y - 4);
+        const payHead = [['S.NO', 'DATE', 'PAYMENT NUMBER', 'AMOUNT PAID (Rs.)', 'PAID BY / METHOD', 'NOTES']];
+        const payBody = paymentsInTimeline.map((p, idx) => [
+          idx + 1,
+          new Date(p.paymentDate || p.date).toLocaleDateString(),
+          p.paymentNumber || '—',
+          Number(p.amount || 0).toLocaleString(),
+          p.paidBy || p.method || '—',
+          p.notes || p.note || '—'
+        ]);
 
-      autoTable(doc, {
-        head: grandHead,
-        body: grandBody,
-        startY: y,
-        theme: 'grid',
-        styles: { fontSize: 8, cellPadding: 2 },
-        headStyles: { fillColor: [37, 99, 235], textColor: [255, 255, 255], fontStyle: 'bold' }
-      });
-
-      y = (doc.lastAutoTable?.finalY || y) + 12;
-      if (y > pageHeight - 65) {
-        doc.addPage();
-        y = 18;
+        autoTable(doc, {
+          head: payHead,
+          body: payBody,
+          startY: y,
+          theme: 'grid',
+          styles: { fontSize: 8, cellPadding: 2.5 },
+          headStyles: { fillColor: [15, 23, 42], textColor: [255, 255, 255], fontStyle: 'bold' }
+        });
       }
 
-      const buyerHead = [['BUYER NAME', 'TOTAL COST (Rs.)', 'TOTAL PAID (Rs.)', 'TOTAL OUTSTANDING (Rs.)']];
-      const buyerBody = Object.entries(buyerAgg).map(([name, data]) => [
-        name,
-        data.billed.toLocaleString(),
-        data.paid.toLocaleString(),
-        data.pending.toLocaleString()
-      ]);
-
-      doc.setFontSize(10);
-      doc.setFont(undefined, 'bold');
-      doc.text('Summary By Buyer:', 14, y - 4);
-
-      autoTable(doc, {
-        head: buyerHead,
-        body: buyerBody,
-        startY: y,
-        theme: 'grid',
-        styles: { fontSize: 8, cellPadding: 2 },
-        headStyles: { fillColor: [15, 23, 42], textColor: [255, 255, 255], fontStyle: 'bold' }
-      });
-
-      y = doc.lastAutoTable.finalY;
+      const fileSlug = buyerName ? buyerName.replaceAll(' ', '_') : 'buyer';
+      doc.save(`${fileSlug}_statement.pdf`);
     }
-
-    if (selectedBuyerId && buyerPayments.length > 0) {
-      y = y + 12;
-      if (y > pageHeight - 65) {
-        doc.addPage();
-        y = 18;
-      }
-
-      doc.setFontSize(10);
-      doc.setFont(undefined, 'bold');
-      doc.text('PAYMENT HISTORY:', 14, y - 4);
-
-      const payHead = [['S.NO', 'DATE', 'PAYMENT NUMBER', 'AMOUNT PAID (Rs.)', 'PAID BY / METHOD', 'NOTES']];
-      const payBody = buyerPayments.map((p, idx) => [
-        idx + 1,
-        new Date(p.paymentDate || p.date).toLocaleDateString(),
-        p.paymentNumber || '—',
-        Number(p.amount || 0).toLocaleString(),
-        p.paidBy || p.method || '—',
-        p.notes || p.note || '—'
-      ]);
-
-      autoTable(doc, {
-        head: payHead,
-        body: payBody,
-        startY: y,
-        theme: 'grid',
-        styles: { fontSize: 8, cellPadding: 2 },
-        headStyles: { fillColor: [15, 23, 42], textColor: [255, 255, 255], fontStyle: 'bold' }
-      });
-    }
-
-    const rangeSlug = rangeLabel
-      .replaceAll(' ', '_')
-      .replaceAll('/', '-')
-      .replaceAll('.', '-');
-    
-    let nameParts = [];
-    if (buyerName) {
-      nameParts.push(buyerName.replaceAll(' ', '_').replaceAll('/', '-'));
-    }
-    if (selectedQuarryName) {
-      nameParts.push(selectedQuarryName.replaceAll(' ', '_').replaceAll('/', '-'));
-    }
-
-    let fileSlug = '';
-    if (nameParts.length > 0) {
-      fileSlug = nameParts.join('_') + '_statement';
-    } else {
-      fileSlug = 'Load_Report';
-    }
-
-    doc.save(`${fileSlug}_${rangeSlug}.pdf`);
   };
 
   const selectedBuyer = useMemo(() => buyers.find((b) => b._id === formData.buyerId), [buyers, formData.buyerId]);

@@ -2,6 +2,9 @@ import Bill from '../models/Bill.js';
 import Expense from '../models/Expense.js';
 import Customer from '../models/Customer.js';
 import Payment from '../models/Payment.js';
+import Buyer from '../models/Buyer.js';
+import Load, { roundToNearestTen } from '../models/Load.js';
+import BuyerPayment from '../models/BuyerPayment.js';
 
 const pad2 = (n) => String(n).padStart(2, '0');
 
@@ -590,6 +593,71 @@ export const getCustomerStatementReport = async (req, res, next) => {
         outstandingBalance
       }
     });
+  } catch (err) {
+    next(err);
+  }
+};
+
+export const getBuyerOutstandingReport = async (req, res, next) => {
+  try {
+    const { start, end } = parseDateRange(req.query);
+
+    const buyers = await Buyer.find({ isDeleted: false });
+    const loadsInRange = await Load.find({ isDeleted: false, date: { $gte: start, $lte: end } });
+    const paymentsInRange = await BuyerPayment.find({ paymentDate: { $gte: start, $lte: end } });
+
+    const overallLoads = await Load.find({ isDeleted: false, date: { $lte: end } });
+    const overallPayments = await BuyerPayment.find({ paymentDate: { $lte: end } });
+
+    const inRangeBilled = {};
+    const inRangePaid = {};
+    const overallBilled = {};
+    const overallPaid = {};
+
+    for (const l of loadsInRange) {
+      if (l.buyer) {
+        const bid = l.buyer.toString();
+        const amt = l.totalAmount ?? roundToNearestTen(l.price * l.quantity);
+        inRangeBilled[bid] = (inRangeBilled[bid] || 0) + amt;
+      }
+    }
+    for (const p of paymentsInRange) {
+      if (p.buyerId) {
+        const bid = p.buyerId.toString();
+        inRangePaid[bid] = (inRangePaid[bid] || 0) + p.amount;
+      }
+    }
+    for (const l of overallLoads) {
+      if (l.buyer) {
+        const bid = l.buyer.toString();
+        const amt = l.totalAmount ?? roundToNearestTen(l.price * l.quantity);
+        overallBilled[bid] = (overallBilled[bid] || 0) + amt;
+      }
+    }
+    for (const p of overallPayments) {
+      if (p.buyerId) {
+        const bid = p.buyerId.toString();
+        overallPaid[bid] = (overallPaid[bid] || 0) + p.amount;
+      }
+    }
+
+    const report = buyers.map((b) => {
+      const bid = b._id.toString();
+      const billed = overallBilled[bid] || 0;
+      const paid = overallPaid[bid] || 0;
+      const outstanding = Math.max(0, billed - paid);
+
+      return {
+        buyerId: bid,
+        buyerName: b.name,
+        phone: b.phone,
+        totalLoadsAmount: inRangeBilled[bid] || 0,
+        totalPaidAmount: inRangePaid[bid] || 0,
+        outstandingBalance: outstanding
+      };
+    });
+
+    res.json(report);
   } catch (err) {
     next(err);
   }

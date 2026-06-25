@@ -115,13 +115,6 @@ const Bills = () => {
       });
     }
 
-    if (filters.status) {
-      if (filters.status === 'Outstanding') {
-        result = result.filter((bill) => bill.pendingAmount > 0);
-      } else if (filters.status === 'Settled') {
-        result = result.filter((bill) => bill.pendingAmount === 0);
-      }
-    }
 
     if (filters.mode === 'particular_date' && filters.particularDate) {
       result = result.filter((bill) => toYMD(bill.date) === filters.particularDate);
@@ -254,7 +247,7 @@ const Bills = () => {
 
   const downloadSummaryPdf = async () => {
     const listToExport = filteredBills;
-    if (listToExport.length === 0) return;
+    if (listToExport.length === 0 && !filters.customerId) return;
 
     const doc = new jsPDF();
     const pageWidth = doc.internal.pageSize.getWidth();
@@ -268,27 +261,30 @@ const Bills = () => {
       doc.text(str, (pageWidth - w) / 2, xY);
     };
 
-    const selectedCustomer = customers.find((c) => c._id === filters.customerId);
-    const customerName = selectedCustomer ? selectedCustomer.name : '';
-
-    let titleParts = [];
-    if (customerName) {
-      titleParts.push(customerName.toUpperCase());
-    }
-
-    const titleText = titleParts.length > 0
-      ? `${titleParts.join(' - ')} BILL SUMMARY`
-      : 'CUSTOMER BILL SUMMARY REPORT';
-
-    centerText(titleText, 19, 12, 'bold');
-
+    // Calculate dates for range label and query params
     let rangeLabel = 'All Time';
+    let queryParams = {};
+    let startDateVal = null;
+    let endDateVal = null;
+
     if (filters.mode === 'particular_date' && filters.particularDate) {
       rangeLabel = `Date: ${formatDateTime(filters.particularDate).date}`;
+      queryParams = { startDate: filters.particularDate, endDate: filters.particularDate };
+      startDateVal = new Date(filters.particularDate + 'T00:00:00');
+      endDateVal = new Date(filters.particularDate + 'T23:59:59');
     } else if (filters.mode === 'selected_dates' && filters.startDate && filters.endDate) {
       rangeLabel = `${formatDateTime(filters.startDate).date} to ${formatDateTime(filters.endDate).date}`;
+      queryParams = { startDate: filters.startDate, endDate: filters.endDate };
+      startDateVal = new Date(filters.startDate + 'T00:00:00');
+      endDateVal = new Date(filters.endDate + 'T23:59:59');
     } else if (filters.mode === 'month' && filters.month) {
       rangeLabel = `Month: ${filters.month}`;
+      const [year, month] = filters.month.split('-');
+      const startStr = `${year}-${month}-01`;
+      const endStr = new Date(year, month, 0).toISOString().split('T')[0];
+      queryParams = { startDate: startStr, endDate: endStr };
+      startDateVal = new Date(startStr + 'T00:00:00');
+      endDateVal = new Date(endStr + 'T23:59:59');
     } else if (filters.mode === 'week' && filters.weekStart) {
       const d = new Date(filters.weekStart + 'T00:00:00');
       const day = d.getDay();
@@ -297,115 +293,221 @@ const Bills = () => {
       const end = new Date(start);
       end.setDate(start.getDate() + 6);
       rangeLabel = `Week: ${formatDateTime(start).date} to ${formatDateTime(end).date}`;
-    }
-    centerText(rangeLabel, 26, 9);
-
-    doc.setDrawColor(200, 200, 200);
-    doc.line(14, 29, pageWidth - 14, 29);
-
-    const head = [['S.NO', 'DATE', 'CUSTOMER NAME', 'VEHICLE NUMBER', 'MATERIAL', 'QTY', 'UNIT', 'TOTAL (Rs.)', 'ALLOCATED (Rs.)', 'PENDING (Rs.)']];
-    const body = listToExport.map((b, idx) => [
-      idx + 1,
-      new Date(b.date).toLocaleDateString(),
-      b.customerNameSnapshot || '—',
-      b.vehicleNumber || '—',
-      b.materialNameSnapshot || '—',
-      Number(b.quantity || 0).toFixed(2),
-      b.quantityUnit || 'ton',
-      (Number(b.totalAmount || 0) + Number(b.passAmount || 0)).toLocaleString(),
-      (b.allocatedAmount || 0).toLocaleString(),
-      (b.pendingAmount || 0).toLocaleString()
-    ]);
-
-    autoTable(doc, {
-      head,
-      body,
-      startY: 36,
-      theme: 'grid',
-      styles: { fontSize: 7, cellPadding: 2 },
-      headStyles: { fillColor: [245, 246, 250], textColor: [15, 23, 42], fontStyle: 'bold' }
-    });
-
-    let y = (doc.lastAutoTable?.finalY || 36) + 12;
-    if (y > pageHeight - 65) {
-      doc.addPage();
-      y = 18;
+      queryParams = { startDate: start.toISOString().split('T')[0], endDate: end.toISOString().split('T')[0] };
+      startDateVal = new Date(start.setHours(0, 0, 0, 0));
+      endDateVal = new Date(end.setHours(23, 59, 59, 999));
     }
 
-    // Grand Totals
-    let grandBilled = 0;
-    let grandPaid = 0;
-    let grandOutstanding = 0;
-    
-    // Aggregates by Customer
-    const customerAgg = {}; // customerName -> { billed, paid, pending }
+    const selectedCustomer = customers.find((c) => c._id === filters.customerId);
+    const customerName = selectedCustomer ? selectedCustomer.name : '';
 
-    listToExport.forEach((b) => {
-      const billed = Number(b.totalAmount || 0) + Number(b.passAmount || 0);
-      const paid = Number(b.allocatedAmount || 0);
-      const pending = Number(b.pendingAmount || 0);
+    if (!filters.customerId) {
+      // 1. ALL CUSTOMERS SUMMARY REPORT
+      centerText('CUSTOMER BILL SUMMARY REPORT', 19, 12, 'bold');
+      centerText(rangeLabel, 26, 9);
+      doc.setDrawColor(200, 200, 200);
+      doc.line(14, 29, pageWidth - 14, 29);
 
-      grandBilled += billed;
-      grandPaid += paid;
-      grandOutstanding += pending;
-
-      const cName = b.customerNameSnapshot || '—';
-      if (!customerAgg[cName]) {
-        customerAgg[cName] = { billed: 0, paid: 0, pending: 0 };
-      }
-      customerAgg[cName].billed += billed;
-      customerAgg[cName].paid += paid;
-      customerAgg[cName].pending += pending;
-    });
-
-    const grandHead = [['SUMMARY', 'AMOUNT (Rs.)']];
-    const grandBody = [
-      ['GRAND TOTAL BILLED', grandBilled.toLocaleString()],
-      ['GRAND TOTAL PAID', grandPaid.toLocaleString()],
-      ['GRAND TOTAL OUTSTANDING', grandOutstanding.toLocaleString()]
-    ];
-
-    doc.setFontSize(10);
-    doc.setFont(undefined, 'bold');
-    doc.text('Grand Summary:', 14, y - 4);
-
-    autoTable(doc, {
-      head: grandHead,
-      body: grandBody,
-      startY: y,
-      theme: 'grid',
-      styles: { fontSize: 8, cellPadding: 2 },
-      headStyles: { fillColor: [37, 99, 235], textColor: [255, 255, 255], fontStyle: 'bold' }
-    });
-
-
-
-    // Fetch and display payment history for selected customer
-    if (filters.customerId) {
-      let customerPayments = [];
+      let outstandingData = [];
       try {
-        const params = new URLSearchParams();
-        if (filters.startDate) params.append('startDate', filters.startDate);
-        if (filters.endDate) params.append('endDate', filters.endDate);
-        const { data } = await api.get(`/customers/${filters.customerId}/history?${params.toString()}`);
-        customerPayments = data.payments || [];
+        const params = new URLSearchParams(queryParams);
+        const { data } = await api.get(`/reports/outstanding?${params.toString()}`);
+        outstandingData = data || [];
       } catch (err) {
-        console.error('Error fetching customer payments for PDF', err);
+        console.error('Error fetching outstanding report for PDF', err);
       }
 
-      if (customerPayments.length > 0) {
-        y = (doc.lastAutoTable?.finalY || y) + 12;
-        if (y > pageHeight - 65) {
+      // Aggregate counts from listToExport
+      const billCountMap = {};
+      listToExport.forEach(b => {
+        const cid = (b.customer?._id || b.customer || '').toString();
+        if (cid) {
+          billCountMap[cid] = (billCountMap[cid] || 0) + 1;
+        }
+      });
+
+      // Filter active customers
+      const activeCustomers = outstandingData.filter(item => 
+        (billCountMap[item.customerId] || 0) > 0 || (item.outstandingBalance || 0) > 0
+      );
+
+      const head = [['S.NO', 'CUSTOMER NAME', 'NO OF BILLS', 'GRAND TOTAL BILLED (Rs.)', 'PENDING AMOUNT (Rs.)']];
+      const body = activeCustomers.map((item, idx) => [
+        idx + 1,
+        item.customerName || '—',
+        billCountMap[item.customerId] || 0,
+        Number(item.totalBillsAmount || 0).toLocaleString(),
+        Number(item.outstandingBalance || 0).toLocaleString()
+      ]);
+
+      autoTable(doc, {
+        head,
+        body,
+        startY: 36,
+        theme: 'grid',
+        styles: { fontSize: 8, cellPadding: 2.5 },
+        headStyles: { fillColor: [245, 246, 250], textColor: [15, 23, 42], fontStyle: 'bold' }
+      });
+
+      let y = (doc.lastAutoTable?.finalY || 36) + 12;
+      if (y > pageHeight - 45) {
+        doc.addPage();
+        y = 18;
+      }
+
+      let grandBilled = 0;
+      let grandPending = 0;
+      activeCustomers.forEach(c => {
+        grandBilled += c.totalBillsAmount || 0;
+        grandPending += c.outstandingBalance || 0;
+      });
+
+      const grandHead = [['GRAND SUMMARY', 'AMOUNT (Rs.)']];
+      const grandBody = [
+        ['GRAND TOTAL BILLED', grandBilled.toLocaleString()],
+        ['GRAND TOTAL PENDING', grandPending.toLocaleString()]
+      ];
+
+      doc.setFontSize(10);
+      doc.setFont(undefined, 'bold');
+      doc.text('Grand Summary:', 14, y - 4);
+
+      autoTable(doc, {
+        head: grandHead,
+        body: grandBody,
+        startY: y,
+        theme: 'grid',
+        styles: { fontSize: 8.5, cellPadding: 2.5 },
+        headStyles: { fillColor: [37, 99, 235], textColor: [255, 255, 255], fontStyle: 'bold' }
+      });
+
+      doc.save('customer_bills_summary.pdf');
+    } else {
+      // 2. EACH CUSTOMER STATEMENT REPORT
+      const titleText = `${customerName.toUpperCase()} BILL STATEMENT`;
+      centerText(titleText, 19, 12, 'bold');
+      centerText(rangeLabel, 26, 9);
+      doc.setDrawColor(200, 200, 200);
+      doc.line(14, 29, pageWidth - 14, 29);
+
+      // Fetch full history to calculate old balance correctly
+      let fullLedger = [];
+      let fullPayments = [];
+      try {
+        const { data } = await api.get(`/customers/${filters.customerId}/history`);
+        fullLedger = data.ledger || [];
+        fullPayments = data.payments || [];
+      } catch (err) {
+        console.error('Error fetching customer history for PDF', err);
+      }
+
+      // Calculate balance values
+      const sortedLedger = [...fullLedger].sort((a, b) => new Date(a.date) - new Date(b.date));
+      let oldBalance = 0;
+      if (startDateVal) {
+        const beforeEntries = sortedLedger.filter(e => new Date(e.date) < startDateVal);
+        if (beforeEntries.length > 0) {
+          oldBalance = beforeEntries[beforeEntries.length - 1].runningBalance;
+        }
+      }
+
+      let grandTotal = 0;
+      let amountReceived = 0;
+
+      sortedLedger.forEach(entry => {
+        const entryDate = new Date(entry.date);
+        const inRange = (!startDateVal || entryDate >= startDateVal) && (!endDateVal || entryDate <= endDateVal);
+        if (inRange) {
+          if (entry.transactionType === 'Bill Created') {
+            grandTotal += entry.debit;
+          } else if (entry.transactionType === 'Payment Received') {
+            amountReceived += entry.credit;
+          }
+        }
+      });
+
+      const totalAmount = grandTotal + oldBalance;
+      const totalBalance = totalAmount - amountReceived;
+
+      // Table 1: Individual bills list
+      const head = [['S.NO', 'DATE', 'VEHICLE NUMBER', 'MATERIAL', 'QTY', 'UNIT', 'RATE (Rs.)', 'PASS (Rs.)', 'TOTAL (Rs.)']];
+      const body = listToExport.map((b, idx) => [
+        idx + 1,
+        new Date(b.date).toLocaleDateString(),
+        b.vehicleNumber || '—',
+        b.materialNameSnapshot || '—',
+        Number(b.quantity || 0).toFixed(2),
+        b.quantityUnit || 'ton',
+        Number(b.pricePerUnit || 0).toLocaleString(),
+        Number(b.passAmount || 0).toLocaleString(),
+        (Number(b.totalAmount || 0) + Number(b.passAmount || 0)).toLocaleString()
+      ]);
+
+      autoTable(doc, {
+        head,
+        body,
+        startY: 36,
+        theme: 'grid',
+        styles: { fontSize: 7.5, cellPadding: 2 },
+        headStyles: { fillColor: [245, 246, 250], textColor: [15, 23, 42], fontStyle: 'bold' }
+      });
+
+      let y = (doc.lastAutoTable?.finalY || 36) + 12;
+      if (y > pageHeight - 65) {
+        doc.addPage();
+        y = 18;
+      }
+
+      // Table 2: Financial Summary
+      const totalsHead = [['STATEMENT SUMMARY', 'AMOUNT']];
+      const totalsBody = [
+        ['GRAND TOTAL BILLED', `Rs. ${Number(grandTotal).toLocaleString()}`],
+        ['OLD BALANCE', `Rs. ${Number(oldBalance).toLocaleString()}`],
+        ['TOTAL AMOUNT', `Rs. ${Number(totalAmount).toLocaleString()}`],
+        ['AMOUNT RECEIVED', `Rs. ${Number(amountReceived).toLocaleString()}`],
+        ['TOTAL BALANCE', `Rs. ${Number(totalBalance).toLocaleString()}`]
+      ];
+
+      const leftRightMargin = 14;
+      const detailsColWidth = 85;
+      const amountColWidth = pageWidth - leftRightMargin * 2 - detailsColWidth;
+      const tableWidth = detailsColWidth + amountColWidth;
+
+      autoTable(doc, {
+        head: totalsHead,
+        body: totalsBody,
+        startY: y,
+        theme: 'grid',
+        tableWidth,
+        styles: { fontSize: 8.5, cellPadding: 2, overflow: 'linebreak' },
+        headStyles: { fillColor: [37, 99, 235], textColor: [255, 255, 255], fontStyle: 'bold' },
+        columnStyles: {
+          0: { halign: 'left', cellWidth: detailsColWidth },
+          1: { halign: 'right', cellWidth: amountColWidth }
+        },
+        margin: { left: leftRightMargin, right: leftRightMargin }
+      });
+
+      y = doc.lastAutoTable.finalY + 12;
+
+      // Render payment history in timeline if there are payments
+      const paymentsInTimeline = fullPayments.filter(p => {
+        const pdate = new Date(p.paymentDate || p.date);
+        return (!startDateVal || pdate >= startDateVal) && (!endDateVal || pdate <= endDateVal);
+      });
+
+      if (paymentsInTimeline.length > 0) {
+        if (y > pageHeight - 55) {
           doc.addPage();
           y = 18;
         }
 
         doc.setFontSize(10);
         doc.setFont(undefined, 'bold');
-        doc.text('PAYMENT HISTORY:', 14, y - 4);
+        doc.text('PAYMENTS RECEIVED IN TIMELINE:', 14, y - 4);
 
         const payHead = [['S.NO', 'DATE', 'PAYMENT NUMBER', 'AMOUNT PAID (Rs.)', 'RECEIVED BY', 'NOTES']];
-        const payBody = customerPayments.map((p, idx) => [
+        const payBody = paymentsInTimeline.map((p, idx) => [
           idx + 1,
           formatDateTime(p.paymentDate || p.date).date,
           p.paymentNumber || '—',
@@ -419,14 +521,14 @@ const Bills = () => {
           body: payBody,
           startY: y,
           theme: 'grid',
-          styles: { fontSize: 8, cellPadding: 2 },
+          styles: { fontSize: 8, cellPadding: 2.5 },
           headStyles: { fillColor: [15, 23, 42], textColor: [255, 255, 255], fontStyle: 'bold' }
         });
       }
-    }
 
-    const filePrefix = customerName ? customerName.replaceAll(' ', '_') : 'customer_bills';
-    doc.save(`${filePrefix}_summary.pdf`);
+      const filePrefix = customerName ? customerName.replaceAll(' ', '_') : 'customer';
+      doc.save(`${filePrefix}_statement.pdf`);
+    }
   };
 
   const handleChange = (e) => {
@@ -676,18 +778,6 @@ const Bills = () => {
               </select>
             </div>
 
-            <div className="w-full sm:w-auto">
-              <label className="block text-xs font-semibold text-slate-500 mb-1 uppercase tracking-wider">Status</label>
-              <select
-                value={filters.status}
-                onChange={(e) => setFilters((prev) => ({ ...prev, status: e.target.value }))}
-                className="border border-slate-300 rounded-lg p-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none bg-white w-full"
-              >
-                <option value="">All Statuses</option>
-                <option value="Outstanding">Outstanding</option>
-                <option value="Settled">Settled</option>
-              </select>
-            </div>
 
             <div className="w-full sm:w-auto">
               <label className="block text-xs font-semibold text-slate-500 mb-1 uppercase tracking-wider">Filter Mode</label>
@@ -838,15 +928,13 @@ const Bills = () => {
             <table className="data-table">
               <thead className="sticky top-0 bg-slate-50 dark:bg-slate-900 shadow-sm z-10 w-full min-w-max">
                 <tr className="border-b border-slate-200 dark:border-slate-800 text-sm text-slate-600 dark:text-slate-400 uppercase tracking-wider">
-                  <th className="p-4 font-semibold whitespace-nowrap w-8"></th>
                   <th className="p-4 font-semibold whitespace-nowrap">Date</th>
                   <th className="p-4 font-semibold">Customer</th>
                   <th className="p-4 font-semibold whitespace-nowrap">Vehicle No.</th>
                   <th className="p-4 font-semibold whitespace-nowrap">Material (Qty)</th>
-                  <th className="p-4 font-semibold whitespace-nowrap">Total (₹)</th>
-                  <th className="p-4 font-semibold whitespace-nowrap">Allocated (₹)</th>
-                  <th className="p-4 font-semibold whitespace-nowrap">Outstanding (₹)</th>
-                  <th className="p-4 font-semibold text-center whitespace-nowrap">Status</th>
+                  <th className="p-4 font-semibold whitespace-nowrap text-right">Subtotal (₹)</th>
+                  <th className="p-4 font-semibold whitespace-nowrap text-right">PASS (₹)</th>
+                  <th className="p-4 font-semibold whitespace-nowrap text-right">Grand Total (₹)</th>
                   <th className="p-4 font-semibold text-right">Actions</th>
                 </tr>
               </thead>
@@ -854,21 +942,7 @@ const Bills = () => {
                 {filteredBills.map((bill) => {
                   const billDateTime = formatDateTime(bill.date);
                   return (
-                  <React.Fragment key={bill._id}>
-                    <tr>
-                      <td className="p-2 text-center">
-                        <button 
-                          onClick={() => togglePaymentHistory(bill._id)} 
-                          className="text-slate-500 hover:text-blue-600 p-1 rounded transition-colors"
-                          title="View payment history"
-                        >
-                          {expandedBillId === bill._id ? (
-                            <ChevronDownIcon className="h-5 w-5" />
-                          ) : (
-                            <HistoryIcon className="h-5 w-5" />
-                          )}
-                        </button>
-                      </td>
+                    <tr key={bill._id}>
                       <td className="p-4 text-slate-600 font-medium whitespace-nowrap">{billDateTime.date}</td>
                       <td className="p-4 text-slate-800 font-semibold">
                         {customers.find(c => c._id === (bill.customer?._id || bill.customer))?.name || bill.customerNameSnapshot}
@@ -879,15 +953,14 @@ const Bills = () => {
                         <div className="text-xs text-slate-500">{Number(bill.quantity).toFixed(2)} {bill.quantityUnit || 'ton'}s @ ₹{bill.pricePerUnit}</div>
                         {bill.isBackdated && <div className="text-xs text-amber-600 font-medium">Backdated</div>}
                       </td>
-                      <td className="p-4 font-bold text-slate-800">
-                        ₹{(Number(bill.totalAmount) + Number(bill.passAmount || 0)).toLocaleString()}
+                      <td className="p-4 text-right text-slate-600">
+                        ₹{Number(bill.totalAmount || 0).toLocaleString()}
                       </td>
-                      <td className="p-4 text-slate-600">₹{(bill.allocatedAmount || 0).toLocaleString()}</td>
-                      <td className="p-4 font-semibold text-red-600">₹{bill.pendingAmount.toLocaleString()}</td>
-                      <td className="p-4 text-center">
-                        <span className={`px-2.5 py-1 rounded-full text-xs font-semibold border ${getStatusColor(bill.pendingAmount)}`}>
-                          {bill.pendingAmount > 0 ? 'Outstanding' : 'Settled'}
-                        </span>
+                      <td className="p-4 text-right text-slate-600">
+                        ₹{Number(bill.passAmount || 0).toLocaleString()}
+                      </td>
+                      <td className="p-4 text-right font-bold text-slate-800">
+                        ₹{(Number(bill.totalAmount || 0) + Number(bill.passAmount || 0)).toLocaleString()}
                       </td>
                       <td className="p-4 text-right space-x-2 whitespace-nowrap">
                         <button 
@@ -917,67 +990,7 @@ const Bills = () => {
                         )}
                       </td>
                     </tr>
-                    {expandedBillId === bill._id && (
-                      <tr className="bg-slate-50 border-b-2 border-slate-200">
-                        <td colSpan="10" className="p-6">
-                          <div className="bg-white rounded-lg border border-slate-200 overflow-hidden">
-                            <div className="bg-slate-100 px-4 py-3 border-b border-slate-200">
-                              <h3 className="font-semibold text-slate-800">Payments Applied to this Bill</h3>
-                            </div>
-                            {paymentHistory[bill._id] && paymentHistory[bill._id].length > 0 ? (
-                              <div className="overflow-auto">
-                                <table className="w-full text-sm">
-                                  <thead>
-                                    <tr className="border-b border-slate-200 bg-slate-50 text-xs text-slate-600 uppercase">
-                                      <th className="p-3 text-left font-semibold">Payment Number</th>
-                                      <th className="p-3 text-left font-semibold">Date</th>
-                                      <th className="p-3 text-right font-semibold">Amount Applied (₹)</th>
-                                      <th className="p-3 text-left font-semibold">Notes</th>
-                                      {canWrite && <th className="p-3 text-right font-semibold">Actions</th>}
-                                    </tr>
-                                  </thead>
-                                  <tbody className="divide-y divide-slate-100">
-                                    {paymentHistory[bill._id].map((payment, idx) => {
-                                      const { date } = formatDateTime(payment.date || payment.paymentDate);
-                                      return (
-                                        <tr key={idx} className="hover:bg-slate-50">
-                                          <td className="p-3 font-semibold text-slate-700">{payment.paymentNumber || '—'}</td>
-                                          <td className="p-3 text-slate-600">{date}</td>
-                                          <td className="p-3 text-right font-semibold text-green-600">₹{Number(payment.amount).toLocaleString()}</td>
-                                          <td className="p-3 text-slate-500 italic">{payment.note || payment.notes || '—'}</td>
-                                          {canWrite && (
-                                            <td className="p-3 text-right space-x-2 whitespace-nowrap">
-                                              <button 
-                                                onClick={() => openEditPaymentModal(payment)} 
-                                                className="text-blue-600 hover:text-blue-800 hover:bg-blue-50 p-1.5 rounded-lg transition-colors inline-flex items-center" 
-                                                title="Edit Payment"
-                                              >
-                                                <EditIcon className="h-4 w-4" />
-                                              </button>
-                                              <button 
-                                                onClick={() => handleDeletePayment(payment)} 
-                                                className="text-red-600 hover:text-red-800 hover:bg-red-50 p-1.5 rounded-lg transition-colors inline-flex items-center" 
-                                                title="Delete Payment"
-                                              >
-                                                <TrashIcon className="h-4 w-4" />
-                                              </button>
-                                            </td>
-                                          )}
-                                        </tr>
-                                      );
-                                    })}
-                                  </tbody>
-                                </table>
-                              </div>
-                            ) : (
-                              <div className="p-4 text-center text-slate-500 text-sm">No payments recorded yet</div>
-                            )}
-                          </div>
-                        </td>
-                      </tr>
-                    )}
-                  </React.Fragment>
-                );
+                  );
                 })}
               </tbody>
             </table>
