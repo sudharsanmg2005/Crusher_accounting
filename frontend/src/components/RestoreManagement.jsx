@@ -206,22 +206,42 @@ const RestoreManagement = ({ onConflictCountChange }) => {
     const filteredCustomers = useMemo(() => {
     if (!search.trim()) return conflictCustomers;
     const q = search.toLowerCase();
-    return conflictCustomers.filter((item) =>
-      (item.backup?.name || '').toLowerCase().includes(q) ||
-      (item.backup?.phone || '').toLowerCase().includes(q) ||
-      (item.existingRecord?.name || '').toLowerCase().includes(q)
-    );
+    return conflictCustomers
+      .filter((item) =>
+        (item.backup?.name || '').toLowerCase().includes(q) ||
+        (item.backup?.phone || '').toLowerCase().includes(q) ||
+        (item.existingRecord?.name || '').toLowerCase().includes(q)
+      )
+      .sort((a, b) => {
+        const nameA = (a.backup?.name || '').toLowerCase();
+        const nameB = (b.backup?.name || '').toLowerCase();
+        const aStarts = nameA.startsWith(q);
+        const bStarts = nameB.startsWith(q);
+        if (aStarts && !bStarts) return -1;
+        if (!aStarts && bStarts) return 1;
+        return 0;
+      });
   }, [conflictCustomers, search]);
 
   const filteredEmployees = useMemo(() => {
     if (!search.trim()) return conflictEmployees;
     const q = search.toLowerCase();
-    return conflictEmployees.filter((item) =>
-      (item.backup?.name || '').toLowerCase().includes(q) ||
-      (item.backup?.phone || '').toLowerCase().includes(q) ||
-      (item.existingRecord?.name || '').toLowerCase().includes(q) ||
-      (item.backup?.designation || '').toLowerCase().includes(q)
-    );
+    return conflictEmployees
+      .filter((item) =>
+        (item.backup?.name || '').toLowerCase().includes(q) ||
+        (item.backup?.phone || '').toLowerCase().includes(q) ||
+        (item.existingRecord?.name || '').toLowerCase().includes(q) ||
+        (item.backup?.designation || '').toLowerCase().includes(q)
+      )
+      .sort((a, b) => {
+        const nameA = (a.backup?.name || '').toLowerCase();
+        const nameB = (b.backup?.name || '').toLowerCase();
+        const aStarts = nameA.startsWith(q);
+        const bStarts = nameB.startsWith(q);
+        if (aStarts && !bStarts) return -1;
+        if (!aStarts && bStarts) return 1;
+        return 0;
+      });
   }, [conflictEmployees, search]);
 
   const activeRows = activeSection === 'customers' ? filteredCustomers : filteredEmployees;

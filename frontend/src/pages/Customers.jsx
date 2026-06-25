@@ -18,11 +18,19 @@ const Customers = () => {
   const filteredCustomers = useMemo(() => {
     const term = searchTerm.trim().toLowerCase();
     if (!term) return customers;
-    return customers.filter(
-      (c) =>
-        (c.name || '').toLowerCase().includes(term) ||
-        (c.phone || '').includes(term)
-    );
+    return customers
+      .filter(
+        (c) =>
+          (c.name || '').toLowerCase().includes(term) ||
+          (c.phone || '').includes(term)
+      )
+      .sort((a, b) => {
+        const aStarts = (a.name || '').toLowerCase().startsWith(term);
+        const bStarts = (b.name || '').toLowerCase().startsWith(term);
+        if (aStarts && !bStarts) return -1;
+        if (!aStarts && bStarts) return 1;
+        return 0;
+      });
   }, [customers, searchTerm]);
 
   const [isModalOpen, setIsModalOpen] = useState(false);

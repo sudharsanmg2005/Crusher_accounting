@@ -93,5 +93,17 @@ export const filterRecords = (items, filters, options = {}) => {
     result.sort((a, b) => new Date(getDate(b)) - new Date(getDate(a)));
   }
 
+  if (search) {
+    result.sort((a, b) => {
+      const nameA = (nameField(a) || '').toLowerCase();
+      const nameB = (nameField(b) || '').toLowerCase();
+      const aStarts = nameA.startsWith(search);
+      const bStarts = nameB.startsWith(search);
+      if (aStarts && !bStarts) return -1;
+      if (!aStarts && bStarts) return 1;
+      return 0;
+    });
+  }
+
   return result;
 };

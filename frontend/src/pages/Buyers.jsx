@@ -446,11 +446,19 @@ const Buyers = () => {
   const filteredBuyers = useMemo(() => {
     const term = searchTerm.trim().toLowerCase();
     if (!term) return buyers;
-    return buyers.filter(
-      (b) =>
-        (b.name || '').toLowerCase().includes(term) ||
-        (b.phone || '').includes(term)
-    );
+    return buyers
+      .filter(
+        (b) =>
+          (b.name || '').toLowerCase().includes(term) ||
+          (b.phone || '').includes(term)
+      )
+      .sort((a, b) => {
+        const aStarts = (a.name || '').toLowerCase().startsWith(term);
+        const bStarts = (b.name || '').toLowerCase().startsWith(term);
+        if (aStarts && !bStarts) return -1;
+        if (!aStarts && bStarts) return 1;
+        return 0;
+      });
   }, [buyers, searchTerm]);
 
   return (

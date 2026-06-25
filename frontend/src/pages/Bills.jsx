@@ -92,9 +92,7 @@ const Bills = () => {
 
   const filteredBills = useMemo(() => {
     let result = [...bills];
-    const search = filters.search.trim().toLowerCase();
-
-    if (search) {
+    const search = filters.search.trim().toLowerCase();    if (search) {
       result = result.filter((bill) => {
         const customer = customers.find(c => c._id === (bill.customer?._id || bill.customer));
         const customerName = customer ? customer.name : (bill.customerNameSnapshot || '');
@@ -105,6 +103,18 @@ const Bills = () => {
                vehicle.toLowerCase().includes(search) ||
                material.toLowerCase().includes(search) ||
                billNum.toLowerCase().includes(search);
+      });
+
+      result.sort((a, b) => {
+        const customerA = customers.find(c => c._id === (a.customer?._id || a.customer));
+        const nameA = customerA ? customerA.name : (a.customerNameSnapshot || '');
+        const customerB = customers.find(c => c._id === (b.customer?._id || b.customer));
+        const nameB = customerB ? customerB.name : (b.customerNameSnapshot || '');
+        const aStarts = nameA.toLowerCase().startsWith(search);
+        const bStarts = nameB.toLowerCase().startsWith(search);
+        if (aStarts && !bStarts) return -1;
+        if (!aStarts && bStarts) return 1;
+        return 0;
       });
     }
 

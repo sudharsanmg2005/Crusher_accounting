@@ -49,9 +49,16 @@ const SearchableSelect = ({
   };
 
   // Filter options based on search query
-  const filteredOptions = options.filter((opt) =>
-    opt.label.toLowerCase().includes(search.toLowerCase())
-  );
+  const filteredOptions = options
+    .filter((opt) => opt.label.toLowerCase().includes(search.toLowerCase()))
+    .sort((a, b) => {
+      const q = search.toLowerCase();
+      const aStarts = a.label.toLowerCase().startsWith(q);
+      const bStarts = b.label.toLowerCase().startsWith(q);
+      if (aStarts && !bStarts) return -1;
+      if (!aStarts && bStarts) return 1;
+      return 0;
+    });
 
   return (
     <div ref={containerRef} className="relative w-full">

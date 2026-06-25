@@ -521,23 +521,34 @@ const Employees = () => {
   }, [employees]);
 
   const filteredEmployees = useMemo(() => {
-    return employees.filter(emp => {
+    const term = searchQuery.trim().toLowerCase();
+    const filtered = employees.filter(emp => {
       const name = emp.name ? emp.name.toLowerCase() : '';
       const phone = emp.phone ? emp.phone : '';
       const matchesSearch = 
-        name.includes(searchQuery.toLowerCase()) ||
+        name.includes(term) ||
         phone.includes(searchQuery);
       
       const empDesignation = (emp.designation || 'Labour').trim().toLowerCase();
       const matchesDesignation = 
         !filterDesignation || 
         empDesignation === filterDesignation.toLowerCase();
-        
+         
       const matchesStatus = 
         !filterStatus || 
         emp.status === filterStatus;
-        
+         
       return matchesSearch && matchesDesignation && matchesStatus;
+    });
+
+    if (!term) return filtered;
+
+    return [...filtered].sort((a, b) => {
+      const aStarts = (a.name || '').toLowerCase().startsWith(term);
+      const bStarts = (b.name || '').toLowerCase().startsWith(term);
+      if (aStarts && !bStarts) return -1;
+      if (!aStarts && bStarts) return 1;
+      return 0;
     });
   }, [employees, searchQuery, filterDesignation, filterStatus]);
 
