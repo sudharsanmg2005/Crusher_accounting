@@ -336,9 +336,9 @@ const Bills = () => {
         }
       });
 
-      // Filter active customers
+      // Filter active customers (only those who took load/bill on the particular timeline)
       const activeCustomers = outstandingData.filter(item => 
-        (billCountMap[item.customerId] || 0) > 0 || (item.outstandingBalance || 0) > 0
+        (billCountMap[item.customerId] || 0) > 0
       );
 
       const head = [['S.NO', 'CUSTOMER NAME', 'NO OF BILLS', 'GRAND TOTAL BILLED (Rs.)', 'PENDING AMOUNT (Rs.)']];

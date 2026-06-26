@@ -438,9 +438,9 @@ const LoadManagement = () => {
         }
       });
 
-      // Filter active buyers
+      // Filter active buyers (only those who took load on the particular timeline)
       const activeBuyers = outstandingData.filter(item => 
-        (loadCountMap[item.buyerId] || 0) > 0 || (item.outstandingBalance || 0) > 0
+        (loadCountMap[item.buyerId] || 0) > 0
       );
 
       const head = [['S.NO', 'BUYER NAME', 'NO OF LOADS', 'GRAND TOTAL COST (Rs.)', 'PENDING AMOUNT (Rs.)']];
