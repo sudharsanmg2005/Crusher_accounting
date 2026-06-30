@@ -644,7 +644,39 @@ const Bills = () => {
       });
 
       let y = (doc.lastAutoTable?.finalY || 36) + 12;
-      if (y > pageHeight - 45) {
+      if (y > pageHeight - 55) {
+        doc.addPage();
+        y = 18;
+      }
+
+      // Group by customer and sum amounts
+      const customerTotals = {};
+      sortedPayments.forEach(p => {
+        const name = p.customerName || 'Unknown';
+        customerTotals[name] = (customerTotals[name] || 0) + (p.amountPaid || 0);
+      });
+
+      const summaryTableHead = [['CUSTOMER NAME', 'TOTAL PAYMENTS RECEIVED (Rs.)']];
+      const summaryTableBody = Object.entries(customerTotals).map(([name, total]) => [
+        name,
+        Number(total).toLocaleString()
+      ]);
+
+      doc.setFontSize(10);
+      doc.setFont(undefined, 'bold');
+      doc.text('Customer-wise Payment Summary:', 14, y - 4);
+
+      autoTable(doc, {
+        head: summaryTableHead,
+        body: summaryTableBody,
+        startY: y,
+        theme: 'grid',
+        styles: { fontSize: 8, cellPadding: 2.5 },
+        headStyles: { fillColor: [245, 246, 250], textColor: [15, 23, 42], fontStyle: 'bold' }
+      });
+
+      y = (doc.lastAutoTable?.finalY || y) + 12;
+      if (y > pageHeight - 35) {
         doc.addPage();
         y = 18;
       }
