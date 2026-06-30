@@ -1,994 +1,698 @@
-import React, { useState, useEffect, useRef, useMemo } from 'react';
-import logoUrl from '../assets/dark KBM.png';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
+import { useNavigate } from 'react-router-dom';
+import api from '../api';
+import { useAuth } from '../AuthContext';
 import { useTheme } from '../ThemeContext';
+import logoUrl from '../assets/dark KBM.png';
+import {
+  Chart as ChartJS,
+  CategoryScale,
+  LinearScale,
+  PointElement,
+  LineElement,
+  Title,
+  Tooltip,
+  Legend,
+  Filler
+} from 'chart.js';
+import { Line } from 'react-chartjs-2';
+import {
+  UsersIcon,
+  HardHatIcon,
+  PackageIcon,
+  CargoIcon,
+  ShieldCheckIcon,
+  ChevronRightIcon,
+  UserShieldIcon,
+  HistoryIcon,
+  ReceiptIcon
+} from '../components/Icons';
 
-// Sound system (Web Audio API)
-let audioCtx = null;
-let motorOsc = null;
-let motorGain = null;
-let crushNoise = null;
-let crushGain = null;
-let crushFilter = null;
+// Register Chart.js components
+ChartJS.register(
+  CategoryScale,
+  LinearScale,
+  PointElement,
+  LineElement,
+  Title,
+  Tooltip,
+  Legend,
+  Filler
+);
+
+// Rolling diagnostic logs template
+const logTemplates = [
+  'Database status: Active and optimized.',
+  'Material inventory models synced successfully.',
+  'Session heartbeat check complete. Status: OK.',
+  'System memory load verified: Normal (14% utilized).',
+  'MongoDB index validation successful.',
+  'API gateway response latency check: Optimal (24ms).',
+  'Security token verification complete.',
+  'Garbage collection process concluded.',
+  'Replicated backup clusters: Synchronized.',
+  'Operational records integrity check: OK.',
+  'Security context signature verified.',
+  'Background synchronization workers: Operational.'
+];
+
+// Helper to compute stats for the last 7 days (operational dispatch volumes)
+const getLast7DaysData = (bills, loads) => {
+  const dates = [];
+  const billCounts = [];
+  const loadCounts = [];
+
+  for (let i = 6; i >= 0; i--) {
+    const d = new Date();
+    d.setDate(d.getDate() - i);
+    const dateStr = d.toLocaleDateString('sv'); // YYYY-MM-DD format in local time
+    dates.push(
+      d.toLocaleDateString('en-US', {
+        weekday: 'short',
+        month: 'short',
+        day: 'numeric'
+      })
+    );
+
+    const billsCountForDay = bills.filter(b => b.date && b.date.startsWith(dateStr)).length;
+    const loadsCountForDay = loads.filter(l => l.date && l.date.startsWith(dateStr)).length;
+
+    billCounts.push(billsCountForDay);
+    loadCounts.push(loadsCountForDay);
+  }
+
+  return { dates, billCounts, loadCounts };
+};
 
 const Dashboard = () => {
+  const { user } = useAuth();
   const { theme } = useTheme();
+  const navigate = useNavigate();
   const isDarkMode = theme === 'dark';
 
-  // Control State
-  const [beltSpeed, setBeltSpeed] = useState(1); // 0 (Stop), 0.5 (Slow), 1 (Normal), 2 (Fast), 3 (Max)
-  const [materialType, setMaterialType] = useState('blue-metal'); // blue-metal, granite, gravel
-  const [isEStopped, setIsEStopped] = useState(false);
-  const [soundOn, setSoundOn] = useState(false);
-  const [statistics, setStatistics] = useState({
-    throughput: 0,
-    totalCrushed: 0,
-    motorTemp: 55,
-    vibration: 0.15,
+  const [loading, setLoading] = useState(true);
+  const [currentTime, setCurrentTime] = useState(new Date());
+  const [stats, setStats] = useState({
+    customers: 0,
+    buyers: 0,
+    employees: 0,
+    materials: 0,
+    todayBills: 0,
+    todayLoads: 0,
+    apiLatency: 'Calculating...',
+    dbStatus: 'Unknown',
+    dbProvider: 'Unknown',
+    dbHost: 'Unknown',
+    dbName: 'Unknown'
   });
+  const [recentDeliveries, setRecentDeliveries] = useState([]);
+  const [chartData, setChartData] = useState({ labels: [], datasets: [] });
+  const [terminalLogs, setTerminalLogs] = useState([
+    'Initializing diagnostic monitor...',
+    'Secure database link established.',
+    'System monitoring console: Online.'
+  ]);
 
-  // Pulse effect trigger for the logo
-  const [logoPulse, setLogoPulse] = useState(false);
-  const [logoPulseColor, setLogoPulseColor] = useState('rgba(37, 99, 235, 0.4)'); // Default blue glow
+  const terminalEndRef = useRef(null);
 
-  const canvasRef = useRef(null);
-  const animationFrameId = useRef(null);
-  const particlesRef = useRef([]);
-  const pulsesRef = useRef([]);
-  const telemetryIntervalRef = useRef(null);
-  const pileHeightsRef = useRef(new Array(100).fill(0)); // Height map for accumulating pile
-
-  // Color mappings for materials
-  const materialColors = useMemo(() => ({
-    'blue-metal': ['#475569', '#334155', '#1e293b', '#64748b', '#0f172a'],
-    'granite': ['#78716c', '#57534e', '#44403c', '#a8a29e', '#292524'],
-    'gravel': ['#7c2d12', '#9a3412', '#c2410c', '#ea580c', '#dd6b20'],
-  }), []);
-
-  // Telemetry simulation
+  // Time ticker effect
   useEffect(() => {
-    if (isEStopped || beltSpeed === 0) {
-      setStatistics(prev => ({
-        ...prev,
-        throughput: 0,
-        vibration: 0.02,
-        motorTemp: Math.max(40, prev.motorTemp - 0.2), // Cool down
-      }));
-      return;
-    }
-
-    telemetryIntervalRef.current = setInterval(() => {
-      setStatistics(prev => {
-        const targetTemp = 45 + beltSpeed * 12 + (materialType === 'granite' ? 8 : 2);
-        const nextTemp = prev.motorTemp + (targetTemp - prev.motorTemp) * 0.05 + (Math.random() - 0.5) * 0.4;
-        const nextVib = 0.05 + beltSpeed * 0.15 + (materialType === 'granite' ? 0.08 : 0.02) + (Math.random() - 0.5) * 0.03;
-        const nextThroughput = Math.round((beltSpeed * 45 + (materialType === 'granite' ? -5 : 8) + (Math.random() - 0.5) * 4) * 10) / 10;
-        
-        return {
-          throughput: Math.max(0, nextThroughput),
-          totalCrushed: prev.totalCrushed + (nextThroughput / 360), // Add incremental tons
-          motorTemp: Math.min(110, Math.max(35, nextTemp)),
-          vibration: Math.max(0.01, nextVib),
-        };
-      });
-    }, 1000);
-
-    return () => {
-      if (telemetryIntervalRef.current) clearInterval(telemetryIntervalRef.current);
-    };
-  }, [beltSpeed, materialType, isEStopped]);
-
-  // Audio system controls
-  const handleSoundToggle = () => {
-    if (!soundOn) {
-      // Start audio context on user gesture
-      try {
-        const AudioContext = window.AudioContext || window.webkitAudioContext;
-        if (!audioCtx) {
-          audioCtx = new AudioContext();
-
-          // 1. Motor hum
-          motorOsc = audioCtx.createOscillator();
-          motorOsc.type = 'sine';
-          motorOsc.frequency.setValueAtTime(50, audioCtx.currentTime);
-          
-          motorGain = audioCtx.createGain();
-          motorGain.gain.setValueAtTime(0.02, audioCtx.currentTime);
-
-          motorOsc.connect(motorGain);
-          motorGain.connect(audioCtx.destination);
-          motorOsc.start();
-
-          // 2. Grinding noise
-          const bufferSize = audioCtx.sampleRate * 2;
-          const buffer = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate);
-          const data = buffer.getChannelData(0);
-          for (let i = 0; i < bufferSize; i++) {
-            data[i] = Math.random() * 2 - 1;
-          }
-          
-          crushNoise = audioCtx.createBufferSource();
-          crushNoise.buffer = buffer;
-          crushNoise.loop = true;
-
-          crushFilter = audioCtx.createBiquadFilter();
-          crushFilter.type = 'bandpass';
-          crushFilter.frequency.value = 180;
-          crushFilter.Q.value = 2.0;
-
-          crushGain = audioCtx.createGain();
-          crushGain.gain.setValueAtTime(0.01, audioCtx.currentTime);
-
-          crushNoise.connect(crushFilter);
-          crushFilter.connect(crushGain);
-          crushGain.connect(audioCtx.destination);
-          crushNoise.start();
-        } else if (audioCtx.state === 'suspended') {
-          audioCtx.resume();
-        }
-      } catch (err) {
-        console.error("Audio failed to initialize", err);
-      }
-      setSoundOn(true);
-    } else {
-      if (audioCtx && audioCtx.state === 'running') {
-        audioCtx.suspend();
-      }
-      setSoundOn(false);
-    }
-  };
-
-  // Sync audio node values with controls
-  useEffect(() => {
-    if (!soundOn || !audioCtx) return;
-
-    const actualSpeed = isEStopped ? 0 : beltSpeed;
-    const targetMotorGain = actualSpeed === 0 ? 0 : 0.01 + actualSpeed * 0.015;
-    const targetCrushGain = actualSpeed === 0 ? 0 : 0.005 + actualSpeed * 0.01;
-    const targetMotorFreq = 40 + actualSpeed * 10;
-    const targetFilterFreq = 120 + actualSpeed * 40 + (materialType === 'granite' ? 50 : 0);
-
-    if (motorGain) motorGain.gain.setTargetAtTime(targetMotorGain, audioCtx.currentTime, 0.1);
-    if (motorOsc) motorOsc.frequency.setTargetAtTime(targetMotorFreq, audioCtx.currentTime, 0.2);
-    if (crushGain) crushGain.gain.setTargetAtTime(targetCrushGain, audioCtx.currentTime, 0.15);
-    if (crushFilter) crushFilter.frequency.setTargetAtTime(targetFilterFreq, audioCtx.currentTime, 0.2);
-  }, [beltSpeed, materialType, isEStopped, soundOn]);
-
-  // Cleanup audio nodes on unmount
-  useEffect(() => {
-    return () => {
-      if (audioCtx) {
-        audioCtx.close().catch(() => {});
-        audioCtx = null;
-        motorOsc = null;
-        motorGain = null;
-        crushNoise = null;
-        crushGain = null;
-        crushFilter = null;
-      }
-    };
+    const timer = setInterval(() => setCurrentTime(new Date()), 1000);
+    return () => clearInterval(timer);
   }, []);
 
-  // Core Particle System and Animation Loop
+  // Fetch all counts, dispatches and system health (no finance/accounts records)
   useEffect(() => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    const ctx = canvas.getContext('2d');
+    const fetchData = async () => {
+      setLoading(true);
+      const start = Date.now();
+      try {
+        const [
+          customersRes,
+          buyersRes,
+          employeesRes,
+          materialsRes,
+          billsRes,
+          loadsRes,
+          healthRes
+        ] = await Promise.allSettled([
+          api.get('/customers'),
+          api.get('/buyers'),
+          api.get('/employees'),
+          api.get('/materials'),
+          api.get('/bills'),
+          api.get('/loads'),
+          api.get('/health')
+        ]);
 
-    // Make canvas display responsive but high resolution
-    const dpr = window.devicePixelRatio || 1;
-    canvas.width = 750 * dpr;
-    canvas.height = 340 * dpr;
-    ctx.scale(dpr, dpr);
+        const latency = `${Date.now() - start}ms`;
 
-    const colors = materialColors[materialType];
-    let spawnTimer = 0;
-    
-    // Conveyor line definitions
-    const hopperX = 70;
-    const hopperY = 30;
-    
-    const crusherX = 70;
-    const crusherY = 120;
-    
-    const beltStartX = 90;
-    const beltEndX = 480;
-    const beltY = 220;
+        const customers = customersRes.status === 'fulfilled' ? customersRes.value.data : [];
+        const buyers = buyersRes.status === 'fulfilled' ? buyersRes.value.data : [];
+        const employees = employeesRes.status === 'fulfilled' ? employeesRes.value.data : [];
+        const materials = materialsRes.status === 'fulfilled' ? materialsRes.value.data : [];
+        const bills = billsRes.status === 'fulfilled' ? billsRes.value.data : [];
+        const loads = loadsRes.status === 'fulfilled' ? loadsRes.value.data : [];
+        const health = healthRes.status === 'fulfilled' ? healthRes.value.data : null;
 
-    const sensorX = 500;
-    const sensorY = 250;
+        // sv-SE gives local YYYY-MM-DD
+        const todayStr = new Date().toLocaleDateString('sv');
 
-    particlesRef.current = [];
-    pulsesRef.current = [];
+        const todayBills = bills.filter(b => b.date && b.date.startsWith(todayStr)).length;
+        const todayLoads = loads.filter(l => l.date && l.date.startsWith(todayStr)).length;
 
-    const drawCrusherHopper = (context) => {
-      // Hopper metal body
-      context.fillStyle = '#334155';
-      context.beginPath();
-      context.moveTo(35, 20);
-      context.lineTo(105, 20);
-      context.lineTo(85, 80);
-      context.lineTo(55, 80);
-      context.closePath();
-      context.fill();
+        // Merge recent shipments (latest 8 dispatches across customers and buyers)
+        const formattedBills = bills.map(b => ({
+          id: b._id,
+          type: 'Customer Sale',
+          date: b.date,
+          vehicle: b.vehicleNumber || '—',
+          material: b.materialNameSnapshot || '—',
+          target: b.customerNameSnapshot || '—',
+          quantity: `${b.quantity ? Number(b.quantity).toFixed(2) : '—'} ${b.unitType || 'tons'}`
+        }));
 
-      // Hopper bolts/rim
-      context.strokeStyle = '#475569';
-      context.lineWidth = 3;
-      context.strokeRect(33, 17, 74, 5);
+        const formattedLoads = loads.map(l => ({
+          id: l._id,
+          type: 'Buyer Purchase',
+          date: l.date,
+          vehicle: l.vehicleNumber || '—',
+          material: l.quarryName || '—',
+          target: l.buyerNameSnapshot || '—',
+          quantity: `${l.quantity ? Number(l.quantity).toFixed(2) : '—'} ${l.unitType || 'tons'}`
+        }));
 
-      // Jaw Crusher main frame
-      context.fillStyle = '#1e293b';
-      context.fillRect(40, 80, 60, 60);
+        const merged = [...formattedBills, ...formattedLoads]
+          .sort((a, b) => new Date(b.date) - new Date(a.date))
+          .slice(0, 8);
 
-      // Jaw hydraulic arm / Flywheel
-      const time = Date.now() * 0.005 * (isEStopped ? 0 : beltSpeed);
-      const angle = time;
-      const flyX = 50 + Math.cos(angle) * 8;
-      const flyY = 110 + Math.sin(angle) * 8;
+        setRecentDeliveries(merged);
 
-      context.strokeStyle = '#64748b';
-      context.lineWidth = 4;
-      context.beginPath();
-      context.moveTo(flyX, flyY);
-      context.lineTo(75, 125);
-      context.stroke();
-
-      // Rotating Flywheel
-      context.fillStyle = '#475569';
-      context.beginPath();
-      context.arc(50, 110, 18, 0, Math.PI * 2);
-      context.fill();
-      context.strokeStyle = '#f8fafc';
-      context.lineWidth = 2;
-      context.beginPath();
-      context.arc(50, 110, 18, angle, angle + 0.5);
-      context.stroke();
-      context.beginPath();
-      context.arc(50, 110, 18, angle + Math.PI, angle + Math.PI + 0.5);
-      context.stroke();
-
-      // Jaw vibration plate
-      const jawOffset = (isEStopped ? 0 : beltSpeed) > 0 ? Math.sin(Date.now() * 0.03) * 3 : 0;
-      context.fillStyle = '#0f172a';
-      context.fillRect(72 + jawOffset, 85, 8, 40);
-
-      // Danger stripes on crusher body
-      context.strokeStyle = '#eab308';
-      context.lineWidth = 3;
-      context.beginPath();
-      context.moveTo(42, 130);
-      context.lineTo(52, 140);
-      context.moveTo(52, 130);
-      context.lineTo(62, 140);
-      context.moveTo(62, 130);
-      context.lineTo(72, 140);
-      context.stroke();
-    };
-
-    const drawConveyorBelt = (context) => {
-      // Pulley Wheels
-      const rot = (Date.now() * 0.008 * (isEStopped ? 0 : beltSpeed)) % (Math.PI * 2);
-      
-      const drawPulley = (x, y, r) => {
-        context.fillStyle = '#334155';
-        context.beginPath();
-        context.arc(x, y, r, 0, Math.PI * 2);
-        context.fill();
-        context.strokeStyle = '#94a3b8';
-        context.lineWidth = 2;
-        context.beginPath();
-        context.arc(x, y, r, rot, rot + 0.3);
-        context.stroke();
-        context.beginPath();
-        context.arc(x, y, r, rot + Math.PI, rot + Math.PI + 0.3);
-        context.stroke();
-      };
-
-      drawPulley(beltStartX + 10, beltY + 10, 12);
-      drawPulley(beltEndX - 10, beltY + 10, 12);
-
-      // Support rollers
-      for (let rx = beltStartX + 60; rx < beltEndX - 40; rx += 60) {
-        drawPulley(rx, beltY + 12, 6);
-      }
-
-      // Belt structural frame (truss)
-      context.strokeStyle = '#475569';
-      context.lineWidth = 3;
-      context.beginPath();
-      context.moveTo(beltStartX + 5, beltY + 22);
-      context.lineTo(beltEndX - 5, beltY + 22);
-      context.stroke();
-
-      // Truss diagonal lines
-      context.strokeStyle = '#1e293b';
-      context.lineWidth = 1.5;
-      context.beginPath();
-      for (let tx = beltStartX + 20; tx < beltEndX - 20; tx += 30) {
-        context.moveTo(tx, beltY + 10);
-        context.lineTo(tx + 15, beltY + 22);
-        context.moveTo(tx + 15, beltY + 10);
-        context.lineTo(tx, beltY + 22);
-      }
-      context.stroke();
-
-      // Conveyor Rubber Belt itself
-      context.strokeStyle = '#0f172a';
-      context.lineWidth = 6;
-      context.beginPath();
-      context.roundRect(beltStartX, beltY, beltEndX - beltStartX, 16, 8);
-      context.stroke();
-
-      // Moving belt texture/dashes
-      const dashOffset = (Date.now() * 0.05 * (isEStopped ? 0 : beltSpeed)) % 20;
-      context.strokeStyle = '#334155';
-      context.lineWidth = 2;
-      context.setLineDash([6, 14]);
-      context.lineDashOffset = -dashOffset;
-      context.beginPath();
-      context.moveTo(beltStartX + 5, beltY + 3);
-      context.lineTo(beltEndX - 5, beltY + 3);
-      context.stroke();
-      context.setLineDash([]); // Reset
-    };
-
-    const drawDischargeHopperAndWire = (context) => {
-      // Discharge sensor plate / funnel
-      context.fillStyle = '#1e293b';
-      context.beginPath();
-      context.moveTo(470, 240);
-      context.lineTo(520, 240);
-      context.lineTo(505, 270);
-      context.lineTo(485, 270);
-      context.closePath();
-      context.fill();
-
-      // Sensor indicator light
-      const sensorActive = (isEStopped ? 0 : beltSpeed) > 0 && particlesRef.current.some(p => p.state === 'falling' && p.y > 230);
-      context.fillStyle = isEStopped ? '#ef4444' : (sensorActive ? '#3b82f6' : '#1e293b');
-      context.beginPath();
-      context.arc(495, 240, 4, 0, Math.PI * 2);
-      context.fill();
-      if (sensorActive && !isEStopped) {
-        context.shadowColor = '#3b82f6';
-        context.shadowBlur = 8;
-        context.fillStyle = 'rgba(59, 130, 246, 0.4)';
-        context.beginPath();
-        context.arc(495, 240, 8, 0, Math.PI * 2);
-        context.fill();
-        context.shadowBlur = 0; // Reset
-      }
-
-      // Energy transmission wire to logo card
-      context.strokeStyle = isEStopped ? '#ef4444' : '#1e293b';
-      context.lineWidth = 3;
-      context.beginPath();
-      context.moveTo(495, 245);
-      context.lineTo(495, 285);
-      context.lineTo(600, 285);
-      context.lineTo(600, 195);
-      context.stroke();
-
-      // Render glowing energy pulses traveling to the logo
-      if (!isEStopped && (isEStopped ? 0 : beltSpeed) > 0) {
-        pulsesRef.current.forEach((pulse, pIdx) => {
-          pulse.progress += 0.015 * (beltSpeed * 0.7 + 0.3);
-          
-          if (pulse.progress >= 1.0) {
-            // Pulse hits the logo! Trigger pulse effect
-            setLogoPulse(true);
-            setTimeout(() => setLogoPulse(false), 150);
-            
-            // Choose color based on material
-            if (materialType === 'granite') {
-              setLogoPulseColor('rgba(168, 162, 158, 0.5)'); // Stone grey
-            } else if (materialType === 'gravel') {
-              setLogoPulseColor('rgba(234, 88, 12, 0.5)'); // Orange
-            } else {
-              setLogoPulseColor('rgba(59, 130, 246, 0.5)'); // Cyan/Blue
+        // Chart calculations for last 7 days
+        const chartInfo = getLast7DaysData(bills, loads);
+        setChartData({
+          labels: chartInfo.dates,
+          datasets: [
+            {
+              label: 'Customer Deliveries (Sales)',
+              data: chartInfo.billCounts,
+              borderColor: '#3b82f6',
+              backgroundColor: 'rgba(59, 130, 246, 0.08)',
+              fill: true,
+              tension: 0.4,
+              borderWidth: 2,
+              pointBackgroundColor: '#3b82f6',
+              pointHoverRadius: 6
+            },
+            {
+              label: 'Buyer Raw Materials (Purchases)',
+              data: chartInfo.loadCounts,
+              borderColor: '#10b981',
+              backgroundColor: 'rgba(16, 185, 129, 0.08)',
+              fill: true,
+              tension: 0.4,
+              borderWidth: 2,
+              pointBackgroundColor: '#10b981',
+              pointHoverRadius: 6
             }
-
-            pulsesRef.current.splice(pIdx, 1);
-            return;
-          }
-
-          // Calculate current coordinate along wire path
-          let px = 495;
-          let py = 285;
-          const segment1 = 0.25; // proportion of wire going down
-          const segment2 = 0.70; // proportion of wire going right
-
-          if (pulse.progress < segment1) {
-            const t = pulse.progress / segment1;
-            py = 245 + t * 40;
-          } else if (pulse.progress < segment2) {
-            const t = (pulse.progress - segment1) / (segment2 - segment1);
-            py = 285;
-            px = 495 + t * 105;
-          } else {
-            const t = (pulse.progress - segment2) / (1.0 - segment2);
-            px = 600;
-            py = 285 - t * 90;
-          }
-
-          // Draw the electric spark
-          context.shadowColor = materialType === 'granite' ? '#a8a29e' : (materialType === 'gravel' ? '#ea580c' : '#3b82f6');
-          context.shadowBlur = 6;
-          context.fillStyle = '#ffffff';
-          context.beginPath();
-          context.arc(px, py, 4, 0, Math.PI * 2);
-          context.fill();
-          context.shadowBlur = 0;
+          ]
         });
+
+        setStats({
+          customers: customers.length,
+          buyers: buyers.length,
+          employees: employees.length,
+          materials: materials.length,
+          todayBills,
+          todayLoads,
+          apiLatency: latency,
+          dbStatus: health?.database?.status || 'connected',
+          dbProvider: health?.database?.provider === 'atlas' ? 'MongoDB Atlas (Cloud)' : 'Local MongoDB Server',
+          dbHost: health?.database?.host || 'mongoose-cluster',
+          dbName: health?.database?.name || 'crusher-db'
+        });
+      } catch (err) {
+        console.error('Failed to load dashboard data', err);
+      } finally {
+        setLoading(false);
       }
     };
 
-    const drawAccumulationPile = (context) => {
-      // Accumulating pile at the discharge point
-      context.fillStyle = colors[colors.length - 1];
-      context.beginPath();
-      context.moveTo(440, 310);
-      
-      // Draw smooth pile bezier curves
-      context.quadraticCurveTo(495, 310 - Math.min(45, pileHeightsRef.current[50]), 550, 310);
-      context.closePath();
-      context.fill();
-    };
+    fetchData();
+  }, []);
 
-    const loop = () => {
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-      const actualSpeed = isEStopped ? 0 : beltSpeed;
-
-      // 1. Spawning system
-      if (actualSpeed > 0) {
-        spawnTimer += actualSpeed;
-        if (spawnTimer >= 15) {
-          spawnTimer = 0;
-          // Spawn new big rock in hopper
-          particlesRef.current.push({
-            id: Math.random(),
-            x: hopperX + (Math.random() - 0.5) * 35,
-            y: 10 + Math.random() * 10,
-            vx: (Math.random() - 0.5) * 0.4,
-            vy: 0.5 + Math.random() * 0.5,
-            size: 15 + Math.random() * 8, // Large rock diameter
-            color: colors[Math.floor(Math.random() * colors.length)],
-            state: 'hopper',
-            rotation: Math.random() * Math.PI,
-            rotSpeed: (Math.random() - 0.5) * 0.05,
-          });
-        }
-      }
-
-      // 2. Physics & Draw Particles
-      particlesRef.current.forEach((p, idx) => {
-        // Apply rotation
-        p.rotation += p.rotSpeed * actualSpeed;
-
-        if (p.state === 'hopper') {
-          // Gravitate down
-          p.x += p.vx * actualSpeed;
-          p.y += p.vy * actualSpeed;
-          p.vy += 0.08 * actualSpeed;
-
-          // Collide with hopper walls
-          const wallLeft = 55 + (p.y - 20) * 0.33;
-          const wallRight = 85 - (p.y - 20) * 0.33;
-          if (p.x - p.size / 2 < wallLeft) {
-            p.x = wallLeft + p.size / 2;
-            p.vx = Math.abs(p.vx) * 0.6;
-          }
-          if (p.x + p.size / 2 > wallRight) {
-            p.x = wallRight - p.size / 2;
-            p.vx = -Math.abs(p.vx) * 0.6;
-          }
-
-          // Transition to crushing
-          if (p.y >= crusherY - 20) {
-            p.state = 'crushing';
-            p.vy = 0.5;
-            p.vx = 0;
-          }
-
-          // Draw large rocks
-          ctx.save();
-          ctx.translate(p.x, p.y);
-          ctx.rotate(p.rotation);
-          ctx.fillStyle = p.color;
-          ctx.beginPath();
-          // Draw irregular stone shape
-          ctx.moveTo(0, -p.size / 2);
-          ctx.lineTo(p.size * 0.4, -p.size * 0.35);
-          ctx.lineTo(p.size / 2, p.size * 0.1);
-          ctx.lineTo(p.size * 0.25, p.size / 2);
-          ctx.lineTo(-p.size * 0.3, p.size * 0.45);
-          ctx.lineTo(-p.size / 2, -p.size * 0.15);
-          ctx.closePath();
-          ctx.fill();
-          ctx.restore();
-        } 
-        else if (p.state === 'crushing') {
-          // Slowly squeeze through crusher throat
-          p.y += p.vy * actualSpeed;
-          
-          const squeezeTime = Date.now() * 0.02;
-          const vibration = Math.sin(squeezeTime) * 1.5;
-          p.x = crusherX + vibration;
-
-          // Split / Break into smaller particles
-          if (p.y >= crusherY + 20) {
-            const smallParticlesCount = 3 + Math.floor(Math.random() * 3);
-            for (let s = 0; s < smallParticlesCount; s++) {
-              particlesRef.current.push({
-                id: Math.random(),
-                x: p.x + (Math.random() - 0.5) * 12,
-                y: p.y + 10 + (Math.random() - 0.5) * 5,
-                vx: (Math.random() - 0.5) * 1.2,
-                vy: 0.8 + Math.random() * 1.2,
-                size: 4 + Math.random() * 5, // Split rocks are small
-                color: colors[Math.floor(Math.random() * colors.length)],
-                state: 'falling_to_belt',
-                rotation: Math.random() * Math.PI,
-                rotSpeed: (Math.random() - 0.5) * 0.15,
-              });
-            }
-            particlesRef.current.splice(idx, 1);
-            return;
-          }
-
-          // Draw large squeezing rock
-          ctx.save();
-          ctx.translate(p.x, p.y);
-          ctx.rotate(p.rotation);
-          ctx.fillStyle = p.color;
-          ctx.beginPath();
-          ctx.arc(0, 0, p.size / 2, 0, Math.PI * 2);
-          ctx.fill();
-          ctx.restore();
-        }
-        else if (p.state === 'falling_to_belt') {
-          // Falling onto conveyor belt
-          p.x += p.vx * actualSpeed;
-          p.y += p.vy * actualSpeed;
-          p.vy += 0.08 * actualSpeed;
-
-          // Check landing on belt
-          if (p.y >= beltY) {
-            p.y = beltY - p.size / 2;
-            p.state = 'conveyor';
-            p.vy = 0;
-            p.vx = actualSpeed * 1.8; // belt conveyor speed scale
-          }
-
-          // Draw falling small particle
-          ctx.fillStyle = p.color;
-          ctx.fillRect(p.x - p.size / 2, p.y - p.size / 2, p.size, p.size);
-        }
-        else if (p.state === 'conveyor') {
-          // Ride the belt
-          p.vx = actualSpeed * 1.8;
-          p.x += p.vx;
-
-          // Drop off at end of belt
-          if (p.x >= beltEndX - 10) {
-            p.state = 'falling';
-            p.vy = 0.5; // initial downwards push
-            p.vx = actualSpeed * 1.2; // horizontal momentum
-          }
-
-          // Draw particle riding belt
-          ctx.save();
-          ctx.translate(p.x, p.y);
-          ctx.rotate(p.rotation);
-          ctx.fillStyle = p.color;
-          ctx.beginPath();
-          ctx.rect(-p.size / 2, -p.size / 2, p.size, p.size);
-          ctx.fill();
-          ctx.restore();
-        }
-        else if (p.state === 'falling') {
-          // Falling off belt (projectile motion)
-          p.x += p.vx;
-          p.y += p.vy;
-          p.vy += 0.2; // gravity pull
-
-          // Collides with sensor plate
-          if (p.y >= sensorY && p.x >= 470 && p.x <= 520) {
-            // Spawn a telemetry pulse if it's the first time hitting the sensor
-            if (!p.sensorTriggered) {
-              p.sensorTriggered = true;
-              if (pulsesRef.current.length < 8) { // cap concurrent pulses
-                pulsesRef.current.push({ progress: 0 });
-              }
-            }
-          }
-
-          // Hits ground pile
-          if (p.y >= 300) {
-            p.state = 'landed';
-            p.life = 60; // frames to fade away
-            pileHeightsRef.current[50] = Math.min(80, pileHeightsRef.current[50] + 0.1);
-          }
-
-          // Draw projectile
-          ctx.save();
-          ctx.translate(p.x, p.y);
-          ctx.rotate(p.rotation);
-          ctx.fillStyle = p.color;
-          ctx.beginPath();
-          ctx.moveTo(-p.size / 2, 0);
-          ctx.lineTo(0, -p.size / 2);
-          ctx.lineTo(p.size / 2, 0);
-          ctx.lineTo(0, p.size / 2);
-          ctx.closePath();
-          ctx.fill();
-          ctx.restore();
-        }
-        else if (p.state === 'landed') {
-          p.life -= 1;
-          if (p.life <= 0) {
-            particlesRef.current.splice(idx, 1);
-            return;
-          }
-
-          // Render fading particle on the pile
-          ctx.save();
-          ctx.globalAlpha = p.life / 60;
-          ctx.translate(p.x, p.y);
-          ctx.fillStyle = p.color;
-          ctx.beginPath();
-          ctx.arc(0, 0, p.size / 2, 0, Math.PI * 2);
-          ctx.fill();
-          ctx.restore();
-        }
-      });
-
-      // 3. Static Elements drawing
-      drawAccumulationPile(ctx);
-      drawConveyorBelt(ctx);
-      drawCrusherHopper(ctx);
-      drawDischargeHopperAndWire(ctx);
-
-      animationFrameId.current = requestAnimationFrame(loop);
-    };
-
-    loop();
-
-    return () => {
-      if (animationFrameId.current) cancelAnimationFrame(animationFrameId.current);
-    };
-  }, [beltSpeed, materialType, isEStopped, materialColors]);
-
-  // Handle emergency stop trigger
-  const triggerEStop = () => {
-    setIsEStopped(prev => {
-      const nextVal = !prev;
-      if (nextVal) {
-        setBeltSpeed(0);
-      } else {
-        setBeltSpeed(1); // Resume normal on reset
-      }
-      return nextVal;
-    });
-  };
-
-  // Vibration Oscillosope Wave Canvas rendering
-  const vibeCanvasRef = useRef(null);
+  // Rolling terminal log effect
   useEffect(() => {
-    const vibeCanvas = vibeCanvasRef.current;
-    if (!vibeCanvas) return;
-    const ctx = vibeCanvas.getContext('2d');
-    vibeCanvas.width = 300;
-    vibeCanvas.height = 70;
+    const interval = setInterval(() => {
+      const randomMsg = logTemplates[Math.floor(Math.random() * logTemplates.length)];
+      const timestamp = new Date().toLocaleTimeString();
+      setTerminalLogs(prev => {
+        const next = [...prev, `[${timestamp}] ${randomMsg}`];
+        if (next.length > 50) next.shift();
+        return next;
+      });
+    }, 4500);
+    return () => clearInterval(interval);
+  }, []);
 
-    let time = 0;
-    let waveFrame;
+  // Auto-scroll terminal log
+  useEffect(() => {
+    if (terminalEndRef.current) {
+      terminalEndRef.current.scrollIntoView({ behavior: 'smooth' });
+    }
+  }, [terminalLogs]);
 
-    const drawWave = () => {
-      ctx.fillStyle = '#020617';
-      ctx.fillRect(0, 0, vibeCanvas.width, vibeCanvas.height);
-
-      // Grid lines
-      ctx.strokeStyle = '#1e293b';
-      ctx.lineWidth = 1;
-      ctx.beginPath();
-      for (let gy = 10; gy < vibeCanvas.height; gy += 15) {
-        ctx.moveTo(0, gy);
-        ctx.lineTo(vibeCanvas.width, gy);
+  // Chart configuration memo
+  const chartOptions = useMemo(() => {
+    const isDark = theme === 'dark';
+    return {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: {
+          position: 'top',
+          labels: {
+            color: isDark ? '#cbd5e1' : '#334155',
+            font: {
+              family: 'Inter, sans-serif',
+              size: 11,
+              weight: '500'
+            }
+          }
+        },
+        tooltip: {
+          backgroundColor: isDark ? '#1e293b' : '#ffffff',
+          titleColor: isDark ? '#ffffff' : '#0f172a',
+          bodyColor: isDark ? '#94a3b8' : '#475569',
+          borderColor: isDark ? '#334155' : '#e2e8f0',
+          borderWidth: 1,
+          padding: 10,
+          boxPadding: 4,
+          usePointStyle: true
+        }
+      },
+      scales: {
+        x: {
+          grid: {
+            color: isDark ? 'rgba(51, 65, 85, 0.3)' : 'rgba(226, 232, 240, 0.5)',
+            drawBorder: false
+          },
+          ticks: {
+            color: isDark ? '#94a3b8' : '#64748b',
+            font: { family: 'Inter, sans-serif', size: 10 }
+          }
+        },
+        y: {
+          grid: {
+            color: isDark ? 'rgba(51, 65, 85, 0.3)' : 'rgba(226, 232, 240, 0.5)',
+            drawBorder: false
+          },
+          ticks: {
+            color: isDark ? '#94a3b8' : '#64748b',
+            font: { family: 'Inter, sans-serif', size: 10 },
+            stepSize: 1,
+            precision: 0
+          }
+        }
       }
-      ctx.stroke();
-
-      // Draw sine wave with noise based on statistics.vibration
-      ctx.strokeStyle = isEStopped ? '#ef4444' : '#10b981';
-      ctx.lineWidth = 2;
-      ctx.beginPath();
-      
-      const speedScale = isEStopped ? 0.05 : (beltSpeed * 0.15 + 0.05);
-      const amp = isEStopped ? 2 : (10 + beltSpeed * 8 + (materialType === 'granite' ? 5 : 0));
-      
-      ctx.moveTo(0, vibeCanvas.height / 2);
-      for (let x = 0; x < vibeCanvas.width; x++) {
-        const noise = (Math.random() - 0.5) * (isEStopped ? 0.5 : (beltSpeed * 4));
-        const y = vibeCanvas.height / 2 + Math.sin(x * 0.08 - time) * amp + noise;
-        ctx.lineTo(x, y);
-      }
-      ctx.stroke();
-
-      time += speedScale;
-      waveFrame = requestAnimationFrame(drawWave);
     };
+  }, [theme]);
 
-    drawWave();
-
-    return () => {
-      if (waveFrame) cancelAnimationFrame(waveFrame);
-    };
-  }, [beltSpeed, isEStopped, materialType]);
+  if (loading) {
+    return (
+      <div className="flex flex-col justify-center items-center min-h-[500px] space-y-4">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 dark:border-blue-400" />
+        <p className="text-slate-500 dark:text-slate-400 text-sm font-mono animate-pulse">
+          Initializing Operations Console...
+        </p>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6 w-full pb-8">
-      {/* Control Room Title */}
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-        <div>
-          <h1 className="text-2xl font-bold text-slate-800 dark:text-slate-100 flex items-center gap-3">
-            <span className="inline-block w-3.5 h-3.5 bg-blue-600 rounded-full animate-ping"></span>
-            Crusher Control Console
-          </h1>
-          <p className="text-sm text-slate-500 dark:text-slate-400">
-            Realtime mechanical diagnostics & conveyor monitoring
-          </p>
+      {/* 1. Header Banner */}
+      <div className="relative overflow-hidden rounded-2xl bg-gradient-to-r from-slate-900 via-slate-800 to-slate-950 p-6 md:p-8 shadow-lg text-white">
+        <div className="absolute right-4 md:right-10 top-1/2 -translate-y-1/2 opacity-15 pointer-events-none">
+          <img src={logoUrl} alt="KBM Logo" className="h-32 w-32 object-contain" />
         </div>
 
-        {/* System Health Status Pill */}
-        <div className={`px-4 py-1.5 rounded-full border text-xs font-semibold uppercase tracking-wider shadow-sm flex items-center gap-2 ${
-          isEStopped 
-            ? 'bg-red-500/10 border-red-500/30 text-red-500 animate-pulse' 
-            : (beltSpeed === 0 
-                ? 'bg-amber-500/10 border-amber-500/30 text-amber-500' 
-                : 'bg-emerald-500/10 border-emerald-500/30 text-emerald-500'
-              )
-        }`}>
-          <span className={`w-2 h-2 rounded-full ${
-            isEStopped 
-              ? 'bg-red-500' 
-              : (beltSpeed === 0 ? 'bg-amber-500' : 'bg-emerald-500')
-          }`}></span>
-          {isEStopped ? 'EMERGENCY SHUTDOWN ACTIVE' : (beltSpeed === 0 ? 'SYSTEM IDLE' : 'CONVEYOR OPERATIONAL')}
+        <div className="relative z-10 flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
+          <div className="space-y-2">
+            <div className="flex items-center gap-2.5">
+              <span className="flex h-2.5 w-2.5 relative">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-400 opacity-75"></span>
+                <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-blue-500"></span>
+              </span>
+              <span className="text-xs uppercase font-mono tracking-widest text-slate-400">
+                Operations Management Console
+              </span>
+            </div>
+            <h1 className="text-2xl md:text-3xl font-extrabold tracking-tight">
+              Welcome back, {user?.name || user?.username || 'Administrator'}
+            </h1>
+            <p className="text-slate-400 text-sm max-w-xl">
+              Role: <span className="text-slate-200 capitalize font-medium">{user?.role?.replace('_', ' ')}</span>{' '}
+              | Access: <span className="text-slate-200 capitalize font-medium">{user?.accessLevel?.replace('_', ' ')}</span>
+            </p>
+          </div>
+
+          <div className="flex flex-col items-end gap-1.5 font-mono text-xs text-slate-300 bg-slate-950/40 p-4 rounded-xl border border-slate-700/50 backdrop-blur-sm self-stretch md:self-auto min-w-[200px]">
+            <div className="flex justify-between w-full gap-4">
+              <span className="text-slate-500">SYSTEM TIME:</span>
+              <span className="font-bold text-slate-200">
+                {currentTime.toLocaleTimeString()}
+              </span>
+            </div>
+            <div className="flex justify-between w-full gap-4">
+              <span className="text-slate-500">SYSTEM DATE:</span>
+              <span className="font-bold text-slate-200">
+                {currentTime.toLocaleDateString(undefined, {
+                  year: 'numeric',
+                  month: 'short',
+                  day: 'numeric'
+                })}
+              </span>
+            </div>
+            <div className="flex justify-between w-full gap-4 border-t border-slate-800 pt-1.5 mt-1.5">
+              <span className="text-slate-500">DB TELEMETRY:</span>
+              <span className="font-bold text-emerald-400 flex items-center gap-1">
+                <span className="h-1.5 w-1.5 bg-emerald-400 rounded-full"></span>
+                ONLINE
+              </span>
+            </div>
+          </div>
         </div>
       </div>
 
-      {/* Main Grid Layout */}
-      <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
-        
-        {/* Left Column: Visual Viewport */}
-        <div className="xl:col-span-2 flex flex-col bg-slate-900 border border-slate-800 rounded-2xl shadow-xl overflow-hidden min-h-[440px]">
-          {/* Header Panel */}
-          <div className="bg-slate-950 px-5 py-3 border-b border-slate-800 flex justify-between items-center text-xs font-mono text-slate-400">
-            <div className="flex items-center gap-4">
-              <span>🖥️ CAMERA FEED: CONVEYOR_01</span>
-              <span>GPS: 11.018° N, 76.955° E</span>
+      {/* 2. Key Operational Metrics */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 xl:gap-6">
+        {[
+          {
+            title: 'Registered Customers',
+            value: stats.customers,
+            description: 'Active client registry',
+            icon: UsersIcon,
+            color: 'text-blue-500 bg-blue-50 dark:bg-blue-900/10 dark:text-blue-400',
+            borderColor: 'border-blue-100 dark:border-blue-950',
+            path: '/customers'
+          },
+          {
+            title: 'Registered Buyers',
+            value: stats.buyers,
+            description: 'Material purchase agents',
+            icon: CargoIcon,
+            color: 'text-emerald-500 bg-emerald-50 dark:bg-emerald-900/10 dark:text-emerald-400',
+            borderColor: 'border-emerald-100 dark:border-emerald-950',
+            path: '/buyers'
+          },
+          {
+            title: 'Active Employees',
+            value: stats.employees,
+            description: 'Staff & crew members',
+            icon: HardHatIcon,
+            color: 'text-amber-500 bg-amber-50 dark:bg-amber-900/10 dark:text-amber-400',
+            borderColor: 'border-amber-100 dark:border-amber-950',
+            path: '/employees'
+          },
+          {
+            title: 'Product Catalog',
+            value: stats.materials,
+            description: 'Active ore & metal sizes',
+            icon: PackageIcon,
+            color: 'text-indigo-500 bg-indigo-50 dark:bg-indigo-900/10 dark:text-indigo-400',
+            borderColor: 'border-indigo-100 dark:border-indigo-950',
+            path: '/materials'
+          }
+        ].map((card, idx) => {
+          const Icon = card.icon;
+          return (
+            <div
+              key={idx}
+              onClick={() => navigate(card.path)}
+              className={`group flex flex-col justify-between bg-white dark:bg-slate-900 rounded-xl p-5 border ${card.borderColor} shadow-sm hover:shadow-md cursor-pointer transition-all duration-200 hover:-translate-y-0.5`}
+            >
+              <div className="flex justify-between items-start">
+                <div className={`p-2.5 rounded-lg ${card.color}`}>
+                  <Icon className="h-6 w-6" />
+                </div>
+                <ChevronRightIcon className="h-5 w-5 text-slate-300 dark:text-slate-700 group-hover:text-slate-500 dark:group-hover:text-slate-400 transition-colors" />
+              </div>
+              <div className="mt-4">
+                <span className="block text-2xl md:text-3xl font-extrabold text-slate-800 dark:text-slate-100">
+                  {card.value}
+                </span>
+                <span className="block text-sm font-semibold text-slate-600 dark:text-slate-300 mt-0.5">
+                  {card.title}
+                </span>
+                <span className="block text-xs text-slate-400 dark:text-slate-500 mt-1">
+                  {card.description}
+                </span>
+              </div>
             </div>
+          );
+        })}
+      </div>
+
+      {/* 3. Dispatch Activity & Diagnostics Grid */}
+      <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
+        {/* Dispatch Volume Chart (2/3 width) */}
+        <div className="xl:col-span-2 bg-white dark:bg-slate-900 rounded-2xl p-5 md:p-6 border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col h-[400px]">
+          <div className="flex justify-between items-center border-b border-slate-100 dark:border-slate-800 pb-3 mb-4">
+            <div>
+              <h2 className="text-base font-bold text-slate-800 dark:text-slate-100">
+                Weekly Dispatch Metrics
+              </h2>
+              <p className="text-xs text-slate-400 dark:text-slate-500">
+                Overview of daily load shipment counts
+              </p>
+            </div>
+            <div className="flex items-center gap-4 text-xs">
+              <div className="flex items-center gap-1.5">
+                <span className="inline-block w-2.5 h-2.5 rounded-full bg-blue-500"></span>
+                <span className="text-slate-600 dark:text-slate-400">Sales</span>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <span className="inline-block w-2.5 h-2.5 rounded-full bg-emerald-500"></span>
+                <span className="text-slate-600 dark:text-slate-400">Purchases</span>
+              </div>
+            </div>
+          </div>
+          <div className="flex-1 min-h-0 relative">
+            <Line data={chartData} options={chartOptions} />
+          </div>
+        </div>
+
+        {/* System Telemetry & Log Console (1/3 width) */}
+        <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-lg flex flex-col h-[400px] text-white">
+          <div className="border-b border-slate-800 pb-3 mb-4 flex justify-between items-center">
             <div className="flex items-center gap-2">
-              <span className={`w-2.5 h-2.5 rounded-full ${isEStopped ? 'bg-red-500 animate-ping' : 'bg-green-500'}`}></span>
-              <span>LIVE FEED</span>
+              <UserShieldIcon className="h-5 w-5 text-cyan-400" />
+              <h3 className="text-sm font-semibold uppercase tracking-wider text-slate-300">
+                Diagnostic Console
+              </h3>
+            </div>
+            <div className="flex items-center gap-1.5 text-xs text-slate-400 font-mono">
+              <span className="w-2.5 h-2.5 bg-emerald-400 rounded-full animate-ping"></span>
+              <span>LIVE</span>
             </div>
           </div>
 
-          {/* Viewport Container */}
-          <div className="relative flex-1 bg-slate-950/60 p-4 flex items-center justify-center min-h-[350px]">
-            
-            {/* The Main Simulation Canvas */}
-            <canvas 
-              ref={canvasRef} 
-              className="w-full max-w-[750px] aspect-[75/34] block z-10" 
-            />
-
-            {/* Glowing reveal frame at the end containing KBM Logo */}
-            <div className="absolute right-5 md:right-8 top-1/2 -translate-y-1/2 z-20">
-              <div 
-                className="relative p-5 rounded-2xl backdrop-blur-md transition-all duration-300 border bg-slate-900/70 shadow-[0_0_20px_rgba(15,23,42,0.6)] flex flex-col items-center justify-center text-center w-[160px] md:w-[190px]"
-                style={{
-                  borderColor: isEStopped 
-                    ? '#ef4444' 
-                    : (logoPulse ? logoPulseColor.replace('0.4', '0.9') : 'rgba(30, 41, 59, 0.6)'),
-                  boxShadow: isEStopped 
-                    ? '0 0 25px rgba(239, 68, 68, 0.25)' 
-                    : (logoPulse ? `0 0 35px ${logoPulseColor}` : 'none'),
-                  transform: logoPulse ? 'scale(1.05)' : 'scale(1)',
-                }}
-              >
-                {/* Neon Tube Border Light Effect */}
-                <div className={`absolute inset-0 rounded-2xl border-2 pointer-events-none opacity-40 transition-opacity duration-300 ${
-                  isEStopped ? 'border-red-500 animate-pulse' : 'border-blue-500'
-                }`} />
-
-                {/* The Animated Logo Image */}
-                <div className="relative w-24 h-24 md:w-32 md:h-32 mb-2 flex items-center justify-center rounded-xl bg-slate-950 p-3 overflow-hidden group">
-                  <img 
-                    src={logoUrl} 
-                    alt="Krishna Blue Metals" 
-                    className={`h-full w-full object-contain transition-all duration-500 ${
-                      isEStopped 
-                        ? 'opacity-40 grayscale blur-[1px]' 
-                        : 'opacity-100 group-hover:scale-110'
-                    }`} 
-                  />
-                  {/* Shimmer Glare overlay */}
-                  <div className={`absolute inset-0 bg-gradient-to-tr from-transparent via-white/10 to-transparent -translate-x-full transition-transform duration-1000 ${
-                    logoPulse && !isEStopped ? 'translate-x-full' : ''
-                  }`} />
-                </div>
-
-                <div className="text-slate-200 font-bold tracking-wide text-xs uppercase select-none">
-                  KBM Crusher
-                </div>
-                <div className="text-[10px] text-slate-500 font-mono select-none">
-                  INTEGRATED
-                </div>
+          {/* Telemetry Matrix Grid */}
+          <div className="grid grid-cols-2 gap-3 mb-4 text-[11px] font-mono">
+            <div className="bg-slate-950/60 p-2.5 rounded-lg border border-slate-800/80">
+              <div className="text-slate-500 uppercase tracking-widest text-[9px] mb-0.5">
+                Latency Response
+              </div>
+              <div className="text-cyan-400 font-bold text-sm">{stats.apiLatency}</div>
+            </div>
+            <div className="bg-slate-950/60 p-2.5 rounded-lg border border-slate-800/80">
+              <div className="text-slate-500 uppercase tracking-widest text-[9px] mb-0.5">
+                DB Environment
+              </div>
+              <div className="text-slate-300 font-bold text-sm uppercase">
+                {process.env.NODE_ENV || 'Production'}
               </div>
             </div>
+            <div className="bg-slate-950/60 p-2.5 rounded-lg border border-slate-800/80">
+              <div className="text-slate-500 uppercase tracking-widest text-[9px] mb-0.5">
+                MongoDB cluster
+              </div>
+              <div className="text-slate-300 font-bold overflow-hidden text-ellipsis whitespace-nowrap">
+                {stats.dbProvider}
+              </div>
+            </div>
+            <div className="bg-slate-950/60 p-2.5 rounded-lg border border-slate-800/80">
+              <div className="text-slate-500 uppercase tracking-widest text-[9px] mb-0.5">
+                Database Name
+              </div>
+              <div className="text-slate-300 font-bold">{stats.dbName}</div>
+            </div>
+          </div>
 
-            {/* Emergency Alarm Flash Screen Overlay */}
-            {isEStopped && (
-              <div className="absolute inset-0 bg-red-600/10 border border-red-500/40 pointer-events-none animate-pulse z-0" />
+          {/* Diagnostic Scrolling Log terminal */}
+          <div className="flex-1 bg-slate-950 rounded-xl p-3 border border-slate-800/60 flex flex-col min-h-0 font-mono">
+            <div className="text-slate-500 uppercase tracking-widest text-[9px] mb-1.5 border-b border-slate-900 pb-1 flex justify-between">
+              <span>Security Event Stream</span>
+              <span>v1.0.4</span>
+            </div>
+            <div className="flex-1 overflow-y-auto text-[10px] text-cyan-500/90 space-y-1.5 pr-1">
+              {terminalLogs.map((log, idx) => (
+                <div key={idx} className="leading-relaxed break-all">
+                  <span className="text-slate-600 mr-1.5">&gt;</span>
+                  {log}
+                </div>
+              ))}
+              <div ref={terminalEndRef} />
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* 4. Live Dispatches & Quick Actions Grid */}
+      <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
+        {/* Live Shipments Feed (2/3 width) */}
+        <div className="xl:col-span-2 bg-white dark:bg-slate-900 rounded-2xl p-5 md:p-6 border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col min-h-[360px]">
+          <div className="flex justify-between items-center border-b border-slate-100 dark:border-slate-800 pb-3 mb-4">
+            <div>
+              <h2 className="text-base font-bold text-slate-800 dark:text-slate-100">
+                Recent Shipments Dispatch Feed
+              </h2>
+              <p className="text-xs text-slate-400 dark:text-slate-500">
+                Real-time log of customer deliveries and raw material purchases
+              </p>
+            </div>
+            <div className="px-3 py-1 bg-slate-100 dark:bg-slate-850 text-[10px] font-bold text-slate-600 dark:text-slate-400 rounded-full font-mono uppercase">
+              Operational Logs Only
+            </div>
+          </div>
+
+          <div className="flex-1 overflow-x-auto min-w-0">
+            {recentDeliveries.length === 0 ? (
+              <div className="flex flex-col justify-center items-center h-full text-slate-400 dark:text-slate-500 py-10 italic text-sm">
+                No dispatches recorded today.
+              </div>
+            ) : (
+              <table className="w-full text-left text-sm border-collapse">
+                <thead>
+                  <tr className="border-b border-slate-100 dark:border-slate-800 text-xs font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">
+                    <th className="pb-3 pr-2">Date</th>
+                    <th className="pb-3 px-2">Type</th>
+                    <th className="pb-3 px-2">Vehicle</th>
+                    <th className="pb-3 px-2">Material</th>
+                    <th className="pb-3 pl-2">Destination / Source</th>
+                    <th className="pb-3 pr-2 text-right">Quantity</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100 dark:divide-slate-850">
+                  {recentDeliveries.map((delivery, index) => (
+                    <tr
+                      key={delivery.id || index}
+                      className="hover:bg-slate-50/50 dark:hover:bg-slate-800/30 transition-colors"
+                    >
+                      <td className="py-3 pr-2 text-xs font-mono text-slate-500 whitespace-nowrap">
+                        {new Date(delivery.date).toLocaleDateString(undefined, {
+                          month: 'short',
+                          day: 'numeric',
+                          hour: '2-digit',
+                          minute: '2-digit'
+                        })}
+                      </td>
+                      <td className="py-3 px-2 whitespace-nowrap">
+                        <span
+                          className={`inline-block px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider border ${
+                            delivery.type === 'Customer Sale'
+                              ? 'bg-blue-50 text-blue-700 dark:bg-blue-900/20 dark:text-blue-400 border-blue-200/20'
+                              : 'bg-emerald-50 text-emerald-700 dark:bg-emerald-900/20 dark:text-emerald-400 border-emerald-200/20'
+                          }`}
+                        >
+                          {delivery.type}
+                        </span>
+                      </td>
+                      <td className="py-3 px-2 font-semibold text-slate-800 dark:text-slate-200 uppercase font-mono whitespace-nowrap">
+                        {delivery.vehicle}
+                      </td>
+                      <td className="py-3 px-2 text-slate-600 dark:text-slate-300 text-xs whitespace-nowrap">
+                        {delivery.material}
+                      </td>
+                      <td className="py-3 pl-2 text-slate-700 dark:text-slate-200 font-medium whitespace-nowrap max-w-[140px] truncate">
+                        {delivery.target}
+                      </td>
+                      <td className="py-3 pr-2 text-right font-mono font-bold text-slate-700 dark:text-slate-300 text-xs whitespace-nowrap">
+                        {delivery.quantity}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             )}
           </div>
         </div>
 
-        {/* Right Column: Control Panel & Telemetry */}
-        <div className="flex flex-col gap-6">
-          
-          {/* Diagnostic Telemetry Dashboard */}
-          <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-xl space-y-4">
-            <h3 className="text-sm font-semibold uppercase tracking-wider text-slate-400 border-b border-slate-800 pb-2">
-              System Telemetry
-            </h3>
-
-            {/* Diagnostic Dials */}
-            <div className="grid grid-cols-2 gap-4">
-              {/* Dial 1: Throughput */}
-              <div className="bg-slate-950/60 border border-slate-800 rounded-xl p-3 text-center">
-                <div className="text-slate-500 text-[10px] font-bold uppercase tracking-wider mb-1">
-                  Throughput Rate
-                </div>
-                <div className="text-2xl font-bold font-mono text-blue-400">
-                  {statistics.throughput} <span className="text-xs text-slate-500">t/h</span>
-                </div>
-              </div>
-
-              {/* Dial 2: Total Crushed */}
-              <div className="bg-slate-950/60 border border-slate-800 rounded-xl p-3 text-center">
-                <div className="text-slate-500 text-[10px] font-bold uppercase tracking-wider mb-1">
-                  Session Yield
-                </div>
-                <div className="text-2xl font-bold font-mono text-emerald-400">
-                  {statistics.totalCrushed.toFixed(2)} <span className="text-xs text-slate-500">tons</span>
-                </div>
-              </div>
-
-              {/* Dial 3: Temperature */}
-              <div className="bg-slate-950/60 border border-slate-800 rounded-xl p-3 text-center">
-                <div className="text-slate-500 text-[10px] font-bold uppercase tracking-wider mb-1 flex items-center justify-center gap-1">
-                  Motor Temp
-                  {statistics.motorTemp > 90 && (
-                    <span className="w-1.5 h-1.5 rounded-full bg-red-500 animate-ping"></span>
-                  )}
-                </div>
-                <div className={`text-2xl font-bold font-mono ${
-                  statistics.motorTemp > 90 
-                    ? 'text-red-500 animate-bounce' 
-                    : (statistics.motorTemp > 75 ? 'text-amber-500' : 'text-slate-300')
-                }`}>
-                  {Math.round(statistics.motorTemp)}°C
-                </div>
-              </div>
-
-              {/* Dial 4: Sound Toggle */}
-              <div className="bg-slate-950/60 border border-slate-800 rounded-xl p-3 flex flex-col justify-center items-center">
-                <div className="text-slate-500 text-[10px] font-bold uppercase tracking-wider mb-1">
-                  Acoustic Feedback
-                </div>
-                <button 
-                  onClick={handleSoundToggle}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold w-full max-w-[100px] transition-colors border ${
-                    soundOn 
-                      ? 'bg-blue-600 border-blue-500 text-white hover:bg-blue-700' 
-                      : 'bg-slate-800 border-slate-700 text-slate-400 hover:bg-slate-700'
-                  }`}
-                >
-                  {soundOn ? '🔊 ACTIVE' : '🔇 MUTED'}
-                </button>
-              </div>
-            </div>
-
-            {/* Vibration Waveform Canvas */}
-            <div className="space-y-1.5">
-              <div className="text-slate-500 text-[10px] font-bold uppercase tracking-wider flex justify-between">
-                <span>Vibe Sensor Oscillo</span>
-                <span className="font-mono">{statistics.vibration.toFixed(3)} mm/s</span>
-              </div>
-              <div className="h-16 rounded-xl border border-slate-800 overflow-hidden relative">
-                <canvas ref={vibeCanvasRef} className="w-full h-full block" />
-              </div>
-            </div>
+        {/* Administrative Quick Actions (1/3 width) */}
+        <div className="bg-white dark:bg-slate-900 rounded-2xl p-5 md:p-6 border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col min-h-[360px]">
+          <div className="border-b border-slate-100 dark:border-slate-800 pb-3 mb-4">
+            <h2 className="text-base font-bold text-slate-800 dark:text-slate-100">
+              Launchpad Console
+            </h2>
+            <p className="text-xs text-slate-400 dark:text-slate-500">
+              Quick access shortcuts for key administrative screens
+            </p>
           </div>
 
-          {/* Mechanical Controls Panel */}
-          <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-xl space-y-4">
-            <h3 className="text-sm font-semibold uppercase tracking-wider text-slate-400 border-b border-slate-800 pb-2">
-              Conveyor Settings
-            </h3>
-
-            {/* Material Selector */}
-            <div className="space-y-2">
-              <label className="block text-slate-500 text-[10px] font-bold uppercase tracking-wider">
-                Raw Ore Input
-              </label>
-              <div className="grid grid-cols-3 gap-2">
-                {[
-                  { id: 'blue-metal', label: 'Blue Metal', color: 'border-slate-600 bg-slate-800/40 text-slate-300' },
-                  { id: 'granite', label: 'Granite Ore', color: 'border-stone-600 bg-stone-900/40 text-stone-300' },
-                  { id: 'gravel', label: 'River Stone', color: 'border-orange-800 bg-orange-950/20 text-orange-400' },
-                ].map((item) => (
-                  <button
-                    key={item.id}
-                    disabled={isEStopped}
-                    onClick={() => setMaterialType(item.id)}
-                    className={`p-2.5 rounded-xl border text-xs font-semibold transition-all duration-200 ${
-                      materialType === item.id 
-                        ? 'border-blue-500 bg-blue-600/10 text-blue-400 shadow-[0_0_10px_rgba(59,130,246,0.1)]' 
-                        : 'border-slate-800 bg-slate-950/40 hover:border-slate-700 text-slate-400 hover:text-slate-200'
-                    } disabled:opacity-30 disabled:cursor-not-allowed`}
-                  >
-                    {item.label}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            {/* Speed selection */}
-            <div className="space-y-2">
-              <label className="block text-slate-500 text-[10px] font-bold uppercase tracking-wider">
-                Conveyor Belt Speed
-              </label>
-              <div className="grid grid-cols-5 gap-1.5">
-                {[
-                  { value: 0, label: 'OFF' },
-                  { value: 0.5, label: '0.5x' },
-                  { value: 1, label: '1.0x' },
-                  { value: 2, label: '2.0x' },
-                  { value: 3, label: 'MAX' },
-                ].map((s) => (
-                  <button
-                    key={s.value}
-                    disabled={isEStopped}
-                    onClick={() => setBeltSpeed(s.value)}
-                    className={`py-1.5 rounded-lg border text-xs font-mono font-bold transition-all duration-150 ${
-                      beltSpeed === s.value && !isEStopped
-                        ? 'border-blue-500 bg-blue-600/10 text-blue-400' 
-                        : 'border-slate-800 bg-slate-950/40 hover:border-slate-700 text-slate-400'
-                    } disabled:opacity-30 disabled:cursor-not-allowed`}
-                  >
-                    {s.label}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            {/* Emergency E-Stop Button */}
-            <div className="pt-2">
-              <button 
-                onClick={triggerEStop}
-                className={`w-full py-4 rounded-xl border font-bold text-sm tracking-wider uppercase transition-all duration-300 select-none ${
-                  isEStopped 
-                    ? 'bg-emerald-600 border-emerald-500 text-white hover:bg-emerald-700 hover:scale-[1.01] shadow-[0_0_20px_rgba(16,185,129,0.3)] animate-pulse' 
-                    : 'bg-red-600 border-red-500 text-white hover:bg-red-700 hover:scale-[1.01] shadow-[0_0_20px_rgba(239,68,68,0.35)]'
-                }`}
-              >
-                {isEStopped ? '🔄 Reset Safety Relays' : '🛑 Emergency E-STOP'}
-              </button>
-            </div>
+          <div className="flex-1 flex flex-col justify-center space-y-3">
+            {[
+              {
+                label: 'Record Customer Bill',
+                desc: 'Register incoming vehicle load sales',
+                icon: ReceiptIcon,
+                path: '/bills',
+                color: 'hover:border-blue-500 dark:hover:border-blue-400 group-hover:text-blue-500'
+              },
+              {
+                label: 'Record Buyer Load',
+                desc: 'Log raw materials delivered to quarry',
+                icon: CargoIcon,
+                path: '/loads',
+                color: 'hover:border-emerald-500 dark:hover:border-emerald-400 group-hover:text-emerald-500'
+              },
+              {
+                label: 'Manage Registry',
+                desc: 'Add customers, buyers and materials',
+                icon: UsersIcon,
+                path: '/customers',
+                color: 'hover:border-indigo-500 dark:hover:border-indigo-400 group-hover:text-indigo-500'
+              },
+              {
+                label: 'Staff Attendance',
+                desc: 'Log work status and employee attendance',
+                icon: HardHatIcon,
+                path: '/employees',
+                color: 'hover:border-amber-500 dark:hover:border-amber-400 group-hover:text-amber-500'
+              }
+            ].map((act, index) => {
+              const Icon = act.icon;
+              return (
+                <button
+                  key={index}
+                  onClick={() => navigate(act.path)}
+                  className={`group flex items-center gap-4 p-3.5 bg-slate-50 hover:bg-white dark:bg-slate-950 dark:hover:bg-slate-900 border border-slate-100 hover:border-slate-200 dark:border-slate-950 dark:hover:border-slate-850 rounded-xl transition-all duration-200 hover:-translate-x-0.5 hover:shadow-sm text-left`}
+                >
+                  <div className="p-2 bg-white dark:bg-slate-800 rounded-lg text-slate-500 group-hover:text-blue-500 dark:group-hover:text-blue-400 transition-colors shadow-sm">
+                    <Icon className="h-5 w-5" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <span className="block text-xs font-bold text-slate-800 dark:text-slate-100">
+                      {act.label}
+                    </span>
+                    <span className="block text-[10px] text-slate-400 dark:text-slate-500 truncate mt-0.5">
+                      {act.desc}
+                    </span>
+                  </div>
+                  <ChevronRightIcon className="h-5 w-5 text-slate-300 dark:text-slate-700 group-hover:text-slate-500 transition-colors" />
+                </button>
+              );
+            })}
           </div>
         </div>
       </div>

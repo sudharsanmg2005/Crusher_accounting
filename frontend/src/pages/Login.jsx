@@ -28,10 +28,9 @@ const Login = () => {
 
     try {
       await login(form);
-      navigate('/dashboard', { replace: true });
+      // Navigation is handled by the useEffect hook when the user state updates
     } catch (err) {
       setError(err?.response?.data?.message || 'Login failed');
-    } finally {
       setSubmitting(false);
     }
   };
