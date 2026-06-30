@@ -663,4 +663,29 @@ export const getBuyerOutstandingReport = async (req, res, next) => {
   }
 };
 
+export const getBuyerPaymentsReport = async (req, res, next) => {
+  try {
+    const { start, end } = parseDateRange(req.query);
+
+    const payments = await BuyerPayment.find({ paymentDate: { $gte: start, $lte: end } })
+      .populate('buyerId', 'name')
+      .sort({ paymentDate: -1 });
+
+    const report = payments.map((p) => ({
+      paymentNumber: p.paymentNumber,
+      paymentDate: p.paymentDate,
+      buyerId: p.buyerId?._id,
+      buyerName: p.buyerId?.name || 'Unknown',
+      amountPaid: p.amount,
+      paidBy: p.paidBy,
+      notes: p.notes,
+      outstandingBalanceAfterPayment: p.outstandingBalanceAfterPayment
+    }));
+
+    res.json(report);
+  } catch (err) {
+    next(err);
+  }
+};
+
 

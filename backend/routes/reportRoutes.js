@@ -10,7 +10,8 @@ import {
   getPaymentReport,
   getPartialPaymentReport,
   getCustomerStatementReport,
-  getBuyerOutstandingReport
+  getBuyerOutstandingReport,
+  getBuyerPaymentsReport
 } from '../controllers/reportController.js';
 
 const router = express.Router();
@@ -24,6 +25,7 @@ router.get('/summary', getGeneralStatement);
 router.get('/dashboard', getReportDashboard);
 router.get('/outstanding', getOutstandingReport);
 router.get('/outstanding-buyers', getBuyerOutstandingReport);
+router.get('/buyer-payments', getBuyerPaymentsReport);
 router.get('/payments', getPaymentReport);
 router.get('/partial-payments', getPartialPaymentReport);
 router.get('/customer-statement/:customerId', getCustomerStatementReport);

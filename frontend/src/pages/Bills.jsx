@@ -544,6 +544,205 @@ const Bills = () => {
     }
   };
 
+  const downloadPaymentsPdf = async () => {
+    // 1. Calculate dates for range label and query params
+    let rangeLabel = 'All Time';
+    let queryParams = {};
+    let startDateVal = null;
+    let endDateVal = null;
+
+    if (filters.mode === 'particular_date' && filters.particularDate) {
+      rangeLabel = `Date: ${formatDateTime(filters.particularDate).date}`;
+      queryParams = { startDate: filters.particularDate, endDate: filters.particularDate };
+      startDateVal = new Date(filters.particularDate + 'T00:00:00');
+      endDateVal = new Date(filters.particularDate + 'T23:59:59');
+    } else if (filters.mode === 'selected_dates' && filters.startDate && filters.endDate) {
+      rangeLabel = `${formatDateTime(filters.startDate).date} to ${formatDateTime(filters.endDate).date}`;
+      queryParams = { startDate: filters.startDate, endDate: filters.endDate };
+      startDateVal = new Date(filters.startDate + 'T00:00:00');
+      endDateVal = new Date(filters.endDate + 'T23:59:59');
+    } else if (filters.mode === 'month' && filters.month) {
+      rangeLabel = `Month: ${filters.month}`;
+      const [year, month] = filters.month.split('-');
+      const startStr = `${year}-${month}-01`;
+      const endStr = new Date(year, month, 0).toISOString().split('T')[0];
+      queryParams = { startDate: startStr, endDate: endStr };
+      startDateVal = new Date(startStr + 'T00:00:00');
+      endDateVal = new Date(endStr + 'T23:59:59');
+    } else if (filters.mode === 'week' && filters.weekStart) {
+      const d = new Date(filters.weekStart + 'T00:00:00');
+      const day = d.getDay();
+      const start = new Date(d);
+      start.setDate(d.getDate() - day);
+      const end = new Date(start);
+      end.setDate(start.getDate() + 6);
+      rangeLabel = `Week: ${formatDateTime(start).date} to ${formatDateTime(end).date}`;
+      queryParams = { startDate: start.toISOString().split('T')[0], endDate: end.toISOString().split('T')[0] };
+      startDateVal = new Date(start.setHours(0, 0, 0, 0));
+      endDateVal = new Date(end.setHours(23, 59, 59, 999));
+    }
+
+    const doc = new jsPDF();
+    const pageWidth = doc.internal.pageSize.getWidth();
+    const pageHeight = doc.internal.pageSize.getHeight();
+
+    const centerText = (text, xY, fontSize = 10, fontStyle) => {
+      const str = String(text ?? '');
+      doc.setFontSize(fontSize);
+      if (fontStyle) doc.setFont(undefined, fontStyle);
+      const w = doc.getTextWidth(str);
+      doc.text(str, (pageWidth - w) / 2, xY);
+    };
+
+    const selectedCustomer = customers.find((c) => c._id === filters.customerId);
+    const customerName = selectedCustomer ? selectedCustomer.name : '';
+
+    let payments = [];
+
+    if (!filters.customerId) {
+      // MODE A: ALL CUSTOMERS PAYMENTS REPORT
+      try {
+        const params = new URLSearchParams(queryParams);
+        const { data } = await api.get(`/reports/payments?${params.toString()}`);
+        payments = data || [];
+      } catch (err) {
+        console.error('Error fetching payments report for PDF', err);
+        alert('Error fetching payments report');
+        return;
+      }
+
+      if (payments.length === 0) {
+        alert('No payments found for the selected timeline.');
+        return;
+      }
+
+      centerText('CUSTOMER PAYMENTS SUMMARY REPORT', 19, 12, 'bold');
+      centerText(rangeLabel, 26, 9);
+      doc.setDrawColor(200, 200, 200);
+      doc.line(14, 29, pageWidth - 14, 29);
+
+      const sortedPayments = [...payments].sort((a, b) => new Date(a.paymentDate) - new Date(b.paymentDate));
+
+      const head = [['S.NO', 'DATE', 'RECEIPT NO', 'CUSTOMER NAME', 'RECEIVED BY', 'NOTES', 'AMOUNT (Rs.)']];
+      const body = sortedPayments.map((p, idx) => [
+        idx + 1,
+        new Date(p.paymentDate).toLocaleDateString(),
+        p.paymentNumber || '—',
+        p.customerName || '—',
+        p.receivedBy || '—',
+        p.notes || '—',
+        Number(p.amountPaid || 0).toLocaleString()
+      ]);
+
+      autoTable(doc, {
+        head,
+        body,
+        startY: 36,
+        theme: 'grid',
+        styles: { fontSize: 8, cellPadding: 2.5 },
+        headStyles: { fillColor: [245, 246, 250], textColor: [15, 23, 42], fontStyle: 'bold' }
+      });
+
+      let y = (doc.lastAutoTable?.finalY || 36) + 12;
+      if (y > pageHeight - 45) {
+        doc.addPage();
+        y = 18;
+      }
+
+      const totalPaid = sortedPayments.reduce((sum, p) => sum + (p.amountPaid || 0), 0);
+
+      const grandHead = [['SUMMARY', 'AMOUNT (Rs.)']];
+      const grandBody = [
+        ['GRAND TOTAL PAYMENTS RECEIVED', totalPaid.toLocaleString()]
+      ];
+
+      doc.setFontSize(10);
+      doc.setFont(undefined, 'bold');
+      doc.text('Grand Summary:', 14, y - 4);
+
+      autoTable(doc, {
+        head: grandHead,
+        body: grandBody,
+        startY: y,
+        theme: 'grid',
+        styles: { fontSize: 8.5, cellPadding: 2.5 },
+        headStyles: { fillColor: [37, 99, 235], textColor: [255, 255, 255], fontStyle: 'bold' }
+      });
+
+      doc.save('customer_payments_summary.pdf');
+    } else {
+      // MODE B: PARTICULAR CUSTOMER PAYMENTS REPORT
+      try {
+        const params = new URLSearchParams(queryParams);
+        const { data } = await api.get(`/customers/${filters.customerId}/history?${params.toString()}`);
+        payments = data.payments || [];
+      } catch (err) {
+        console.error('Error fetching customer history for payments PDF', err);
+        alert('Error fetching customer history');
+        return;
+      }
+
+      if (payments.length === 0) {
+        alert(`No payments found for ${customerName} in the selected timeline.`);
+        return;
+      }
+
+      centerText(`${customerName.toUpperCase()} PAYMENT STATEMENT`, 19, 12, 'bold');
+      centerText(rangeLabel, 26, 9);
+      doc.setDrawColor(200, 200, 200);
+      doc.line(14, 29, pageWidth - 14, 29);
+
+      const sortedPayments = [...payments].sort((a, b) => new Date(a.paymentDate) - new Date(b.paymentDate));
+
+      const head = [['S.NO', 'DATE', 'RECEIPT NO', 'RECEIVED BY', 'NOTES', 'AMOUNT (Rs.)']];
+      const body = sortedPayments.map((p, idx) => [
+        idx + 1,
+        new Date(p.paymentDate).toLocaleDateString(),
+        p.paymentNumber || '—',
+        p.receivedBy || '—',
+        p.notes || '—',
+        Number(p.amount || 0).toLocaleString()
+      ]);
+
+      autoTable(doc, {
+        head,
+        body,
+        startY: 36,
+        theme: 'grid',
+        styles: { fontSize: 8, cellPadding: 2.5 },
+        headStyles: { fillColor: [245, 246, 250], textColor: [15, 23, 42], fontStyle: 'bold' }
+      });
+
+      let y = (doc.lastAutoTable?.finalY || 36) + 12;
+      if (y > pageHeight - 45) {
+        doc.addPage();
+        y = 18;
+      }
+
+      const totalPaid = sortedPayments.reduce((sum, p) => sum + (p.amount || 0), 0);
+
+      const summaryHead = [['SUMMARY', 'AMOUNT (Rs.)']];
+      const summaryBody = [
+        ['TOTAL PAYMENTS RECEIVED', totalPaid.toLocaleString()]
+      ];
+
+      doc.setFontSize(10);
+      doc.setFont(undefined, 'bold');
+      doc.text('Summary:', 14, y - 4);
+
+      autoTable(doc, {
+        head: summaryHead,
+        body: summaryBody,
+        startY: y,
+        theme: 'grid',
+        styles: { fontSize: 8.5, cellPadding: 2.5 },
+        headStyles: { fillColor: [37, 99, 235], textColor: [255, 255, 255], fontStyle: 'bold' }
+      });
+
+      doc.save(`${customerName.replaceAll(' ', '_')}_payments_statement.pdf`);
+    }
+  };
+
   const handleChange = (e) => {
     const { name, type, value, checked } = e.target;
     if (name === 'vehicleNumber') {
@@ -842,9 +1041,17 @@ const Bills = () => {
                 type="button"
                 onClick={downloadSummaryPdf}
                 disabled={filteredBills.length === 0 || loading}
-                className="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-blue-700 transition shadow-md disabled:opacity-50 disabled:cursor-not-allowed w-full sm:w-auto justify-center inline-flex items-center cursor-pointer"
+                className="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-blue-700 transition shadow-md disabled:opacity-50 disabled:cursor-not-allowed w-full sm:w-auto justify-center inline-flex items-center cursor-pointer animate-none"
               >
                 Download Summary PDF
+              </button>
+              <button
+                type="button"
+                onClick={downloadPaymentsPdf}
+                disabled={loading}
+                className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition shadow-md w-full sm:w-auto justify-center inline-flex items-center cursor-pointer"
+              >
+                Payments PDF
               </button>
               {canCreateBills && (
                 <button 
