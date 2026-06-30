@@ -61,13 +61,13 @@ const Sidebar = ({ isOpen, onClose }) => {
 
       {/* Sidebar Content */}
       <aside
-        className={`bg-white dark:bg-slate-900 border-r border-slate-200 dark:border-slate-800 shadow-sm flex flex-col transition-all duration-300 z-50
+        className={`bg-white dark:bg-slate-900 border-r border-slate-200 dark:border-slate-800 shadow-sm flex flex-col transition-all duration-300 z-50 md:z-30
           fixed md:sticky top-16 md:top-16 left-0 h-[calc(100vh-4rem)] md:h-[calc(100vh-4rem)] w-64
           ${isOpen ? 'translate-x-0' : '-translate-x-full'} md:translate-x-0
         `}
       >
         {/* Mobile Header (only shown inside drawer on mobile) */}
-        <div className="px-4 pt-6 pb-3 flex justify-between items-center md:block">
+        <div className="px-4 pt-6 pb-3 flex justify-between items-center md:hidden">
           <div className="flex items-center gap-3">
             <div 
               onClick={handleLogoClick}
@@ -89,8 +89,8 @@ const Sidebar = ({ isOpen, onClose }) => {
           </button>
         </div>
 
-        <div className="px-4">
-          <h3 className="text-xs font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wider mt-2 mb-1">Menu</h3>
+        <div className="px-4 pt-2 md:pt-4">
+          <h3 className="text-xs font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-1">Menu</h3>
         </div>
 
         <div className="flex-1 px-4 space-y-2 overflow-y-auto w-full pb-3">
