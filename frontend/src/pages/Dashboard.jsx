@@ -9,9 +9,7 @@ import {
   PackageIcon,
   CargoIcon,
   ChevronRightIcon,
-  UserShieldIcon,
-  ReceiptIcon,
-  ShieldCheckIcon
+  ReceiptIcon
 } from '../components/Icons';
 
 const Dashboard = () => {
@@ -26,26 +24,20 @@ const Dashboard = () => {
     employees: 0,
     materials: 0,
     todayBills: 0,
-    todayLoads: 0,
-    apiLatency: 'Calculating...',
-    dbStatus: 'Unknown',
-    dbProvider: 'Unknown',
-    dbHost: 'Unknown',
-    dbName: 'Unknown'
+    todayLoads: 0
   });
   const [recentDeliveries, setRecentDeliveries] = useState([]);
 
-  // Time ticker effect
+  // Time ticker effect for display clock
   useEffect(() => {
     const timer = setInterval(() => setCurrentTime(new Date()), 1000);
     return () => clearInterval(timer);
   }, []);
 
-  // Fetch operational metrics and health (strictly no financial values)
+  // Fetch operational metrics (strictly no financial values or system/telemetry configs)
   useEffect(() => {
     const fetchData = async () => {
       setLoading(true);
-      const start = Date.now();
       try {
         const [
           customersRes,
@@ -53,19 +45,15 @@ const Dashboard = () => {
           employeesRes,
           materialsRes,
           billsRes,
-          loadsRes,
-          healthRes
+          loadsRes
         ] = await Promise.allSettled([
           api.get('/customers'),
           api.get('/buyers'),
           api.get('/employees'),
           api.get('/materials'),
           api.get('/bills'),
-          api.get('/loads'),
-          api.get('/health')
+          api.get('/loads')
         ]);
-
-        const latency = `${Date.now() - start}ms`;
 
         const customers = customersRes.status === 'fulfilled' ? customersRes.value.data : [];
         const buyers = buyersRes.status === 'fulfilled' ? buyersRes.value.data : [];
@@ -73,7 +61,6 @@ const Dashboard = () => {
         const materials = materialsRes.status === 'fulfilled' ? materialsRes.value.data : [];
         const bills = billsRes.status === 'fulfilled' ? billsRes.value.data : [];
         const loads = loadsRes.status === 'fulfilled' ? loadsRes.value.data : [];
-        const health = healthRes.status === 'fulfilled' ? healthRes.value.data : null;
 
         const todayStr = new Date().toLocaleDateString('sv'); // sv-SE outputs YYYY-MM-DD
         const todayBills = bills.filter(b => b.date && b.date.startsWith(todayStr)).length;
@@ -114,12 +101,7 @@ const Dashboard = () => {
           employees: employees.length,
           materials: materials.length,
           todayBills,
-          todayLoads,
-          apiLatency: latency,
-          dbStatus: health?.database?.status || 'connected',
-          dbProvider: health?.database?.provider === 'atlas' ? 'MongoDB Atlas (Cloud)' : 'Local MongoDB Server',
-          dbHost: health?.database?.host || 'mongoose-cluster',
-          dbName: health?.database?.name || 'crusher-db'
+          todayLoads
         });
       } catch (err) {
         console.error('Failed to load dashboard metrics', err);
@@ -135,8 +117,8 @@ const Dashboard = () => {
     return (
       <div className="flex flex-col justify-center items-center min-h-[500px] space-y-4">
         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 dark:border-blue-400" />
-        <p className="text-slate-500 dark:text-slate-400 text-sm font-mono animate-pulse">
-          Initializing Operations Console...
+        <p className="text-slate-500 dark:text-slate-400 text-sm font-sans animate-pulse">
+          Loading dashboard overview...
         </p>
       </div>
     );
@@ -153,45 +135,39 @@ const Dashboard = () => {
         <div className="relative z-10 flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
           <div className="space-y-2">
             <div className="flex items-center gap-2.5">
-              <span className="flex h-2.5 w-2.5 relative">
+              <span className="flex h-2 w-2 relative">
                 <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-400 opacity-75"></span>
-                <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-blue-500"></span>
+                <span className="relative inline-flex rounded-full h-2 w-2 bg-blue-500"></span>
               </span>
-              <span className="text-xs uppercase font-mono tracking-widest text-slate-400">
-                Operations Management Console
+              <span className="text-xs uppercase font-sans font-semibold tracking-wider text-slate-400">
+                Krishna Blue Metals Operations Portal
               </span>
             </div>
             <h1 className="text-2xl md:text-3xl font-extrabold tracking-tight">
               Welcome back, {user?.name || user?.username || 'Administrator'}
             </h1>
-            <p className="text-slate-400 text-sm max-w-xl">
-              Role: <span className="text-slate-200 capitalize font-medium">{user?.role?.replace('_', ' ')}</span>{' '}
-              | Access: <span className="text-slate-200 capitalize font-medium">{user?.accessLevel?.replace('_', ' ')}</span>
+            <p className="text-slate-300 text-sm max-w-xl leading-relaxed">
+              Hello! Here is your daily operational summary. Today, we have recorded{' '}
+              <span className="text-blue-300 font-bold">{stats.todayBills} Customer Dispatches</span> and{' '}
+              <span className="text-emerald-300 font-bold">{stats.todayLoads} Supplier Deliveries</span>.
             </p>
           </div>
 
-          <div className="flex flex-col items-end gap-1.5 font-mono text-xs text-slate-300 bg-slate-950/40 p-4 rounded-xl border border-slate-700/50 backdrop-blur-sm self-stretch md:self-auto min-w-[200px]">
+          <div className="flex flex-col items-end gap-1 font-sans text-xs text-slate-300 bg-slate-950/40 p-4 rounded-xl border border-slate-700/50 backdrop-blur-sm self-stretch md:self-auto min-w-[200px]">
             <div className="flex justify-between w-full gap-4">
-              <span className="text-slate-500">SYSTEM TIME:</span>
+              <span className="text-slate-500 font-medium">TIME:</span>
               <span className="font-bold text-slate-200">
                 {currentTime.toLocaleTimeString()}
               </span>
             </div>
             <div className="flex justify-between w-full gap-4">
-              <span className="text-slate-500">SYSTEM DATE:</span>
+              <span className="text-slate-500 font-medium">DATE:</span>
               <span className="font-bold text-slate-200">
                 {currentTime.toLocaleDateString(undefined, {
                   year: 'numeric',
                   month: 'short',
                   day: 'numeric'
                 })}
-              </span>
-            </div>
-            <div className="flex justify-between w-full gap-4 border-t border-slate-800 pt-1.5 mt-1.5">
-              <span className="text-slate-500">DB TELEMETRY:</span>
-              <span className="font-bold text-emerald-400 flex items-center gap-1">
-                <span className="h-1.5 w-1.5 bg-emerald-400 rounded-full"></span>
-                ONLINE
               </span>
             </div>
           </div>
@@ -202,27 +178,27 @@ const Dashboard = () => {
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 xl:gap-6">
         {[
           {
-            title: 'Registered Customers',
-            value: stats.customers,
-            description: 'Active client registry',
-            icon: UsersIcon,
+            title: "Today's Client Bills",
+            value: stats.todayBills,
+            description: 'Customer deliveries today',
+            icon: ReceiptIcon,
             color: 'text-blue-500 bg-blue-50 dark:bg-blue-900/10 dark:text-blue-400',
             borderColor: 'border-blue-100 dark:border-blue-950',
-            path: '/customers'
+            path: '/bills'
           },
           {
-            title: 'Registered Buyers',
-            value: stats.buyers,
-            description: 'Material purchase agents',
+            title: "Today's Supplier Loads",
+            value: stats.todayLoads,
+            description: 'Raw materials received today',
             icon: CargoIcon,
             color: 'text-emerald-500 bg-emerald-50 dark:bg-emerald-900/10 dark:text-emerald-400',
             borderColor: 'border-emerald-100 dark:border-emerald-950',
-            path: '/buyers'
+            path: '/loads'
           },
           {
-            title: 'Active Employees',
+            title: 'Active Workforce',
             value: stats.employees,
-            description: 'Staff & crew members',
+            description: 'Registered crew members',
             icon: HardHatIcon,
             color: 'text-amber-500 bg-amber-50 dark:bg-amber-900/10 dark:text-amber-400',
             borderColor: 'border-amber-100 dark:border-amber-950',
@@ -347,7 +323,7 @@ const Dashboard = () => {
           </div>
         </div>
 
-        {/* Right Section: Actions & Diagnostics (1/3 width) */}
+        {/* Right Section: Actions & Registry Summary (1/3 width) */}
         <div className="flex flex-col gap-6">
           {/* Quick Actions Card */}
           <div className="bg-white dark:bg-slate-900 rounded-2xl p-5 md:p-6 border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col">
@@ -412,57 +388,43 @@ const Dashboard = () => {
             </div>
           </div>
 
-          {/* System Diagnostics Card */}
+          {/* Registry Totals Card */}
           <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 md:p-6 shadow-sm flex flex-col">
             <div className="border-b border-slate-100 dark:border-slate-800 pb-3 mb-4 flex justify-between items-center">
               <div className="flex items-center gap-2">
-                <ShieldCheckIcon className="h-5 w-5 text-blue-500" />
+                <UsersIcon className="h-5 w-5 text-indigo-500" />
                 <h3 className="text-sm font-bold text-slate-800 dark:text-slate-100">
-                  System Diagnostics
+                  Registry Summary
                 </h3>
               </div>
-              <span className="flex h-2 w-2 relative">
-                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+              <span className="px-2 py-0.5 bg-indigo-50 dark:bg-indigo-950/20 text-indigo-600 dark:text-indigo-400 text-[10px] font-bold rounded uppercase tracking-wider">
+                All-time
               </span>
             </div>
 
-            <div className="space-y-3.5 text-xs">
+            <div className="space-y-3.5 text-xs font-medium">
               <div className="flex justify-between items-center py-0.5">
-                <span className="text-slate-400 dark:text-slate-500 font-medium">Database Link</span>
-                <span className="font-bold text-emerald-500 flex items-center gap-1.5 uppercase font-mono">
-                  <span className="h-1.5 w-1.5 bg-emerald-500 rounded-full"></span>
-                  {stats.dbStatus}
+                <span className="text-slate-400 dark:text-slate-500">Registered Customers</span>
+                <span className="font-bold text-slate-800 dark:text-slate-200">
+                  {stats.customers} accounts
                 </span>
               </div>
               <div className="flex justify-between items-center py-0.5 border-t border-slate-100 dark:border-slate-850 pt-2">
-                <span className="text-slate-400 dark:text-slate-500 font-medium">DB Provider</span>
-                <span className="font-bold text-slate-700 dark:text-slate-300 font-mono">
-                  {stats.dbProvider}
+                <span className="text-slate-400 dark:text-slate-500">Registered Suppliers (Buyers)</span>
+                <span className="font-bold text-slate-800 dark:text-slate-200">
+                  {stats.buyers} buyers
                 </span>
               </div>
               <div className="flex justify-between items-center py-0.5 border-t border-slate-100 dark:border-slate-850 pt-2">
-                <span className="text-slate-400 dark:text-slate-500 font-medium">Database Name</span>
-                <span className="font-bold text-slate-700 dark:text-slate-300 font-mono">
-                  {stats.dbName}
+                <span className="text-slate-400 dark:text-slate-500">Registered Workforce</span>
+                <span className="font-bold text-slate-800 dark:text-slate-200">
+                  {stats.employees} crew members
                 </span>
               </div>
               <div className="flex justify-between items-center py-0.5 border-t border-slate-100 dark:border-slate-850 pt-2">
-                <span className="text-slate-400 dark:text-slate-500 font-medium">API Response</span>
-                <span className="font-bold text-blue-500 dark:text-blue-400 font-mono">
-                  {stats.apiLatency}
-                </span>
-              </div>
-              <div className="flex justify-between items-center py-0.5 border-t border-slate-100 dark:border-slate-850 pt-2">
-                <span className="text-slate-400 dark:text-slate-500 font-medium">Platform Host</span>
-                <span className="font-bold text-slate-700 dark:text-slate-300 font-mono overflow-hidden text-ellipsis whitespace-nowrap max-w-[140px]" title={stats.dbHost}>
-                  {stats.dbHost}
-                </span>
-              </div>
-              <div className="flex justify-between items-center py-0.5 border-t border-slate-100 dark:border-slate-850 pt-2">
-                <span className="text-slate-400 dark:text-slate-500 font-medium">Environment</span>
-                <span className="font-bold text-slate-700 dark:text-slate-300 font-mono uppercase">
-                  {process.env.NODE_ENV || 'Production'}
+                <span className="text-slate-400 dark:text-slate-500">Material Classifications</span>
+                <span className="font-bold text-slate-800 dark:text-slate-200">
+                  {stats.materials} products
                 </span>
               </div>
             </div>
