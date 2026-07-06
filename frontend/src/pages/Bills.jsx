@@ -480,9 +480,14 @@ const Bills = () => {
         ['GRAND TOTAL BILLED', `Rs. ${Number(grandTotal).toLocaleString()}`],
         ['PREVIOUS BALANCE', `Rs. ${Number(oldBalance).toLocaleString()}`],
         ['GRAND TOTAL', `Rs. ${Number(grandTotalSum).toLocaleString()}`],
-        ['AMOUNT RECEIVED', `Rs. ${Number(amountReceived).toLocaleString()}`],
-        ['TOTAL BALANCE', `Rs. ${Number(totalBalanceCalculated).toLocaleString()}`]
+        ['AMOUNT RECEIVED', `Rs. ${Number(amountReceived).toLocaleString()}`]
       ];
+
+      if (totalBalanceCalculated < 0) {
+        totalsBody.push(['ADVANCE CREDIT', `Rs. ${Number(Math.abs(totalBalanceCalculated)).toLocaleString()}`]);
+      } else {
+        totalsBody.push(['TOTAL BALANCE DUE', `Rs. ${Number(totalBalanceCalculated).toLocaleString()}`]);
+      }
 
       const leftRightMargin = 14;
       const detailsColWidth = 85;

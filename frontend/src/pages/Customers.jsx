@@ -367,13 +367,19 @@ const Customers = () => {
 
     const totalsHead = [['STATEMENT SUMMARY', 'AMOUNT']];
     const grandTotalSum = selectedBilled + previousOutstanding;
+    const balanceValue = grandTotalSum - selectedPaid;
     const totalsBody = [
       ['GRAND TOTAL BILLED', `Rs. ${Number(selectedBilled).toLocaleString()}`],
       ['PREVIOUS BALANCE', `Rs. ${Number(previousOutstanding).toLocaleString()}`],
       ['GRAND TOTAL', `Rs. ${Number(grandTotalSum).toLocaleString()}`],
-      ['AMOUNT RECEIVED', `Rs. ${Number(selectedPaid).toLocaleString()}`],
-      ['TOTAL BALANCE', `Rs. ${Number(selectedOutstanding).toLocaleString()}`]
+      ['AMOUNT RECEIVED', `Rs. ${Number(selectedPaid).toLocaleString()}`]
     ];
+
+    if (balanceValue < 0) {
+      totalsBody.push(['ADVANCE CREDIT', `Rs. ${Number(Math.abs(balanceValue)).toLocaleString()}`]);
+    } else {
+      totalsBody.push(['TOTAL BALANCE DUE', `Rs. ${Number(balanceValue).toLocaleString()}`]);
+    }
 
     const leftRightMargin = 14;
     const detailsColWidth = 85;
