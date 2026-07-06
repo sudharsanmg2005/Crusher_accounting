@@ -128,8 +128,9 @@ const Dashboard = () => {
     <div className="space-y-6 w-full pb-8">
       {/* 1. Header Banner */}
       <div className="relative overflow-hidden rounded-2xl bg-gradient-to-r from-slate-900 via-slate-800 to-slate-950 p-6 md:p-8 shadow-lg text-white">
-        <div className="absolute right-4 md:right-10 top-1/2 -translate-y-1/2 opacity-15 pointer-events-none">
-          <img src={logoUrl} alt="KBM Logo" className="h-32 w-32 object-contain" />
+        {/* Subtle background logo watermark offset to the left of the date/time panel to prevent overlap */}
+        <div className="hidden md:block absolute right-72 top-1/2 -translate-y-1/2 opacity-10 pointer-events-none">
+          <img src={logoUrl} alt="KBM Logo" className="h-28 w-28 object-contain" />
         </div>
 
         <div className="relative z-10 flex flex-col md:flex-row justify-between items-start md:items-center gap-6">

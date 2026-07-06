@@ -384,3 +384,126 @@ export const permanentDeleteBill = async (req, res, next) => {
   }
 };
 
+export const createBillsBulk = async (req, res, next) => {
+  try {
+    const { date, bills } = req.body;
+
+    if (!Array.isArray(bills) || bills.length === 0) {
+      res.status(400);
+      throw new Error('No bills provided in the batch');
+    }
+
+    const billDate = date ? new Date(date) : new Date();
+    const now = new Date();
+    const isBackdated = billDate.getTime() < now.getTime() - 60000;
+
+    // Collect all customer IDs and material IDs to fetch them in bulk
+    const customerIds = [...new Set(bills.map(b => b.customerId).filter(Boolean))];
+    const materialIds = [...new Set(bills.map(b => b.materialId).filter(Boolean))];
+
+    const customers = await Customer.find({ _id: { $in: customerIds }, isDeleted: false });
+    const materials = await Material.find({ _id: { $in: materialIds } });
+
+    const customerMap = new Map(customers.map(c => [c._id.toString(), c]));
+    const materialMap = new Map(materials.map(m => [m._id.toString(), m]));
+
+    const billDocs = [];
+    const modifiedCustomers = new Set();
+    const startCount = await Bill.countDocuments({ isDeleted: false }); // or Bill.countDocuments()
+
+    for (let i = 0; i < bills.length; i++) {
+      const b = bills[i];
+      const {
+        customerId,
+        vehicleNumber,
+        materialId,
+        quantity,
+        quantityUnit = 'unit',
+        pricePerUnit,
+        passAmount
+      } = b;
+
+      const customer = customerMap.get(customerId?.toString());
+      if (!customer) {
+        res.status(400);
+        throw new Error(`Customer not found for bill at index ${i}`);
+      }
+
+      const material = materialMap.get(materialId?.toString());
+      if (!material) {
+        res.status(400);
+        throw new Error(`Material not found for bill at index ${i}`);
+      }
+
+      const normalizedVehicle = normalizeVehicle(vehicleNumber);
+      if (normalizedVehicle) {
+        const vehicleError = validateVehicleNumber(normalizedVehicle);
+        if (vehicleError) {
+          return res.status(400).json({ message: `Vehicle error in bill at index ${i}: ${vehicleError}` });
+        }
+        const exists = customer.vehicles.some((v) => normalizeVehicle(v.number) === normalizedVehicle);
+        if (!exists) {
+          customer.vehicles.push({ number: normalizedVehicle });
+          modifiedCustomers.add(customer);
+        }
+      }
+
+      const unit = quantityUnit === 'ton' ? 'ton' : 'unit';
+      const defaultPrice = unit === 'ton'
+        ? (material.pricePerTon ?? material.currentPrice)
+        : material.currentPrice;
+      const effectivePrice = pricePerUnit != null && pricePerUnit !== '' ? Number(pricePerUnit) : defaultPrice;
+      const totalAmount = roundToNearestTen(Number(quantity) * effectivePrice);
+      const passFee = passAmount != null && passAmount !== '' ? Number(passAmount) : 0;
+      const permissionCost = Number.isFinite(passFee) ? passFee : 0;
+
+      // Make sure we generate a unique bill number
+      const billNumber = `KBM-${String(startCount + 1 + i).padStart(5, '0')}`;
+
+      billDocs.push({
+        billNumber,
+        date: billDate,
+        customer: customer._id,
+        customerNameSnapshot: customer.name,
+        vehicleNumber: normalizedVehicle || '',
+        material: material._id,
+        materialNameSnapshot: material.name,
+        quantity: Number(quantity),
+        quantityUnit: unit,
+        pricePerUnit: effectivePrice,
+        totalAmount,
+        passAmount: permissionCost,
+        allocatedAmount: 0,
+        isBackdated
+      });
+    }
+
+    // Save modified customers (vehicles added)
+    for (const customer of modifiedCustomers) {
+      await customer.save();
+    }
+
+    // Insert all bills in one operation
+    const createdBills = await Bill.insertMany(billDocs);
+
+    // Recalculate customer balances for all unique affected customers
+    for (const customerId of customerIds) {
+      await recalculateCustomerBalances(customerId);
+    }
+
+    // Reload bills to get final allocatedAmount after recalculation
+    const createdIds = createdBills.map(b => b._id);
+    const reloadedBills = await Bill.find({ _id: { $in: createdIds } }).sort({ billNumber: 1 });
+
+    const auditDetails = `Bulk created ${reloadedBills.length} bills dated ${billDate.toISOString().split('T')[0]}`;
+
+    res.status(201).json({
+      bills: reloadedBills,
+      auditDetails
+    });
+  } catch (err) {
+    next(err);
+  }
+};
+
+

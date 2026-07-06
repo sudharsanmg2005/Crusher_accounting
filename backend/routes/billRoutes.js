@@ -9,7 +9,8 @@ import {
   permanentDeleteBill,
   addPaymentToBill,
   getTodaySummary,
-  getArchivedBills
+  getArchivedBills,
+  createBillsBulk
 } from '../controllers/billController.js';
 import {
   requireBillCreateAccess,
@@ -20,6 +21,7 @@ import {
 const router = express.Router();
 
 router.route('/').get(getBills).post(requireBillCreateAccess, createBill);
+router.route('/bulk').post(requireBillCreateAccess, createBillsBulk);
 router.route('/summary/today').get(getTodaySummary);
 router.route('/archived').get(requireSuperAdmin, getArchivedBills);
 router.route('/:id').get(getBillById).put(requireWriteAccess, updateBill).delete(requireWriteAccess, deleteBill);
