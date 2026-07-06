@@ -54,13 +54,7 @@ export const updatePayment = async (req, res, next) => {
         .filter((p) => p._id.toString() !== payment._id.toString())
         .reduce((sum, p) => sum + p.amount, 0);
 
-      const maxAllowed = totalBilled - totalPaidOther;
-      if (numAmount - maxAllowed > 1e-4) {
-        return res.status(400).json({
-          message: `Payment amount (₹${numAmount.toFixed(2)}) cannot exceed outstanding balance (₹${Math.max(0, maxAllowed).toFixed(2)})`
-        });
-      }
-
+      // Overpayments/advances are allowed; excess will carry over as credit.
       payment.amount = numAmount;
     }
 

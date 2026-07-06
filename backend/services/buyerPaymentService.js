@@ -64,10 +64,7 @@ export const recordBuyerPayment = async ({ buyerId, amount, date, notes, paidBy 
       }
     }
 
-    if (received - totalOutstanding > 1e-4) {
-      throw new Error(`Payment amount (₹${received.toFixed(2)}) cannot exceed outstanding balance (₹${totalOutstanding.toFixed(2)})`);
-    }
-
+    // Overpayments/advances are allowed; excess will carry over as credit.
     let remaining = received;
     const allocationDetails = [];
 

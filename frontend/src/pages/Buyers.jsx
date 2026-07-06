@@ -236,11 +236,7 @@ const Buyers = () => {
       alert('Please enter a valid payment amount');
       return;
     }
-    const outstanding = buyerDetails?.summary?.totalOutstandingAmount || 0;
-    if (amount - outstanding > 1e-4) {
-      alert(`Payment amount (₹${amount.toLocaleString()}) cannot exceed outstanding balance (₹${outstanding.toLocaleString()})`);
-      return;
-    }
+    // Overpayments are allowed and rollover as credit.
 
     try {
       await api.post('/buyer-payments', {
@@ -809,10 +805,17 @@ const Buyers = () => {
                 <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Total Paid</div>
                 <div className="text-base font-bold text-emerald-700">₹{Number(buyerDetails.summary?.totalPaidAmount || 0).toLocaleString()}</div>
               </div>
-              <div className="bg-rose-50 border border-rose-200/60 rounded-xl p-3 text-center">
-                <div className="text-[10px] font-bold text-rose-500 uppercase tracking-wider mb-1">Outstanding</div>
-                <div className="text-base font-bold text-rose-700">₹{Number(buyerDetails.summary?.totalOutstandingAmount || 0).toLocaleString()}</div>
-              </div>
+              {buyerDetails.summary?.advanceCredit > 0 ? (
+                <div className="bg-emerald-50 border border-emerald-200/60 rounded-xl p-3 text-center">
+                  <div className="text-[10px] font-bold text-emerald-600 uppercase tracking-wider mb-1">Advance Credit</div>
+                  <div className="text-base font-bold text-emerald-700">₹{Number(buyerDetails.summary.advanceCredit).toLocaleString()}</div>
+                </div>
+              ) : (
+                <div className="bg-rose-50 border border-rose-200/60 rounded-xl p-3 text-center">
+                  <div className="text-[10px] font-bold text-rose-500 uppercase tracking-wider mb-1">Outstanding</div>
+                  <div className="text-base font-bold text-rose-700">₹{Number(buyerDetails.summary?.totalOutstandingAmount || 0).toLocaleString()}</div>
+                </div>
+              )}
               <div className="bg-slate-50 border border-slate-200/60 rounded-xl p-3 text-center">
                 <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Loads Count</div>
                 <div className="text-base font-bold text-slate-800">{buyerDetails.summary?.totalBillsCount || 0}</div>
@@ -1161,8 +1164,17 @@ const Buyers = () => {
                   <span className="font-bold text-slate-800">{buyerDetails.buyer?.name}</span>
                 </div>
                 <div className="flex justify-between items-center py-1 mt-1 border-t border-slate-100">
-                  <span className="text-rose-500 font-semibold">Total Outstanding Balance:</span>
-                  <span className="font-extrabold text-rose-600 text-base">₹{Number(buyerDetails.summary?.totalOutstandingAmount || 0).toLocaleString()}</span>
+                  {buyerDetails.summary?.advanceCredit > 0 ? (
+                    <>
+                      <span className="text-emerald-600 font-semibold">Advance Credit:</span>
+                      <span className="font-extrabold text-emerald-600 text-base">₹{Number(buyerDetails.summary.advanceCredit).toLocaleString()}</span>
+                    </>
+                  ) : (
+                    <>
+                      <span className="text-rose-500 font-semibold">Total Outstanding Balance:</span>
+                      <span className="font-extrabold text-rose-600 text-base">₹{Number(buyerDetails.summary?.totalOutstandingAmount || 0).toLocaleString()}</span>
+                    </>
+                  )}
                 </div>
               </div>
 
@@ -1222,7 +1234,7 @@ const Buyers = () => {
                 </button>
                 <button
                   type="submit"
-                  disabled={Number(paymentAmount) <= 0 || Number(paymentAmount) - (buyerDetails?.summary?.totalOutstandingAmount || 0) > 1e-4}
+                  disabled={Number(paymentAmount) <= 0}
                   className="px-5 py-2 bg-emerald-600 text-white rounded-lg font-semibold text-sm hover:bg-emerald-700 disabled:opacity-40 disabled:cursor-not-allowed transition shadow-md"
                 >
                   Record Payment
@@ -1253,10 +1265,12 @@ const Buyers = () => {
                   <span className="font-bold text-blue-700">{editingPayment.paymentNumber}</span>
                 </div>
                 <div className="flex justify-between items-center py-1 mt-1 border-t border-slate-100">
-                  <span className="text-rose-500 font-semibold">Maximum Allowed Amount:</span>
-                  <span className="font-extrabold text-rose-600">
-                    ₹{Number((buyerDetails.summary?.totalOutstandingAmount || 0) + editingPayment.amount).toLocaleString()}
-                  </span>
+                  <span className="text-slate-500 font-semibold">Current Balance:</span>
+                  {buyerDetails.summary?.advanceCredit > 0 ? (
+                    <span className="font-extrabold text-emerald-600 text-base">₹{Number(buyerDetails.summary.advanceCredit).toLocaleString()} Credit</span>
+                  ) : (
+                    <span className="font-extrabold text-rose-600 text-base">₹{Number(buyerDetails.summary?.totalOutstandingAmount || 0).toLocaleString()} Due</span>
+                  )}
                 </div>
               </div>
 
@@ -1313,7 +1327,7 @@ const Buyers = () => {
                 </button>
                 <button
                   type="submit"
-                  disabled={Number(editPaymentAmount) <= 0 || Number(editPaymentAmount) - ((buyerDetails?.summary?.totalOutstandingAmount || 0) + editingPayment.amount) > 1e-4}
+                  disabled={Number(editPaymentAmount) <= 0}
                   className="px-5 py-2 bg-blue-600 text-white rounded-lg font-semibold text-sm hover:bg-blue-700 disabled:opacity-40 disabled:cursor-not-allowed transition shadow-md"
                 >
                   Update Payment
