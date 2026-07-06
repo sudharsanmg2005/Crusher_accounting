@@ -924,6 +924,11 @@ const Bills = () => {
     }
   };
 
+  const buildBillDate = () => {
+    if (!canWrite || !formData.customDate) return undefined;
+    return new Date(`${formData.customDate}T12:00`).toISOString();
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     const vehicle = formData.vehicleMode === 'none' ? '' : (formData.vehicleNumber || '');
