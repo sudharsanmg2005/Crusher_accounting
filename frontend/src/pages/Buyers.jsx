@@ -338,17 +338,21 @@ const Buyers = () => {
     const yStartTable = 36;
     const head = [['S.NO', 'DATE', 'VEHICLE NUMBER', 'MATERIAL', 'PRICE (Rs.)', 'QUANTITY', 'TOTAL VALUE (Rs.)', 'ALLOCATED (Rs.)', 'PENDING (Rs.)']];
     const sortedBills = [...(buyerDetails.bills || [])].sort((a, b) => new Date(a.date) - new Date(b.date));
-    const body = sortedBills.map((r, idx) => [
-      idx + 1,
-      formatDateTime(r.date).date,
-      r.vehicleNumber || '—',
-      r.quarryName || '—',
-      r.price.toLocaleString(),
-      Number(r.quantity || 0).toFixed(2),
-      (r.price * r.quantity).toLocaleString(),
-      (r.allocatedAmount || 0).toLocaleString(),
-      (r.price * r.quantity - (r.allocatedAmount || 0)).toLocaleString()
-    ]);
+    const body = sortedBills.map((r, idx) => {
+      const totalLoadCost = r.totalAmount ?? roundToNearestTen(r.price * r.quantity);
+      const pendingVal = totalLoadCost - (r.allocatedAmount || 0);
+      return [
+        idx + 1,
+        formatDateTime(r.date).date,
+        r.vehicleNumber || '—',
+        r.quarryName || '—',
+        r.price.toLocaleString(),
+        Number(r.quantity || 0).toFixed(2),
+        totalLoadCost.toLocaleString(),
+        (r.allocatedAmount || 0).toLocaleString(),
+        pendingVal.toLocaleString()
+      ];
+    });
 
     autoTable(doc, {
       head,
