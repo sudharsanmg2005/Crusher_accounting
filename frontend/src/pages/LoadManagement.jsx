@@ -254,7 +254,7 @@ const LoadManagement = () => {
 
   const openBulkModal = () => {
     setBulkDate(new Date().toISOString().split('T')[0]);
-    setBulkRows([emptyBulkRow(), emptyBulkRow(), emptyBulkRow()]);
+    setBulkRows([emptyBulkRow()]);
     setIsBulkModalOpen(true);
   };
 
