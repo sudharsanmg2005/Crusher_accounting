@@ -183,3 +183,82 @@ export const deleteLoad = async (req, res, next) => {
     next(err);
   }
 };
+
+export const createLoadsBulk = async (req, res, next) => {
+  try {
+    const { date, loads } = req.body;
+
+    if (!loads || !Array.isArray(loads) || loads.length === 0) {
+      res.status(400);
+      throw new Error('No loads provided for bulk creation');
+    }
+
+    // Get all unique buyerIds in the batch
+    const buyerIds = [...new Set(loads.map((l) => l.buyerId))];
+    const buyers = await Buyer.find({ _id: { $in: buyerIds }, isDeleted: false });
+    const buyerMap = new Map(buyers.map((b) => [b._id.toString(), b]));
+
+    const loadsToCreate = [];
+    const buyersToSave = new Set();
+
+    for (const l of loads) {
+      const { vehicleNumber, quarryName, buyerId, price, quantity, unitType } = l;
+
+      if (!buyerId) {
+        res.status(400);
+        throw new Error('Buyer ID is required for all loads');
+      }
+
+      const buyerRecord = buyerMap.get(buyerId);
+      if (!buyerRecord) {
+        res.status(404);
+        throw new Error(`Buyer not found for ID: ${buyerId}`);
+      }
+
+      const normalizedVehicle = vehicleNumber ? normalizeVehicleNumber(vehicleNumber) : '';
+      if (normalizedVehicle) {
+        const vehicleError = validateVehicleNumber(normalizedVehicle);
+        if (vehicleError) {
+          return res.status(400).json({ message: vehicleError });
+        }
+        const exists = buyerRecord.vehicles.some((v) => normalizeVehicleNumber(v.number) === normalizedVehicle);
+        if (!exists) {
+          buyerRecord.vehicles.push({ number: normalizedVehicle });
+          buyersToSave.add(buyerRecord);
+        }
+      }
+
+      loadsToCreate.push({
+        vehicleNumber: normalizedVehicle,
+        date: date ? new Date(date) : new Date(),
+        quarryName: quarryName ? quarryName.trim() : undefined,
+        buyer: buyerId,
+        buyerNameSnapshot: buyerRecord.name,
+        price: Number(price) || 0,
+        quantity: Number(quantity) || 0,
+        unitType: unitType || 'tons'
+      });
+    }
+
+    // Save all buyers who got new vehicles
+    for (const buyer of buyersToSave) {
+      await buyer.save();
+    }
+
+    // Insert loads
+    const createdLoads = await Load.insertMany(loadsToCreate);
+
+    // Recalculate balances for all affected buyers
+    const { recalculateBuyerBalances } = await import('../services/buyerPaymentService.js');
+    for (const buyerId of buyerIds) {
+      await recalculateBuyerBalances(buyerId);
+    }
+
+    res.status(201).json({
+      loads: createdLoads,
+      auditDetails: `Bulk created ${createdLoads.length} loads on ${date}`
+    });
+  } catch (err) {
+    next(err);
+  }
+};

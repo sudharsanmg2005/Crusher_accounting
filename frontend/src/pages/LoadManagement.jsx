@@ -55,6 +55,11 @@ const LoadManagement = () => {
   const [isCreateMaterialOpen, setIsCreateMaterialOpen] = useState(false);
   const [newMaterialData, setNewMaterialData] = useState({ name: '', currentPrice: '', pricePerTon: '' });
 
+  // Bulk load modal states
+  const [isBulkModalOpen, setIsBulkModalOpen] = useState(false);
+  const [bulkDate, setBulkDate] = useState(new Date().toISOString().split('T')[0]);
+  const [bulkRows, setBulkRows] = useState([]);
+
 
 
   const [formData, setFormData] = useState({
@@ -235,6 +240,145 @@ const LoadManagement = () => {
       }
     }
   }, [formData.quarryName, formData.unitType, materials]);
+
+  const emptyBulkRow = () => ({
+    id: Date.now() + Math.random().toString(36).substr(2, 9),
+    buyerId: '',
+    vehicleMode: 'select',
+    vehicleNumber: '',
+    quarryName: '',
+    quantity: '',
+    unitType: 'tons',
+    price: ''
+  });
+
+  const openBulkModal = () => {
+    setBulkDate(new Date().toISOString().split('T')[0]);
+    setBulkRows([emptyBulkRow(), emptyBulkRow(), emptyBulkRow()]);
+    setIsBulkModalOpen(true);
+  };
+
+  const addBulkRow = () => {
+    setBulkRows((prev) => [...prev, emptyBulkRow()]);
+  };
+
+  const removeBulkRow = (index) => {
+    setBulkRows((prev) => {
+      const updated = prev.filter((_, i) => i !== index);
+      return updated.length === 0 ? [emptyBulkRow()] : updated;
+    });
+  };
+
+  const duplicateBulkRow = (index) => {
+    const target = bulkRows[index];
+    const newRow = {
+      ...target,
+      id: Date.now() + Math.random().toString(36).substr(2, 9),
+      vehicleNumber: ''
+    };
+    setBulkRows((prev) => {
+      const updated = [...prev];
+      updated.splice(index + 1, 0, newRow);
+      return updated;
+    });
+  };
+
+  const handleBulkRowChange = (index, field, value) => {
+    setBulkRows((prev) => {
+      const updated = [...prev];
+      const row = { ...updated[index], [field]: value };
+
+      if (field === 'buyerId' || field === 'quarryName' || field === 'unitType') {
+        const buyerId = field === 'buyerId' ? value : row.buyerId;
+        const quarryName = field === 'quarryName' ? value : row.quarryName;
+        const unitType = field === 'unitType' ? value : row.unitType;
+
+        if (buyerId && quarryName) {
+          const selectedMat = materials.find((m) => m.name === quarryName);
+          if (selectedMat) {
+            const defaultPrice = unitType === 'tons'
+              ? (selectedMat.pricePerTon ?? selectedMat.currentPrice)
+              : selectedMat.currentPrice;
+            row.price = defaultPrice.toString();
+          }
+        }
+      }
+
+      if (field === 'vehicleNumber' && row.vehicleMode === 'new') {
+        row.vehicleNumber = formatVehicleInput(value);
+      }
+
+      if (field === 'buyerId') {
+        row.vehicleNumber = '';
+      }
+
+      updated[index] = row;
+      return updated;
+    });
+  };
+
+  const handleBulkSubmit = async (e) => {
+    e.preventDefault();
+
+    const validRows = bulkRows.filter(
+      (r) => r.buyerId || r.vehicleNumber || r.quarryName || r.quantity || r.price
+    );
+
+    if (validRows.length === 0) {
+      alert('Please fill out at least one row with load details.');
+      return;
+    }
+
+    for (let i = 0; i < validRows.length; i++) {
+      const row = validRows[i];
+      const rowNum = i + 1;
+
+      if (!row.buyerId) {
+        alert(`Row #${rowNum}: Buyer is required.`);
+        return;
+      }
+      if (!row.quarryName) {
+        alert(`Row #${rowNum}: Material/Quarry is required.`);
+        return;
+      }
+      if (!row.quantity || Number(row.quantity) <= 0) {
+        alert(`Row #${rowNum}: Quantity must be greater than zero.`);
+        return;
+      }
+      if (!row.price || Number(row.price) < 0) {
+        alert(`Row #${rowNum}: Price is required and cannot be negative.`);
+        return;
+      }
+
+      const vehicle = row.vehicleMode === 'none' ? '' : (row.vehicleNumber || '');
+      if (vehicle && !isValidVehicleNumber(vehicle)) {
+        alert(`Row #${rowNum}: Vehicle number must be TN 74 2003, TN 74 AE 2003, or TMR 7177 format.`);
+        return;
+      }
+    }
+
+    try {
+      const payload = {
+        date: new Date(`${bulkDate}T12:00`).toISOString(),
+        loads: validRows.map((r) => ({
+          buyerId: r.buyerId,
+          vehicleNumber: r.vehicleMode === 'none' ? '' : r.vehicleNumber,
+          quarryName: r.quarryName,
+          quantity: Number(r.quantity),
+          unitType: r.unitType,
+          price: Number(r.price)
+        }))
+      };
+
+      await api.post('/loads/bulk', payload);
+      setIsBulkModalOpen(false);
+      fetchLoads();
+      fetchBuyers();
+    } catch (error) {
+      console.error('Error saving bulk loads', error);
+      alert('Error saving loads: ' + (error.response?.data?.message || 'Unknown error'));
+    }
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -946,25 +1090,34 @@ const LoadManagement = () => {
                 Payments PDF
               </button>
               {canWrite && (
-                <button
-                  type="button"
-                  onClick={() => {
-                    setFormData({
-                      vehicleMode: 'select',
-                      vehicleNumber: '',
-                      date: new Date().toISOString().split('T')[0],
-                      quarryName: '',
-                      buyerId: '',
-                      price: '',
-                      quantity: '',
-                      unitType: 'tons'
-                    });
-                    setIsModalOpen(true);
-                  }}
-                  className="bg-green-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-green-700 transition shadow-md whitespace-nowrap cursor-pointer w-full sm:w-auto justify-center inline-flex items-center"
-                >
-                  + Add Load
-                </button>
+                <>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setFormData({
+                        vehicleMode: 'select',
+                        vehicleNumber: '',
+                        date: new Date().toISOString().split('T')[0],
+                        quarryName: '',
+                        buyerId: '',
+                        price: '',
+                        quantity: '',
+                        unitType: 'tons'
+                      });
+                      setIsModalOpen(true);
+                    }}
+                    className="bg-green-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-green-700 transition shadow-md whitespace-nowrap cursor-pointer w-full sm:w-auto justify-center inline-flex items-center"
+                  >
+                    + Add Load
+                  </button>
+                  <button
+                    type="button"
+                    onClick={openBulkModal}
+                    className="bg-teal-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-teal-700 transition shadow-md whitespace-nowrap cursor-pointer w-full sm:w-auto justify-center inline-flex items-center"
+                  >
+                    + Bulk Entry
+                  </button>
+                </>
               )}
             </div>
           </div>
@@ -1368,6 +1521,274 @@ const LoadManagement = () => {
                 <button type="submit" className="px-5 py-2 bg-green-600 text-white rounded-lg font-medium hover:bg-green-700 transition shadow-md">
                   Create Material
                 </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+      {/* Bulk Generate Loads Modal */}
+      {isBulkModalOpen && (
+        <div className="fixed inset-0 bg-slate-900/50 flex items-center justify-center p-4 z-50 animate-in fade-in duration-200">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-[96vw] xl:max-w-[92vw] overflow-hidden flex flex-col max-h-[96vh]">
+            <div className="p-6 border-b border-slate-100 flex justify-between items-center shrink-0 bg-slate-50/50">
+              <div>
+                <h2 className="text-2xl font-bold text-slate-800">Daily Log Sheet (Bulk Load Entry)</h2>
+                <p className="text-sm text-slate-500 mt-1">Quickly enter all purchase loads of a day in one spreadsheet view</p>
+              </div>
+              <button onClick={() => setIsBulkModalOpen(false)} className="text-slate-400 hover:text-slate-600 text-3xl leading-none">&times;</button>
+            </div>
+            
+            <form onSubmit={handleBulkSubmit} className="flex flex-col flex-1 overflow-hidden">
+              {/* Batch Settings */}
+              <div className="p-5 bg-slate-50 border-b border-slate-100 flex flex-wrap gap-4 items-center shrink-0">
+                <div className="flex items-center gap-3">
+                  <label className="text-sm font-bold text-slate-700 uppercase tracking-wider">Log Date:</label>
+                  <input
+                    type="date"
+                    required
+                    value={bulkDate}
+                    onChange={(e) => setBulkDate(e.target.value)}
+                    className="border border-slate-300 rounded-xl p-2.5 text-base focus:ring-2 focus:ring-blue-500 outline-none bg-white w-48 font-semibold text-slate-800"
+                  />
+                </div>
+              </div>
+
+              {/* Grid Table Container */}
+              <div className="flex-1 overflow-auto p-6">
+                <table className="w-full border-collapse text-left text-base mb-64">
+                  <thead>
+                    <tr className="border-b border-slate-200 text-slate-600 uppercase text-xs font-extrabold tracking-wider bg-slate-100/80">
+                      <th className="py-4 px-3 w-12 text-center">#</th>
+                      <th className="py-4 px-3 min-w-[280px]">Buyer *</th>
+                      <th className="py-4 px-3 w-[140px]">Vehicle Mode</th>
+                      <th className="py-4 px-3 min-w-[180px]">Vehicle Number</th>
+                      <th className="py-4 px-3 min-w-[220px]">Quarry/Material *</th>
+                      <th className="py-4 px-3 w-[110px]">Unit</th>
+                      <th className="py-4 px-3 w-[110px]">Qty *</th>
+                      <th className="py-4 px-3 w-[130px]">Price/Unit *</th>
+                      <th className="py-4 px-3 w-[140px] text-right">Row Total</th>
+                      <th className="py-4 px-3 w-24 text-center">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {bulkRows.map((row, index) => {
+                      const rowBuyer = buyers.find(b => b._id === row.buyerId);
+                      const rowVehicles = rowBuyer?.vehicles || [];
+                      
+                      // Calculate row total
+                      const price = Number(row.price) || 0;
+                      const qty = Number(row.quantity) || 0;
+                      const rowTotal = roundToNearestTen(qty * price);
+
+                      return (
+                        <tr key={row.id} className="hover:bg-slate-50/50 transition duration-150">
+                          <td className="py-3.5 px-3 text-center text-slate-400 font-bold text-base">{index + 1}</td>
+                          
+                          {/* Buyer searchable select */}
+                          <td className="py-3.5 px-3">
+                            <SearchableSelect
+                              options={buyers.map(b => ({ value: b._id, label: b.name }))}
+                              value={row.buyerId}
+                              onChange={(val) => handleBulkRowChange(index, 'buyerId', val)}
+                              placeholder="Buyer"
+                              required
+                              className="!p-2.5 !text-[15px] font-semibold text-slate-800"
+                            />
+                          </td>
+
+                          {/* Vehicle Mode */}
+                          <td className="py-3.5 px-3">
+                            <select
+                              value={row.vehicleMode}
+                              onChange={(e) => handleBulkRowChange(index, 'vehicleMode', e.target.value)}
+                              className="w-full border border-slate-300 rounded-xl p-2.5 text-[15px] bg-white focus:ring-2 focus:ring-blue-500 outline-none font-semibold text-slate-800"
+                            >
+                              <option value="select">Existing</option>
+                              <option value="new">New</option>
+                              <option value="none">None</option>
+                            </select>
+                          </td>
+
+                          {/* Vehicle Number */}
+                          <td className="py-3.5 px-3">
+                            {row.vehicleMode === 'select' && (
+                              <select
+                                value={row.vehicleNumber}
+                                onChange={(e) => handleBulkRowChange(index, 'vehicleNumber', e.target.value)}
+                                className="w-full border border-slate-300 rounded-xl p-2.5 bg-white focus:ring-2 focus:ring-blue-500 outline-none text-[15px] font-semibold text-slate-800"
+                              >
+                                <option value="">Select</option>
+                                {rowVehicles.map((v) => (
+                                  <option key={v._id || v.number} value={v.number}>{v.number}</option>
+                                ))}
+                              </select>
+                            )}
+                            {row.vehicleMode === 'new' && (
+                              <input
+                                type="text"
+                                value={row.vehicleNumber}
+                                onChange={(e) => handleBulkRowChange(index, 'vehicleNumber', e.target.value)}
+                                className="w-full border border-slate-300 rounded-xl p-2.5 uppercase focus:ring-2 focus:ring-blue-500 outline-none text-[15px] bg-white font-semibold text-slate-800"
+                                placeholder="TN 74 AE 2003"
+                              />
+                            )}
+                            {row.vehicleMode === 'none' && (
+                              <input
+                                type="text"
+                                disabled
+                                value="None"
+                                className="w-full border border-slate-200 rounded-xl p-2.5 bg-slate-50 text-slate-400 text-[15px] cursor-not-allowed text-center outline-none font-semibold"
+                              />
+                            )}
+                          </td>
+
+                          {/* Quarry/Material */}
+                          <td className="py-3.5 px-3">
+                            <select
+                              required
+                              value={row.quarryName}
+                              onChange={(e) => handleBulkRowChange(index, 'quarryName', e.target.value)}
+                              className="w-full border border-slate-300 rounded-xl p-2.5 text-[15px] bg-white focus:ring-2 focus:ring-blue-500 outline-none font-semibold text-slate-800"
+                            >
+                              <option value="" disabled>Select</option>
+                              {materials.map(m => (
+                                <option key={m._id} value={m.name}>
+                                  {m.name}
+                                </option>
+                              ))}
+                            </select>
+                          </td>
+
+                          {/* Unit */}
+                          <td className="py-3.5 px-3">
+                            <select
+                              value={row.unitType}
+                              onChange={(e) => handleBulkRowChange(index, 'unitType', e.target.value)}
+                              className="w-full border border-slate-300 rounded-xl p-2.5 text-[15px] bg-white focus:ring-2 focus:ring-blue-500 outline-none font-semibold text-slate-800"
+                            >
+                              <option value="tons">tons</option>
+                              <option value="units">units</option>
+                            </select>
+                          </td>
+
+                          {/* Quantity */}
+                          <td className="py-3.5 px-3">
+                            <input
+                              type="number"
+                              required
+                              step="any"
+                              value={row.quantity}
+                              onChange={(e) => handleBulkRowChange(index, 'quantity', e.target.value)}
+                              className="w-full border border-slate-300 rounded-xl p-2.5 text-[15px] focus:ring-2 focus:ring-blue-500 outline-none bg-white font-semibold text-slate-800"
+                              placeholder="Qty"
+                            />
+                          </td>
+
+                          {/* Price per unit */}
+                          <td className="py-3.5 px-3">
+                            <input
+                              type="number"
+                              required
+                              step="any"
+                              value={row.price}
+                              onChange={(e) => handleBulkRowChange(index, 'price', e.target.value)}
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter') {
+                                  e.preventDefault();
+                                  if (index === bulkRows.length - 1) {
+                                    addBulkRow();
+                                  }
+                                }
+                              }}
+                              className="w-full border border-slate-300 rounded-xl p-2.5 text-[15px] focus:ring-2 focus:ring-blue-500 outline-none bg-white font-semibold text-slate-800"
+                              placeholder="Price"
+                            />
+                          </td>
+
+                          {/* Total */}
+                          <td className="py-3.5 px-3 text-right font-extrabold text-slate-800 text-[15px]">
+                            ₹{rowTotal.toLocaleString()}
+                          </td>
+
+                          {/* Actions */}
+                          <td className="py-3.5 px-3 text-center">
+                            <div className="flex items-center justify-center gap-2">
+                              <button
+                                type="button"
+                                onClick={() => duplicateBulkRow(index)}
+                                title="Duplicate Row"
+                                className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition cursor-pointer"
+                              >
+                                <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                                  <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+                                  <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+                                </svg>
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => removeBulkRow(index)}
+                                title="Delete Row"
+                                className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition cursor-pointer"
+                              >
+                                <TrashIcon className="h-5 w-5" />
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+
+              {/* Grid Actions & Sticky Summary Footer */}
+              <div className="p-5 border-t border-slate-100 bg-slate-50 flex flex-col md:flex-row md:items-center justify-between gap-4 shrink-0 shadow-inner">
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    onClick={addBulkRow}
+                    className="px-6 py-2.5 border border-slate-300 text-slate-700 bg-white hover:bg-slate-50 rounded-xl text-base font-bold transition cursor-pointer shadow-sm"
+                  >
+                    + Add Row
+                  </button>
+                </div>
+
+                {/* Summary calculation */}
+                <div className="flex flex-wrap items-center gap-8 text-base text-slate-600 bg-white px-6 py-3 border border-slate-200 rounded-xl shadow-sm">
+                  <div>
+                    Total Rows: <span className="font-extrabold text-slate-800">{bulkRows.length}</span>
+                  </div>
+                  <div>
+                    Total Qty: <span className="font-extrabold text-slate-800">
+                      {bulkRows.reduce((sum, r) => sum + (Number(r.quantity) || 0), 0).toFixed(2)}
+                    </span>
+                  </div>
+                  <div>
+                    Total Amount: <span className="font-extrabold text-emerald-600">
+                      ₹{bulkRows.reduce((sum, r) => {
+                        const price = Number(r.price) || 0;
+                        const qty = Number(r.quantity) || 0;
+                        return sum + roundToNearestTen(qty * price);
+                      }, 0).toLocaleString()}
+                    </span>
+                  </div>
+                </div>
+
+                <div className="flex gap-3 justify-end">
+                  <button
+                    type="button"
+                    onClick={() => setIsBulkModalOpen(false)}
+                    className="px-6 py-2.5 text-slate-600 bg-white border border-slate-300 hover:bg-slate-50 rounded-xl text-base font-bold transition cursor-pointer"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    className="px-6 py-2.5 bg-emerald-600 text-white hover:bg-emerald-700 rounded-xl text-base font-bold transition shadow-md hover:shadow-lg cursor-pointer"
+                  >
+                    Save Batch Loads
+                  </button>
+                </div>
               </div>
             </form>
           </div>

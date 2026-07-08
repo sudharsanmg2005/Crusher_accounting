@@ -1,7 +1,10 @@
 import express from 'express';
-import { getLoads, createLoad, updateLoad, deleteLoad } from '../controllers/loadController.js';
+import { getLoads, createLoad, updateLoad, deleteLoad, createLoadsBulk } from '../controllers/loadController.js';
 
 const router = express.Router();
+
+router.route('/bulk')
+  .post(createLoadsBulk);
 
 router.route('/')
   .get(getLoads)
