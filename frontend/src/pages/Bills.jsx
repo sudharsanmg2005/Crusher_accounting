@@ -1424,7 +1424,7 @@ const Bills = () => {
 
               {/* Grid Table Container */}
               <div className="flex-1 overflow-auto p-6">
-                <table className="w-full border-collapse text-left text-base">
+                <table className="w-full border-collapse text-left text-base mb-64">
                   <thead>
                     <tr className="border-b border-slate-200 text-slate-600 uppercase text-xs font-extrabold tracking-wider bg-slate-100/80">
                       <th className="py-4 px-3 w-12 text-center">#</th>
