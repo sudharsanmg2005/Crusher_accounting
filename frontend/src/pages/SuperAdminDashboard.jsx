@@ -9,7 +9,7 @@ import RecordFilters from '../components/RecordFilters';
 import { defaultRecordFilters, filterRecords } from '../utils/recordFilters';
 import { formatDateTime } from '../utils/dateTime';
 import { useConfirm } from '../components/ConfirmDialog';
-import { EyeIcon } from '../components/Icons';
+import { EyeIcon, TrashIcon } from '../components/Icons';
 
 const baseTabs = [
   { id: 'control', label: 'Super Admin Control' },
@@ -31,6 +31,9 @@ const SuperAdminDashboard = () => {
   const [admins, setAdmins] = useState([]);
   const [showOnlyEdits, setShowOnlyEdits] = useState(false);
   const [selectedAuditLog, setSelectedAuditLog] = useState(null);
+  const [selectedLogs, setSelectedLogs] = useState([]);
+  const [selectedLiveBills, setSelectedLiveBills] = useState([]);
+  const [selectedLiveExpenses, setSelectedLiveExpenses] = useState([]);
   const [businessRecords, setBusinessRecords] = useState({
     customers: [],
     employees: [],
@@ -154,6 +157,199 @@ const SuperAdminDashboard = () => {
     if (activeTab === 'business') fetchBusinessRecords();
   }, [activeTab, isSuperAdmin]);
 
+  useEffect(() => {
+    setSelectedLogs([]);
+  }, [auditFilters, showOnlyEdits, activeTab]);
+
+  useEffect(() => {
+    setSelectedLiveBills([]);
+    setSelectedLiveExpenses([]);
+  }, [liveFilters, activeTab]);
+
+  const handleDeleteLiveBill = async (bill) => {
+    const ok = await confirm({
+      title: 'Delete Live Bill',
+      message: `Are you sure you want to delete live bill for "${bill.customerNameSnapshot}" on ${new Date(bill.date).toLocaleDateString()}? This will archive the bill.`,
+      confirmText: 'Delete',
+      tone: 'danger'
+    });
+    if (!ok) return;
+    try {
+      await api.delete(`/bills/${bill._id}`);
+      await fetchLiveData();
+    } catch (err) {
+      alert(err.response?.data?.message || 'Failed to delete bill.');
+    }
+  };
+
+  const handleDeleteLiveExpense = async (expense) => {
+    const ok = await confirm({
+      title: 'Delete Live Expense',
+      message: `Are you sure you want to delete live expense "${expense.type}" for Rs. ${Number(expense.amount).toLocaleString()}? This will archive the expense.`,
+      confirmText: 'Delete',
+      tone: 'danger'
+    });
+    if (!ok) return;
+    try {
+      await api.delete(`/expenses/${expense._id}`);
+      await fetchLiveData();
+    } catch (err) {
+      alert(err.response?.data?.message || 'Failed to delete expense.');
+    }
+  };
+
+  const handleBulkDeleteLiveBills = async () => {
+    if (selectedLiveBills.length === 0) return;
+    const ok = await confirm({
+      title: 'Delete Selected Live Bills',
+      message: `Are you sure you want to delete the ${selectedLiveBills.length} selected live bills? This will archive them.`,
+      confirmText: 'Delete Selected',
+      tone: 'danger'
+    });
+    if (!ok) return;
+
+    try {
+      let successCount = 0;
+      await Promise.all(
+        selectedLiveBills.map(async (bill) => {
+          try {
+            await api.delete(`/bills/${bill._id}`);
+            successCount++;
+          } catch (err) {
+            console.error('Failed to delete live bill', err);
+          }
+        })
+      );
+      alert(`Successfully deleted ${successCount} live bills.`);
+      setSelectedLiveBills([]);
+      await fetchLiveData();
+    } catch (err) {
+      alert('An error occurred during bulk deletion.');
+    }
+  };
+
+  const handleBulkDeleteLiveExpenses = async () => {
+    if (selectedLiveExpenses.length === 0) return;
+    const ok = await confirm({
+      title: 'Delete Selected Live Expenses',
+      message: `Are you sure you want to delete the ${selectedLiveExpenses.length} selected live expenses? This will archive them.`,
+      confirmText: 'Delete Selected',
+      tone: 'danger'
+    });
+    if (!ok) return;
+
+    try {
+      let successCount = 0;
+      await Promise.all(
+        selectedLiveExpenses.map(async (expense) => {
+          try {
+            await api.delete(`/expenses/${expense._id}`);
+            successCount++;
+          } catch (err) {
+            console.error('Failed to delete live expense', err);
+          }
+        })
+      );
+      alert(`Successfully deleted ${successCount} live expenses.`);
+      setSelectedLiveExpenses([]);
+      await fetchLiveData();
+    } catch (err) {
+      alert('An error occurred during bulk deletion.');
+    }
+  };
+
+  const handleSelectLiveBill = (bill) => {
+    setSelectedLiveBills((prev) => {
+      const exists = prev.some((b) => b._id === bill._id);
+      if (exists) {
+        return prev.filter((b) => b._id !== bill._id);
+      } else {
+        return [...prev, bill];
+      }
+    });
+  };
+
+  const handleSelectAllLiveBills = () => {
+    if (selectedLiveBills.length === filteredLiveBills.length) {
+      setSelectedLiveBills([]);
+    } else {
+      setSelectedLiveBills(filteredLiveBills);
+    }
+  };
+
+  const handleSelectLiveExpense = (expense) => {
+    setSelectedLiveExpenses((prev) => {
+      const exists = prev.some((e) => e._id === expense._id);
+      if (exists) {
+        return prev.filter((e) => e._id !== expense._id);
+      } else {
+        return [...prev, expense];
+      }
+    });
+  };
+
+  const handleSelectAllLiveExpenses = () => {
+    if (selectedLiveExpenses.length === filteredLiveExpenses.length) {
+      setSelectedLiveExpenses([]);
+    } else {
+      setSelectedLiveExpenses(filteredLiveExpenses);
+    }
+  };
+
+  const handleSelectLog = (log) => {
+    setSelectedLogs((prev) => {
+      const exists = prev.some((l) => l._id === log._id);
+      if (exists) {
+        return prev.filter((l) => l._id !== log._id);
+      } else {
+        return [...prev, log];
+      }
+    });
+  };
+
+  const handleSelectAllLogs = () => {
+    if (selectedLogs.length === filteredAuditLogs.length) {
+      setSelectedLogs([]);
+    } else {
+      setSelectedLogs(filteredAuditLogs);
+    }
+  };
+
+  const handleBulkDeleteLogs = async () => {
+    if (selectedLogs.length === 0) return;
+
+    const ok = await confirm({
+      title: 'Permanently Delete Selected Audit Logs',
+      message: `Are you sure you want to permanently delete the ${selectedLogs.length} selected audit log entries? This action cannot be undone.`,
+      confirmText: 'Delete Selected Permanently',
+      tone: 'danger'
+    });
+    if (!ok) return;
+
+    try {
+      let successCount = 0;
+      let failCount = 0;
+
+      await Promise.all(
+        selectedLogs.map(async (log) => {
+          try {
+            await api.delete(`/auth/audit-logs/${log._id}`);
+            successCount++;
+          } catch (err) {
+            console.error(`Failed to delete audit log ID ${log._id}`, err);
+            failCount++;
+          }
+        })
+      );
+
+      alert(`Successfully deleted ${successCount} audit log entries.`);
+      setSelectedLogs([]);
+      await fetchAuditLogs();
+    } catch (err) {
+      alert('An error occurred during bulk deletion.');
+    }
+  };
+
   const filteredLiveBills = useMemo(
     () =>
       filterRecords(liveBills, liveFilters, {
@@ -276,11 +472,28 @@ const SuperAdminDashboard = () => {
 
           <div className="p-4 space-y-6">
             <div>
-              <h3 className="text-sm font-bold text-slate-800 uppercase tracking-wide mb-3">Live Bills</h3>
+              <div className="flex justify-between items-center mb-3 flex-wrap gap-2">
+                <h3 className="text-sm font-bold text-slate-800 uppercase tracking-wide">Live Bills</h3>
+                {selectedLiveBills.length > 0 && (
+                  <div className="flex gap-2 items-center bg-red-50 px-3 py-1.5 border border-red-200 rounded-lg text-xs animate-in slide-in-from-top-1 duration-150">
+                    <span className="font-semibold text-red-800">{selectedLiveBills.length} selected</span>
+                    <button type="button" onClick={() => setSelectedLiveBills([])} className="px-2 py-0.5 bg-white hover:bg-slate-50 border border-slate-200 rounded font-semibold text-slate-700 transition cursor-pointer">Clear</button>
+                    <button type="button" onClick={handleBulkDeleteLiveBills} className="px-2 py-0.5 bg-red-600 hover:bg-red-700 rounded font-bold text-white transition cursor-pointer">Delete</button>
+                  </div>
+                )}
+              </div>
               <div className="overflow-auto">
                 <table className="data-table">
                   <thead className="bg-slate-50 dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 text-xs uppercase text-slate-600 dark:text-slate-400">
                     <tr>
+                      <th className="p-3 w-10 text-center">
+                        <input
+                          type="checkbox"
+                          checked={selectedLiveBills.length === filteredLiveBills.length && filteredLiveBills.length > 0}
+                          onChange={handleSelectAllLiveBills}
+                          className="rounded border-slate-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
+                        />
+                      </th>
                       <th className="p-3">Date</th>
                       <th className="p-3">Time</th>
                       <th className="p-3">Customer</th>
@@ -289,16 +502,26 @@ const SuperAdminDashboard = () => {
                       <th className="p-3">Status</th>
                       <th className="p-3 text-right">Total</th>
                       <th className="p-3 text-right">Pending</th>
+                      <th className="p-3 text-right w-16">Actions</th>
                     </tr>
                   </thead>
                   <tbody>
                     {filteredLiveBills.length === 0 ? (
-                      <tr><td colSpan={8} className="p-6 text-center text-slate-500">No bills match filters.</td></tr>
+                      <tr><td colSpan={10} className="p-6 text-center text-slate-500">No bills match filters.</td></tr>
                     ) : (
                       filteredLiveBills.map((bill) => {
                         const dt = formatDateTime(bill.date);
+                        const isSelected = selectedLiveBills.some((b) => b._id === bill._id);
                         return (
-                          <tr key={bill._id}>
+                          <tr key={bill._id} className={isSelected ? 'bg-blue-50/10' : ''}>
+                            <td className="p-3 text-center">
+                              <input
+                                type="checkbox"
+                                checked={isSelected}
+                                onChange={() => handleSelectLiveBill(bill)}
+                                className="rounded border-slate-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
+                              />
+                            </td>
                             <td className="p-3 text-slate-600">{dt.date}</td>
                             <td className="p-3 text-slate-600">{dt.time}</td>
                             <td className="p-3 font-semibold text-slate-900">{bill.customerNameSnapshot}</td>
@@ -307,6 +530,16 @@ const SuperAdminDashboard = () => {
                             <td className="p-3 text-slate-600">{bill.paymentStatus}</td>
                             <td className="p-3 text-right font-semibold">{money(Number(bill.totalAmount || 0) + Number(bill.passAmount || 0))}</td>
                             <td className="p-3 text-right text-red-600 font-semibold">{money(bill.pendingAmount)}</td>
+                            <td className="p-3 text-right">
+                              <button
+                                type="button"
+                                onClick={() => handleDeleteLiveBill(bill)}
+                                className="text-red-600 hover:text-red-800 p-1 rounded hover:bg-red-50 transition cursor-pointer inline-flex items-center"
+                                title="Delete Bill"
+                              >
+                                <TrashIcon className="h-4 w-4" />
+                              </button>
+                            </td>
                           </tr>
                         );
                       })
@@ -317,31 +550,68 @@ const SuperAdminDashboard = () => {
             </div>
 
             <div>
-              <h3 className="text-sm font-bold text-slate-800 uppercase tracking-wide mb-3">Live Expenses</h3>
+              <div className="flex justify-between items-center mb-3 flex-wrap gap-2">
+                <h3 className="text-sm font-bold text-slate-800 uppercase tracking-wide">Live Expenses</h3>
+                {selectedLiveExpenses.length > 0 && (
+                  <div className="flex gap-2 items-center bg-red-50 px-3 py-1.5 border border-red-200 rounded-lg text-xs animate-in slide-in-from-top-1 duration-150">
+                    <span className="font-semibold text-red-800">{selectedLiveExpenses.length} selected</span>
+                    <button type="button" onClick={() => setSelectedLiveExpenses([])} className="px-2 py-0.5 bg-white hover:bg-slate-50 border border-slate-200 rounded font-semibold text-slate-700 transition cursor-pointer">Clear</button>
+                    <button type="button" onClick={handleBulkDeleteLiveExpenses} className="px-2 py-0.5 bg-red-600 hover:bg-red-700 rounded font-bold text-white transition cursor-pointer">Delete</button>
+                  </div>
+                )}
+              </div>
               <div className="overflow-auto">
                 <table className="data-table">
                   <thead className="bg-slate-50 dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 text-xs uppercase text-slate-600 dark:text-slate-400">
                     <tr>
+                      <th className="p-3 w-10 text-center">
+                        <input
+                          type="checkbox"
+                          checked={selectedLiveExpenses.length === filteredLiveExpenses.length && filteredLiveExpenses.length > 0}
+                          onChange={handleSelectAllLiveExpenses}
+                          className="rounded border-slate-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
+                        />
+                      </th>
                       <th className="p-3">Date</th>
                       <th className="p-3">Time</th>
                       <th className="p-3">Type</th>
                       <th className="p-3">Description</th>
                       <th className="p-3 text-right">Amount</th>
+                      <th className="p-3 text-right w-16">Actions</th>
                     </tr>
                   </thead>
                   <tbody>
                     {filteredLiveExpenses.length === 0 ? (
-                      <tr><td colSpan={5} className="p-6 text-center text-slate-500">No expenses match filters.</td></tr>
+                      <tr><td colSpan={7} className="p-6 text-center text-slate-500">No expenses match filters.</td></tr>
                     ) : (
                       filteredLiveExpenses.map((expense) => {
                         const dt = formatDateTime(expense.date);
+                        const isSelected = selectedLiveExpenses.some((e) => e._id === expense._id);
                         return (
-                          <tr key={expense._id}>
+                          <tr key={expense._id} className={isSelected ? 'bg-blue-50/10' : ''}>
+                            <td className="p-3 text-center">
+                              <input
+                                type="checkbox"
+                                checked={isSelected}
+                                onChange={() => handleSelectLiveExpense(expense)}
+                                className="rounded border-slate-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
+                              />
+                            </td>
                             <td className="p-3 text-slate-600">{dt.date}</td>
                             <td className="p-3 text-slate-600">{dt.time}</td>
                             <td className="p-3 font-semibold text-slate-900">{expense.type}</td>
                             <td className="p-3 text-slate-600">{expense.description || '—'}</td>
                             <td className="p-3 text-right font-semibold">{money(expense.amount)}</td>
+                            <td className="p-3 text-right">
+                              <button
+                                type="button"
+                                onClick={() => handleDeleteLiveExpense(expense)}
+                                className="text-red-600 hover:text-red-800 p-1 rounded hover:bg-red-50 transition cursor-pointer inline-flex items-center"
+                                title="Delete Expense"
+                              >
+                                <TrashIcon className="h-4 w-4" />
+                              </button>
+                            </td>
                           </tr>
                         );
                       })
@@ -368,16 +638,52 @@ const SuperAdminDashboard = () => {
               <h2 className="text-lg font-bold text-slate-900">System Audit Log & Edit History</h2>
               <p className="text-sm text-slate-500 mt-1">Filtered activity across all admins.</p>
             </div>
-            <label className="inline-flex items-center gap-2 bg-blue-50 text-blue-800 border border-blue-200 rounded-lg px-3 py-1.5 text-xs font-semibold cursor-pointer select-none hover:bg-blue-100 transition">
-              <input
-                type="checkbox"
-                checked={showOnlyEdits}
-                onChange={(e) => setShowOnlyEdits(e.target.checked)}
-                className="rounded border-blue-300 text-blue-600 focus:ring-blue-500"
-              />
-              Show Edits/Updates Only
-            </label>
+            <div className="flex items-center gap-3">
+              {filteredAuditLogs.length > 0 && (
+                <label className="inline-flex items-center gap-2 bg-slate-100 text-slate-700 border border-slate-200 rounded-lg px-3 py-1.5 text-xs font-semibold cursor-pointer select-none hover:bg-slate-200 transition">
+                  <input
+                    type="checkbox"
+                    checked={selectedLogs.length === filteredAuditLogs.length && filteredAuditLogs.length > 0}
+                    onChange={handleSelectAllLogs}
+                    className="rounded border-slate-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
+                  />
+                  Select All Filtered ({filteredAuditLogs.length})
+                </label>
+              )}
+              <label className="inline-flex items-center gap-2 bg-blue-50 text-blue-800 border border-blue-200 rounded-lg px-3 py-1.5 text-xs font-semibold cursor-pointer select-none hover:bg-blue-100 transition">
+                <input
+                  type="checkbox"
+                  checked={showOnlyEdits}
+                  onChange={(e) => setShowOnlyEdits(e.target.checked)}
+                  className="rounded border-blue-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
+                />
+                Show Edits/Updates Only
+              </label>
+            </div>
           </div>
+          {selectedLogs.length > 0 && (
+            <div className="px-5 py-3 bg-red-50 border-b border-red-200 flex justify-between items-center animate-in slide-in-from-top-1 duration-150">
+              <span className="text-sm font-bold text-red-800">
+                {selectedLogs.length} log entry/entries selected
+              </span>
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => setSelectedLogs([])}
+                  className="px-3 py-1.5 border border-slate-300 text-slate-700 bg-white hover:bg-slate-50 rounded-lg text-xs font-semibold transition cursor-pointer"
+                >
+                  Clear Selection
+                </button>
+                <button
+                  type="button"
+                  onClick={handleBulkDeleteLogs}
+                  className="px-3 py-1.5 bg-red-600 hover:bg-red-700 text-white rounded-lg text-xs font-bold transition shadow-sm cursor-pointer"
+                >
+                  Delete Selected Permanently
+                </button>
+              </div>
+            </div>
+          )}
           <div className="p-4 space-y-3 max-h-[70vh] overflow-y-auto">
             {filteredAuditLogs.length === 0 ? (
               <div className="text-sm text-slate-500 p-4 text-center">No audit logs match filters.</div>
@@ -388,39 +694,48 @@ const SuperAdminDashboard = () => {
                 const actorUsername = log.actorUsername || log.actor?.username || '';
                 const recordType = log.metadata?.recordType || log.metadata?.resource || 'Record';
                 const actionTaken = log.metadata?.actionTaken || log.action;
+                const isSelected = selectedLogs.some((l) => l._id === log._id);
                 return (
-                  <div key={log._id} className="border border-slate-200 rounded-lg p-3 bg-white">
-                    <div className="flex justify-between gap-3">
-                      <div className="font-semibold text-slate-900 text-sm">{log.metadata?.details || log.action}</div>
-                      <div className="text-xs text-slate-500 whitespace-nowrap">{dt.date} {dt.time}</div>
-                    </div>
-                    <div className="text-xs text-slate-600 mt-2">
-                      Done by {actorName}{actorUsername ? ` (${actorUsername})` : ''}
-                    </div>
-                    <div className="flex flex-wrap items-center justify-between gap-3 mt-3">
-                      <div className="flex flex-wrap gap-2">
-                        <span className="inline-flex px-2.5 py-1 rounded-full bg-slate-100 text-slate-700 border border-slate-200 text-[11px] font-semibold">
-                          Record: {recordType}
-                        </span>
-                        <span className="inline-flex px-2.5 py-1 rounded-full bg-blue-50 text-blue-700 border border-blue-200 text-[11px] font-semibold">
-                          Action: {actionTaken}
-                        </span>
-                        {log.metadata?.phoneNumber && (
-                          <span className="inline-flex px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 text-[11px] font-semibold">
-                            Phone: {log.metadata.phoneNumber}
+                  <div key={log._id} className={`flex gap-3 items-start border rounded-lg p-3 bg-white transition hover:border-slate-300 ${isSelected ? 'border-blue-300 bg-blue-50/10' : 'border-slate-200'}`}>
+                    <input
+                      type="checkbox"
+                      checked={isSelected}
+                      onChange={() => handleSelectLog(log)}
+                      className="rounded border-slate-300 text-blue-600 focus:ring-blue-500 mt-1.5 cursor-pointer"
+                    />
+                    <div className="flex-1 min-w-0">
+                      <div className="flex justify-between gap-3">
+                        <div className="font-semibold text-slate-900 text-sm break-words">{log.metadata?.details || log.action}</div>
+                        <div className="text-xs text-slate-500 whitespace-nowrap">{dt.date} {dt.time}</div>
+                      </div>
+                      <div className="text-xs text-slate-600 mt-2">
+                        Done by {actorName}{actorUsername ? ` (${actorUsername})` : ''}
+                      </div>
+                      <div className="flex flex-wrap items-center justify-between gap-3 mt-3">
+                        <div className="flex flex-wrap gap-2">
+                          <span className="inline-flex px-2.5 py-1 rounded-full bg-slate-100 text-slate-700 border border-slate-200 text-[11px] font-semibold">
+                            Record: {recordType}
                           </span>
+                          <span className="inline-flex px-2.5 py-1 rounded-full bg-blue-50 text-blue-700 border border-blue-200 text-[11px] font-semibold">
+                            Action: {actionTaken}
+                          </span>
+                          {log.metadata?.phoneNumber && (
+                            <span className="inline-flex px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 text-[11px] font-semibold">
+                              Phone: {log.metadata.phoneNumber}
+                            </span>
+                          )}
+                        </div>
+                        {log.metadata?.oldDocument && (
+                          <button
+                            type="button"
+                            onClick={() => setSelectedAuditLog(log)}
+                            className="text-slate-700 hover:text-slate-900 hover:bg-slate-100 p-2 rounded-lg transition-colors inline-flex items-center cursor-pointer"
+                            title="View Edit Details"
+                          >
+                            <EyeIcon className="h-5 w-5" />
+                          </button>
                         )}
                       </div>
-                      {log.metadata?.oldDocument && (
-                        <button
-                          type="button"
-                          onClick={() => setSelectedAuditLog(log)}
-                          className="text-slate-700 hover:text-slate-900 hover:bg-slate-100 p-2 rounded-lg transition-colors inline-flex items-center cursor-pointer"
-                          title="View Edit Details"
-                        >
-                          <EyeIcon className="h-5 w-5" />
-                        </button>
-                      )}
                     </div>
                   </div>
                 );

@@ -65,6 +65,7 @@ const Admins = ({ embedded = false }) => {
   const [adminResetConfirm, setAdminResetConfirm] = useState('');
   const [adminResetSubmitting, setAdminResetSubmitting] = useState(false);
   const [superAdminConfirmPassword, setSuperAdminConfirmPassword] = useState('');
+  const [selectedBackups, setSelectedBackups] = useState([]);
 
   const isSuperAdmin = user?.role === 'super_admin';
   const activeAdmins = useMemo(() => admins.filter((admin) => !admin.isDeleted), [admins]);
@@ -118,6 +119,10 @@ const Admins = ({ embedded = false }) => {
     if (isSuperAdmin) refreshAll();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isSuperAdmin]);
+
+  useEffect(() => {
+    setSelectedBackups([]);
+  }, [backupFilters]);
 
   const onChange = (e) => setForm((prev) => ({ ...prev, [e.target.name]: e.target.value }));
 
@@ -305,6 +310,69 @@ const Admins = ({ embedded = false }) => {
       await fetchArchivedRecords();
     } catch (err) {
       setError(err?.response?.data?.message || 'Failed to permanently delete backup');
+    }
+  };
+
+  const handleSelectBackup = (record) => {
+    setSelectedBackups((prev) => {
+      const exists = prev.some((r) => r._id === record._id && r.backupType === record.backupType);
+      if (exists) {
+        return prev.filter((r) => !(r._id === record._id && r.backupType === record.backupType));
+      } else {
+        return [...prev, record];
+      }
+    });
+  };
+
+  const handleSelectAllBackups = () => {
+    if (selectedBackups.length === filteredArchivedRecords.length) {
+      setSelectedBackups([]);
+    } else {
+      setSelectedBackups(filteredArchivedRecords);
+    }
+  };
+
+  const handleBulkPermanentDelete = async () => {
+    if (selectedBackups.length === 0) return;
+
+    const ok = await confirm({
+      title: 'Permanently Delete Selected Backups',
+      message: `Are you sure you want to permanently delete the ${selectedBackups.length} selected backup records? This action cannot be undone.`,
+      confirmText: 'Delete Selected Permanently',
+      tone: 'danger'
+    });
+    if (!ok) return;
+
+    setLoading(true);
+    setMessage('');
+    setError('');
+    try {
+      let successCount = 0;
+      let failCount = 0;
+
+      await Promise.all(
+        selectedBackups.map(async (record) => {
+          try {
+            await api.delete(`${record.permanentBase}/${record._id}/permanent`);
+            successCount++;
+          } catch (err) {
+            console.error(`Failed to delete ${record.backupType} ID ${record._id}`, err);
+            failCount++;
+          }
+        })
+      );
+
+      if (failCount > 0) {
+        setError(`Permanently deleted ${successCount} records, but ${failCount} failed.`);
+      } else {
+        setMessage(`Permanently deleted all ${successCount} selected records successfully.`);
+      }
+      setSelectedBackups([]);
+      await fetchArchivedRecords();
+    } catch (err) {
+      setError('An error occurred during bulk deletion.');
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -604,10 +672,41 @@ const Admins = ({ embedded = false }) => {
           ]}
           summary={[{ label: 'Deleted records', value: filteredArchivedRecords.length }]}
         />
+        {selectedBackups.length > 0 && (
+          <div className="p-4 bg-red-50 border-b border-red-200 flex justify-between items-center animate-in slide-in-from-top-1 duration-150 shrink-0">
+            <span className="text-sm font-bold text-red-800">
+              {selectedBackups.length} record(s) selected
+            </span>
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={() => setSelectedBackups([])}
+                className="px-3 py-1.5 border border-slate-300 text-slate-700 bg-white hover:bg-slate-50 rounded-lg text-xs font-semibold transition cursor-pointer"
+              >
+                Clear Selection
+              </button>
+              <button
+                type="button"
+                onClick={handleBulkPermanentDelete}
+                className="px-3 py-1.5 bg-red-600 hover:bg-red-700 text-white rounded-lg text-xs font-bold transition shadow-sm cursor-pointer"
+              >
+                Delete Selected Permanently
+              </button>
+            </div>
+          </div>
+        )}
         <div className="overflow-x-auto">
           <table className="data-table">
                 <thead className="sticky top-0 bg-slate-50 dark:bg-slate-900 shadow-sm z-10 text-xs text-slate-500 dark:text-slate-400 uppercase tracking-wider">
                   <tr className="border-b border-slate-200 dark:border-slate-800">
+                    <th className="p-4 w-12 text-center">
+                      <input
+                        type="checkbox"
+                        checked={selectedBackups.length === filteredArchivedRecords.length && filteredArchivedRecords.length > 0}
+                        onChange={handleSelectAllBackups}
+                        className="rounded border-slate-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
+                      />
+                    </th>
                     <th className="p-4 font-semibold">Type</th>
                     <th className="p-4 font-semibold">Name / Details</th>
                     <th className="p-4 font-semibold">Deleted At</th>
@@ -616,48 +715,56 @@ const Admins = ({ embedded = false }) => {
                   </tr>
                 </thead>
                 <tbody className="whitespace-nowrap">
-                  {filteredArchivedRecords.length === 0 ? <EmptyRow colSpan={5} label="No deleted records match filters." /> : filteredArchivedRecords.map((record) => (
-                    <tr key={`${record.backupType}-${record._id}`}>
-                  <td className="p-4 text-slate-600">{record.backupType}</td>
-                  <td className="p-4">
-                    <div className="font-semibold text-slate-900">{getBackupName(record)}</div>
-                    <div className="text-xs text-slate-500">
-                      {record.backupType === 'Bill' && `${record.materialNameSnapshot} on ${new Date(record.date).toLocaleDateString()}`}
-                      {record.backupType === 'Expense' && new Date(record.date).toLocaleDateString()}
-                      {record.backupType === 'Material' && `Price ${record.currentPrice}`}
-                      {record.backupType === 'Customer' && (record.address || 'No address')}
-                      {record.backupType === 'Employee' && (record.phone || 'No phone')}
-                    </div>
-                  </td>
-                  <td className="p-4 text-slate-600">{new Date(record.updatedAt || record.createdAt).toLocaleString()}</td>
-                  <td className="p-4 text-right font-semibold text-slate-900">
-                    {record.backupType === 'Bill' && money(Number(record.totalAmount) + Number(record.passAmount || 0))}
-                    {record.backupType === 'Expense' && money(record.amount)}
-                    {record.backupType === 'Material' && money(record.currentPrice)}
-                    {record.backupType === 'Customer' && '—'}
-                    {record.backupType === 'Employee' && money(record.dailyWages)}
-                  </td>
-                  <td className="p-4 text-right whitespace-nowrap space-x-3">
-                    <button 
-                      type="button" 
-                      onClick={() => onRestoreRecord(record)} 
-                      className="text-blue-600 hover:text-blue-800 hover:bg-blue-50 p-2 rounded-lg transition-colors inline-flex items-center cursor-pointer"
-                      title="Restore Record"
-                    >
-                      <UndoIcon className="h-5 w-5" />
-                    </button>
-                    <button 
-                      type="button" 
-                      onClick={() => onPermanentDelete(record)} 
-                      className="text-red-600 hover:text-red-800 hover:bg-red-50 p-2 rounded-lg transition-colors inline-flex items-center cursor-pointer"
-                      title="Delete Permanently"
-                    >
-                      <TrashIcon className="h-5 w-5" />
-                    </button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
+                  {filteredArchivedRecords.length === 0 ? <EmptyRow colSpan={6} label="No deleted records match filters." /> : filteredArchivedRecords.map((record) => (
+                    <tr key={`${record.backupType}-${record._id}`} className="hover:bg-slate-50/50 transition">
+                      <td className="p-4 text-center">
+                        <input
+                          type="checkbox"
+                          checked={selectedBackups.some(r => r._id === record._id && r.backupType === record.backupType)}
+                          onChange={() => handleSelectBackup(record)}
+                          className="rounded border-slate-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
+                        />
+                      </td>
+                      <td className="p-4 text-slate-600">{record.backupType}</td>
+                      <td className="p-4">
+                        <div className="font-semibold text-slate-900">{getBackupName(record)}</div>
+                        <div className="text-xs text-slate-500">
+                          {record.backupType === 'Bill' && `${record.materialNameSnapshot} on ${new Date(record.date).toLocaleDateString()}`}
+                          {record.backupType === 'Expense' && new Date(record.date).toLocaleDateString()}
+                          {record.backupType === 'Material' && `Price ${record.currentPrice}`}
+                          {record.backupType === 'Customer' && (record.address || 'No address')}
+                          {record.backupType === 'Employee' && (record.phone || 'No phone')}
+                        </div>
+                      </td>
+                      <td className="p-4 text-slate-600">{new Date(record.updatedAt || record.createdAt).toLocaleString()}</td>
+                      <td className="p-4 text-right font-semibold text-slate-900">
+                        {record.backupType === 'Bill' && money(Number(record.totalAmount) + Number(record.passAmount || 0))}
+                        {record.backupType === 'Expense' && money(record.amount)}
+                        {record.backupType === 'Material' && money(record.currentPrice)}
+                        {record.backupType === 'Customer' && '—'}
+                        {record.backupType === 'Employee' && money(record.dailyWages)}
+                      </td>
+                      <td className="p-4 text-right whitespace-nowrap space-x-3">
+                        <button 
+                          type="button" 
+                          onClick={() => onRestoreRecord(record)} 
+                          className="text-blue-600 hover:text-blue-800 hover:bg-blue-50 p-2 rounded-lg transition-colors inline-flex items-center cursor-pointer"
+                          title="Restore Record"
+                        >
+                          <UndoIcon className="h-5 w-5" />
+                        </button>
+                        <button 
+                          type="button" 
+                          onClick={() => onPermanentDelete(record)} 
+                          className="text-red-600 hover:text-red-800 hover:bg-red-50 p-2 rounded-lg transition-colors inline-flex items-center cursor-pointer"
+                          title="Delete Permanently"
+                        >
+                          <TrashIcon className="h-5 w-5" />
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
           </table>
         </div>
       </Panel>
