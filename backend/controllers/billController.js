@@ -31,8 +31,8 @@ export const getBills = async (req, res, next) => {
 
     if (startDate || endDate) {
       filter.date = {};
-      if (startDate) filter.date.$gte = new Date(startDate);
-      if (endDate) filter.date.$lte = new Date(endDate);
+      if (startDate) filter.date.$gte = new Date(`${startDate}T00:00:00+05:30`);
+      if (endDate) filter.date.$lte = new Date(`${endDate}T23:59:59.999+05:30`);
     }
     if (customerId) filter.customer = customerId;
     
@@ -334,10 +334,13 @@ export const addPaymentToBill = async (req, res, next) => {
 
 export const getTodaySummary = async (req, res, next) => {
   try {
-    const todayStart = new Date();
-    todayStart.setHours(0, 0, 0, 0);
-    const todayEnd = new Date();
-    todayEnd.setHours(23, 59, 59, 999);
+    const utcNow = new Date();
+    const istNow = new Date(utcNow.getTime() + 5.5 * 60 * 60 * 1000);
+    const year = istNow.getUTCFullYear();
+    const month = String(istNow.getUTCMonth() + 1).padStart(2, '0');
+    const day = String(istNow.getUTCDate()).padStart(2, '0');
+    const todayStart = new Date(`${year}-${month}-${day}T00:00:00+05:30`);
+    const todayEnd = new Date(`${year}-${month}-${day}T23:59:59.999+05:30`);
 
     const todayBills = await Bill.find({
       date: { $gte: todayStart, $lte: todayEnd },

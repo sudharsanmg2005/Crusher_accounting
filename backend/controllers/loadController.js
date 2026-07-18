@@ -14,14 +14,10 @@ export const getLoads = async (req, res, next) => {
     if (startDate || endDate) {
       filter.date = {};
       if (startDate) {
-        const start = new Date(startDate);
-        start.setHours(0, 0, 0, 0);
-        filter.date.$gte = start;
+        filter.date.$gte = new Date(`${startDate}T00:00:00+05:30`);
       }
       if (endDate) {
-        const end = new Date(endDate);
-        end.setHours(23, 59, 59, 999);
-        filter.date.$lte = end;
+        filter.date.$lte = new Date(`${endDate}T23:59:59.999+05:30`);
       }
     }
 

@@ -144,14 +144,12 @@ export const getBuyerById = async (req, res, next) => {
       loadFilter.date = {};
       paymentFilter.paymentDate = {};
       if (startDate) {
-        const start = new Date(startDate);
-        start.setHours(0, 0, 0, 0);
+        const start = new Date(`${startDate}T00:00:00+05:30`);
         loadFilter.date.$gte = start;
         paymentFilter.paymentDate.$gte = start;
       }
       if (endDate) {
-        const end = new Date(endDate);
-        end.setHours(23, 59, 59, 999);
+        const end = new Date(`${endDate}T23:59:59.999+05:30`);
         loadFilter.date.$lte = end;
         paymentFilter.paymentDate.$lte = end;
       }
@@ -186,8 +184,7 @@ export const getBuyerById = async (req, res, next) => {
     // Previous outstanding (balance before startDate)
     let previousOutstanding = 0;
     if (startDate) {
-      const start = new Date(startDate);
-      start.setHours(0, 0, 0, 0);
+      const start = new Date(`${startDate}T00:00:00+05:30`);
 
       const loadsBefore = await Load.find({
         buyer: buyerId,
@@ -216,8 +213,7 @@ export const getBuyerById = async (req, res, next) => {
       let loadsEndFilter = { buyer: buyerId, isDeleted: false };
       let paymentsEndFilter = { buyerId };
       if (endDate) {
-        const end = new Date(endDate);
-        end.setHours(23, 59, 59, 999);
+        const end = new Date(`${endDate}T23:59:59.999+05:30`);
         loadsEndFilter.date = { $lte: end };
         paymentsEndFilter.paymentDate = { $lte: end };
       }
@@ -295,8 +291,8 @@ export const getBuyerById = async (req, res, next) => {
     });
 
     if (startDate || endDate) {
-      const start = startDate ? new Date(startDate).setHours(0, 0, 0, 0) : 0;
-      const end = endDate ? new Date(endDate).setHours(23, 59, 59, 999) : Infinity;
+      const start = startDate ? new Date(`${startDate}T00:00:00+05:30`).getTime() : 0;
+      const end = endDate ? new Date(`${endDate}T23:59:59.999+05:30`).getTime() : Infinity;
       ledger = ledger.filter((item) => {
         const time = new Date(item.date).getTime();
         return time >= start && time <= end;

@@ -135,14 +135,12 @@ export const getCustomerHistory = async (req, res, next) => {
       billFilter.date = {};
       paymentFilter.paymentDate = {};
       if (startDate) {
-        const start = new Date(startDate);
-        start.setHours(0, 0, 0, 0);
+        const start = new Date(`${startDate}T00:00:00+05:30`);
         billFilter.date.$gte = start;
         paymentFilter.paymentDate.$gte = start;
       }
       if (endDate) {
-        const end = new Date(endDate);
-        end.setHours(23, 59, 59, 999);
+        const end = new Date(`${endDate}T23:59:59.999+05:30`);
         billFilter.date.$lte = end;
         paymentFilter.paymentDate.$lte = end;
       }
@@ -176,8 +174,7 @@ export const getCustomerHistory = async (req, res, next) => {
     // Previous outstanding (balance before startDate)
     let previousOutstanding = 0;
     if (startDate) {
-      const start = new Date(startDate);
-      start.setHours(0, 0, 0, 0);
+      const start = new Date(`${startDate}T00:00:00+05:30`);
 
       const billsBefore = await Bill.find({
         customer: customerId,
@@ -214,8 +211,7 @@ export const getCustomerHistory = async (req, res, next) => {
       let billsEndFilter = { customer: customerId, isDeleted: false };
       let paymentsEndFilter = { customerId };
       if (endDate) {
-        const end = new Date(endDate);
-        end.setHours(23, 59, 59, 999);
+        const end = new Date(`${endDate}T23:59:59.999+05:30`);
         billsEndFilter.date = { $lte: end };
         paymentsEndFilter.paymentDate = { $lte: end };
       }
@@ -294,8 +290,8 @@ export const getCustomerHistory = async (req, res, next) => {
 
     // Filter ledger if date filters are active
     if (startDate || endDate) {
-      const start = startDate ? new Date(startDate).setHours(0, 0, 0, 0) : 0;
-      const end = endDate ? new Date(endDate).setHours(23, 59, 59, 999) : Infinity;
+      const start = startDate ? new Date(`${startDate}T00:00:00+05:30`).getTime() : 0;
+      const end = endDate ? new Date(`${endDate}T23:59:59.999+05:30`).getTime() : Infinity;
       ledger = ledger.filter((item) => {
         const time = new Date(item.date).getTime();
         return time >= start && time <= end;

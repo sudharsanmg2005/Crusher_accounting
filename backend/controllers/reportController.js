@@ -51,23 +51,15 @@ export const getGeneralStatement = async (req, res, next) => {
       return res.status(400).json({ message: 'startDate and endDate are required' });
     }
 
-    const start = new Date(startDate);
-    const end = new Date(endDate);
+    const start = new Date(`${startDate}T00:00:00+05:30`);
+    const end = new Date(`${endDate}T23:59:59.999+05:30`);
     if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) {
       return res.status(400).json({ message: 'Invalid date format' });
     }
 
-    // Normalize to cover full days (inclusive range)
-    start.setHours(0, 0, 0, 0);
-    end.setHours(23, 59, 59, 999);
-
-    const durationDays = Math.floor((end.getTime() - start.getTime()) / (24 * 60 * 60 * 1000)) + 1;
-    const prevEnd = new Date(start);
-    prevEnd.setDate(prevEnd.getDate() - 1);
-    prevEnd.setHours(23, 59, 59, 999);
-    const prevStart = new Date(prevEnd);
-    prevStart.setDate(prevStart.getDate() - (durationDays - 1));
-    prevStart.setHours(0, 0, 0, 0);
+    const durationDays = Math.round((end.getTime() - start.getTime()) / (24 * 60 * 60 * 1000));
+    const prevEnd = new Date(start.getTime() - 1);
+    const prevStart = new Date(start.getTime() - durationDays * 24 * 60 * 60 * 1000);
 
     const billFilter = { date: { $gte: start, $lte: end }, isDeleted: false };
     const prevBillFilter = { date: { $gte: prevStart, $lte: prevEnd }, isDeleted: false };
@@ -167,11 +159,16 @@ export const getGeneralStatement = async (req, res, next) => {
 export const getDailyIncome = async (req, res, next) => {
   try {
     const { date } = req.query;
-    const targetDate = date ? new Date(date) : new Date();
-    const start = new Date(targetDate);
-    start.setHours(0, 0, 0, 0);
-    const end = new Date(targetDate);
-    end.setHours(23, 59, 59, 999);
+    let dateStr;
+    if (date) {
+      dateStr = date;
+    } else {
+      const utcNow = new Date();
+      const istNow = new Date(utcNow.getTime() + 5.5 * 60 * 60 * 1000);
+      dateStr = `${istNow.getUTCFullYear()}-${String(istNow.getUTCMonth() + 1).padStart(2, '0')}-${String(istNow.getUTCDate()).padStart(2, '0')}`;
+    }
+    const start = new Date(`${dateStr}T00:00:00+05:30`);
+    const end = new Date(`${dateStr}T23:59:59.999+05:30`);
 
     const bills = await Bill.find({ date: { $gte: start, $lte: end }, isDeleted: false });
     const total = bills.reduce((sum, b) => sum + b.totalAmount + (Number(b.passAmount) || 0), 0);
@@ -184,11 +181,15 @@ export const getDailyIncome = async (req, res, next) => {
 export const getMonthlyIncome = async (req, res, next) => {
   try {
     const { year, month } = req.query;
-    const y = parseInt(year) || new Date().getFullYear();
-    const m = parseInt(month) || new Date().getMonth() + 1;
+    const utcNow = new Date();
+    const istNow = new Date(utcNow.getTime() + 5.5 * 60 * 60 * 1000);
+    const y = parseInt(year) || istNow.getUTCFullYear();
+    const m = parseInt(month) || (istNow.getUTCMonth() + 1);
 
-    const start = new Date(y, m - 1, 1);
-    const end = new Date(y, m, 0, 23, 59, 59, 999);
+    const mStr = String(m).padStart(2, '0');
+    const start = new Date(`${y}-${mStr}-01T00:00:00+05:30`);
+    const lastDay = new Date(Date.UTC(y, m, 0)).getUTCDate();
+    const end = new Date(`${y}-${mStr}-${lastDay}T23:59:59.999+05:30`);
 
     const bills = await Bill.find({ date: { $gte: start, $lte: end }, isDeleted: false });
     const total = bills.reduce((sum, b) => sum + b.totalAmount + (Number(b.passAmount) || 0), 0);
@@ -205,14 +206,10 @@ export const getExpensesReport = async (req, res, next) => {
     if (startDate || endDate) {
       filter.date = {};
       if (startDate) {
-        const start = new Date(startDate);
-        start.setHours(0, 0, 0, 0);
-        filter.date.$gte = start;
+        filter.date.$gte = new Date(`${startDate}T00:00:00+05:30`);
       }
       if (endDate) {
-        const end = new Date(endDate);
-        end.setHours(23, 59, 59, 999);
-        filter.date.$lte = end;
+        filter.date.$lte = new Date(`${endDate}T23:59:59.999+05:30`);
       }
     }
     const expenses = await Expense.find(filter);
@@ -262,34 +259,56 @@ export const getProfitReport = async (req, res, next) => {
 
 const parseDateRange = (query) => {
   const { filter, startDate, endDate } = query;
-  const now = new Date();
+  
+  // Calculate current date/time in Asia/Kolkata (IST) timezone
+  const utcNow = new Date();
+  const istNow = new Date(utcNow.getTime() + 5.5 * 60 * 60 * 1000);
+  
+  // Format current date in YYYY-MM-DD local format
+  const toYMD = (d) => {
+    return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}-${String(d.getUTCDate()).padStart(2, '0')}`;
+  };
+
+  const todayStr = toYMD(istNow);
   let start = new Date();
   let end = new Date();
 
   if (filter === 'today') {
-    start.setHours(0, 0, 0, 0);
-    end.setHours(23, 59, 59, 999);
+    start = new Date(`${todayStr}T00:00:00+05:30`);
+    end = new Date(`${todayStr}T23:59:59.999+05:30`);
   } else if (filter === 'week') {
-    // Current week (starting Sunday)
-    const day = now.getDay();
-    start.setDate(now.getDate() - day);
-    start.setHours(0, 0, 0, 0);
+    // Current week starting Sunday
+    const day = istNow.getUTCDay();
+    const sunday = new Date(istNow);
+    sunday.setUTCDate(istNow.getUTCDate() - day);
+    const sundayStr = toYMD(sunday);
     
-    end = new Date(start);
-    end.setDate(start.getDate() + 6);
-    end.setHours(23, 59, 59, 999);
+    const saturday = new Date(sunday);
+    saturday.setUTCDate(sunday.getUTCDate() + 6);
+    const saturdayStr = toYMD(saturday);
+
+    start = new Date(`${sundayStr}T00:00:00+05:30`);
+    end = new Date(`${saturdayStr}T23:59:59.999+05:30`);
   } else if (filter === 'month') {
-    start = new Date(now.getFullYear(), now.getMonth(), 1);
-    end = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999);
+    const year = istNow.getUTCFullYear();
+    const month = String(istNow.getUTCMonth() + 1).padStart(2, '0');
+    const lastDay = new Date(Date.UTC(year, istNow.getUTCMonth() + 1, 0)).getUTCDate();
+    
+    start = new Date(`${year}-${month}-01T00:00:00+05:30`);
+    end = new Date(`${year}-${month}-${lastDay}T23:59:59.999+05:30`);
   } else if (filter === 'custom' || (startDate && endDate)) {
-    start = new Date(startDate || now);
-    start.setHours(0, 0, 0, 0);
-    end = new Date(endDate || now);
-    end.setHours(23, 59, 59, 999);
+    const sStr = startDate || todayStr;
+    const eStr = endDate || todayStr;
+    start = new Date(`${sStr}T00:00:00+05:30`);
+    end = new Date(`${eStr}T23:59:59.999+05:30`);
   } else {
     // Default to this month
-    start = new Date(now.getFullYear(), now.getMonth(), 1);
-    end = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999);
+    const year = istNow.getUTCFullYear();
+    const month = String(istNow.getUTCMonth() + 1).padStart(2, '0');
+    const lastDay = new Date(Date.UTC(year, istNow.getUTCMonth() + 1, 0)).getUTCDate();
+    
+    start = new Date(`${year}-${month}-01T00:00:00+05:30`);
+    end = new Date(`${year}-${month}-${lastDay}T23:59:59.999+05:30`);
   }
 
   return { start, end };
