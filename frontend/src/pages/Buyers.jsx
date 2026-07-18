@@ -336,21 +336,18 @@ const Buyers = () => {
     doc.line(14, 29, pageWidth - 14, 29);
 
     const yStartTable = 36;
-    const head = [['S.NO', 'DATE', 'VEHICLE NUMBER', 'MATERIAL', 'PRICE (Rs.)', 'QUANTITY', 'TOTAL VALUE (Rs.)', 'ALLOCATED (Rs.)', 'PENDING (Rs.)']];
+    const head = [['S.NO', 'DATE', 'VEHICLE NO', 'MATERIAL', 'PRICE (Rs.)', 'QUANTITY', 'TOTAL (Rs.)']];
     const sortedBills = [...(buyerDetails.bills || [])].sort((a, b) => new Date(a.date) - new Date(b.date));
     const body = sortedBills.map((r, idx) => {
       const totalLoadCost = r.totalAmount ?? roundToNearestTen(r.price * r.quantity);
-      const pendingVal = totalLoadCost - (r.allocatedAmount || 0);
       return [
         idx + 1,
         formatDateTime(r.date).date,
         r.vehicleNumber || '—',
         r.quarryName || '—',
-        r.price.toLocaleString(),
-        Number(r.quantity || 0).toFixed(2),
-        totalLoadCost.toLocaleString(),
-        (r.allocatedAmount || 0).toLocaleString(),
-        pendingVal.toLocaleString()
+        Number(r.price || 0).toLocaleString(),
+        `${Number(r.quantity || 0).toFixed(2)} ${r.unitType || 'tons'}`,
+        totalLoadCost.toLocaleString()
       ];
     });
 
@@ -359,7 +356,7 @@ const Buyers = () => {
       body,
       startY: yStartTable,
       theme: 'grid',
-      styles: { fontSize: 6.5, cellPadding: 1.5 },
+      styles: { fontSize: 7.5, cellPadding: 2 },
       headStyles: { fillColor: [245, 246, 250], textColor: [15, 23, 42], fontStyle: 'bold' }
     });
 

@@ -275,8 +275,8 @@ const parseDateRange = (query) => {
     start.setDate(now.getDate() - day);
     start.setHours(0, 0, 0, 0);
     
-    const resetNow = new Date();
-    end = new Date(resetNow);
+    end = new Date(start);
+    end.setDate(start.getDate() + 6);
     end.setHours(23, 59, 59, 999);
   } else if (filter === 'month') {
     start = new Date(now.getFullYear(), now.getMonth(), 1);

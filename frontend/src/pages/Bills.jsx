@@ -294,7 +294,7 @@ const Bills = () => {
       rangeLabel = `Month: ${filters.month}`;
       const [year, month] = filters.month.split('-');
       const startStr = `${year}-${month}-01`;
-      const endStr = new Date(year, month, 0).toISOString().split('T')[0];
+      const endStr = toYMD(new Date(year, month, 0));
       queryParams = { startDate: startStr, endDate: endStr };
       startDateVal = new Date(startStr + 'T00:00:00');
       endDateVal = new Date(endStr + 'T23:59:59');
@@ -306,7 +306,7 @@ const Bills = () => {
       const end = new Date(start);
       end.setDate(start.getDate() + 6);
       rangeLabel = `Week: ${formatDateTime(start).date} to ${formatDateTime(end).date}`;
-      queryParams = { startDate: start.toISOString().split('T')[0], endDate: end.toISOString().split('T')[0] };
+      queryParams = { startDate: toYMD(start), endDate: toYMD(end) };
       startDateVal = new Date(start.setHours(0, 0, 0, 0));
       endDateVal = new Date(end.setHours(23, 59, 59, 999));
     }
@@ -573,7 +573,7 @@ const Bills = () => {
       rangeLabel = `Month: ${filters.month}`;
       const [year, month] = filters.month.split('-');
       const startStr = `${year}-${month}-01`;
-      const endStr = new Date(year, month, 0).toISOString().split('T')[0];
+      const endStr = toYMD(new Date(year, month, 0));
       queryParams = { startDate: startStr, endDate: endStr };
       startDateVal = new Date(startStr + 'T00:00:00');
       endDateVal = new Date(endStr + 'T23:59:59');
@@ -585,7 +585,7 @@ const Bills = () => {
       const end = new Date(start);
       end.setDate(start.getDate() + 6);
       rangeLabel = `Week: ${formatDateTime(start).date} to ${formatDateTime(end).date}`;
-      queryParams = { startDate: start.toISOString().split('T')[0], endDate: end.toISOString().split('T')[0] };
+      queryParams = { startDate: toYMD(start), endDate: toYMD(end) };
       startDateVal = new Date(start.setHours(0, 0, 0, 0));
       endDateVal = new Date(end.setHours(23, 59, 59, 999));
     }

@@ -690,16 +690,15 @@ const LoadManagement = () => {
       const totalBalance = totalAmount - amountReceived;
 
       // Table 1: Individual loads list
-      const head = [['S.NO', 'DATE', 'VEHICLE NUMBER', 'MATERIAL', 'QTY', 'UNIT TYPE', 'PRICE (Rs.)', 'TOTAL (Rs.)']];
+      const head = [['S.NO', 'DATE', 'VEHICLE NO', 'MATERIAL', 'PRICE (Rs.)', 'QUANTITY', 'TOTAL (Rs.)']];
       const sortedList = [...listToExport].sort((a, b) => new Date(a.date) - new Date(b.date));
       const body = sortedList.map((l, idx) => [
         idx + 1,
         new Date(l.date).toLocaleDateString(),
         l.vehicleNumber || '—',
         l.quarryName || '—',
-        Number(l.quantity || 0).toFixed(2),
-        l.unitType || 'tons',
         Number(l.price || 0).toLocaleString(),
+        `${Number(l.quantity || 0).toFixed(2)} ${l.unitType || 'tons'}`,
         (l.totalAmount ?? roundToNearestTen(l.price * l.quantity)).toLocaleString()
       ]);
 
@@ -708,7 +707,7 @@ const LoadManagement = () => {
         body,
         startY: 36,
         theme: 'grid',
-        styles: { fontSize: 8, cellPadding: 2.5 },
+        styles: { fontSize: 7.5, cellPadding: 2 },
         headStyles: { fillColor: [245, 246, 250], textColor: [15, 23, 42], fontStyle: 'bold' }
       });
 
