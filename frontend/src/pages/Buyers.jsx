@@ -967,33 +967,25 @@ const Buyers = () => {
                         <th className="p-4 text-right">Price</th>
                         <th className="p-4 text-right">Quantity</th>
                         <th className="p-4 text-right">Total Cost</th>
-                        <th className="p-4 text-right">Allocated</th>
-                        <th className="p-4 text-right">Pending</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100">
                       {buyerDetails.bills?.map((load) => {
                         const totalLoadCost = load.totalAmount ?? roundToNearestTen(load.price * load.quantity);
-                        const hasPending = totalLoadCost - (load.allocatedAmount || 0) > 0;
-                        const pendingAmount = totalLoadCost - (load.allocatedAmount || 0);
                         return (
-                          <tr key={load._id} className={`hover:bg-slate-50/80 transition ${hasPending ? 'bg-rose-50/10' : ''}`}>
+                          <tr key={load._id} className="hover:bg-slate-50/80 transition">
                             <td className="p-4 text-slate-500">{formatDateTime(load.date).date}</td>
                             <td className="p-4 text-slate-800 font-semibold">{load.vehicleNumber || '—'}</td>
                             <td className="p-4 text-slate-600">{load.quarryName || '—'}</td>
                             <td className="p-4 text-right text-slate-600">₹{load.price.toLocaleString()}</td>
                             <td className="p-4 text-right text-slate-600">{Number(load.quantity || 0).toFixed(2)} {load.unitType || 'tons'}</td>
                             <td className="p-4 text-right font-bold text-slate-800">₹{totalLoadCost.toLocaleString()}</td>
-                            <td className="p-4 text-right text-emerald-600">₹{(load.allocatedAmount || 0).toLocaleString()}</td>
-                            <td className={`p-4 text-right font-bold ${hasPending ? 'text-rose-600' : 'text-slate-500'}`}>
-                              ₹{pendingAmount.toLocaleString()}
-                            </td>
                           </tr>
                         );
                       })}
                       {(!buyerDetails.bills || buyerDetails.bills.length === 0) && (
                         <tr>
-                          <td colSpan={8} className="p-8 text-center text-slate-400">No loads found for the selected period</td>
+                          <td colSpan={6} className="p-8 text-center text-slate-400">No loads found for the selected period</td>
                         </tr>
                       )}
                     </tbody>
