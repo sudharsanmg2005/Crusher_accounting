@@ -573,15 +573,9 @@ const LoadManagement = () => {
         console.error('Error fetching buyer outstanding report for PDF', err);
       }
 
-      // Aggregate counts from listToExport safely, preventing duplicates
+      // Aggregate counts from listToExport
       const loadCountMap = {};
-      const seenLoadIds = new Set();
       listToExport.forEach(l => {
-        if (!l || !l._id) return;
-        const lid = l._id.toString();
-        if (seenLoadIds.has(lid)) return;
-        seenLoadIds.add(lid);
-
         const bid = (l.buyer?._id || l.buyer || '').toString();
         if (bid) {
           loadCountMap[bid] = (loadCountMap[bid] || 0) + 1;
@@ -593,44 +587,24 @@ const LoadManagement = () => {
         (loadCountMap[item.buyerId] || 0) > 0 || (item.outstandingBalance || 0) > 0
       );
 
-      const head = [['S.No', 'Supplier Name', 'No. of Loads', 'Total Billed (₹)', 'Previous Pending (₹)', 'Current Pending (₹)']];
+      const head = [['S.NO', 'SUPPLIER NAME', 'NO. OF LOADS', 'TOTAL LOAD COST (Rs.)', 'PENDING AMOUNT (Rs.)']];
       const body = activeBuyers.map((item, idx) => {
-        let billed = 0;
-        let prevPending = 0;
-        let currentPending = 0;
-        let loadCount = 0;
-
-        try {
-          billed = item.totalLoadsAmount || 0;
-          const outstanding = item.outstandingBalance || 0;
-          const paid = item.totalPaidAmount || 0;
-          prevPending = Math.max(0, outstanding - billed + paid);
-          currentPending = Math.max(0, prevPending + billed - paid);
-          loadCount = Math.max(0, loadCountMap[item.buyerId] || 0);
-        } catch (err) {
-          console.error('Error parsing supplier load record:', item, err);
-        }
-
+        const billed = item.totalLoadsAmount || 0;
+        const pending = Math.max(0, item.outstandingBalance || 0);
+        const pendingStr = pending > 0 ? `Rs. ${Number(pending).toLocaleString()}` : 'Nil';
         return [
           idx + 1,
-          item.buyerName || 'Unknown Customer',
-          loadCount,
-          Number(billed).toLocaleString('en-IN'),
-          Number(prevPending).toLocaleString('en-IN'),
-          Number(currentPending).toLocaleString('en-IN')
+          item.buyerName || '—',
+          loadCountMap[item.buyerId] || 0,
+          `Rs. ${Number(billed).toLocaleString()}`,
+          pendingStr
         ];
       });
 
-      if (activeBuyers.length === 0) {
-        doc.setFontSize(10);
-        doc.setFont(undefined, 'normal');
-        doc.text('No billing records found for the selected period.', 14, 34);
-      }
-
       autoTable(doc, {
         head,
-        body: body.length > 0 ? body : [['—', 'Unknown Customer', 0, '0', '0', '0']],
-        startY: activeBuyers.length === 0 ? 40 : 36,
+        body,
+        startY: 36,
         theme: 'grid',
         styles: { fontSize: 7.5, cellPadding: 2 },
         headStyles: { fillColor: [245, 246, 250], textColor: [15, 23, 42], fontStyle: 'bold' }
@@ -643,30 +617,16 @@ const LoadManagement = () => {
       }
 
       let grandBilled = 0;
-      let grandPreviousPending = 0;
       let grandPending = 0;
-
       activeBuyers.forEach(b => {
-        try {
-          const billed = b.totalLoadsAmount || 0;
-          const outstanding = b.outstandingBalance || 0;
-          const paid = b.totalPaidAmount || 0;
-          const prevPending = Math.max(0, outstanding - billed + paid);
-          const currentPending = Math.max(0, prevPending + billed - paid);
-
-          grandBilled += billed;
-          grandPreviousPending += prevPending;
-          grandPending += currentPending;
-        } catch (err) {
-          console.error('Error calculating supplier grand totals:', b, err);
-        }
+        grandBilled += b.totalLoadsAmount || 0;
+        grandPending += Math.max(0, b.outstandingBalance || 0);
       });
 
-      const grandHead = [['GRAND SUMMARY', 'AMOUNT (₹)']];
+      const grandHead = [['GRAND SUMMARY', 'AMOUNT (Rs.)']];
       const grandBody = [
-        ['GRAND TOTAL BILLED', grandBilled.toLocaleString('en-IN')],
-        ['GRAND TOTAL PREVIOUS PENDING', grandPreviousPending.toLocaleString('en-IN')],
-        ['GRAND TOTAL CURRENT PENDING', grandPending.toLocaleString('en-IN')]
+        ['GRAND TOTAL LOAD COST', grandBilled.toLocaleString()],
+        ['GRAND TOTAL PENDING', grandPending.toLocaleString()]
       ];
 
       doc.setFontSize(10);
