@@ -587,18 +587,44 @@ const LoadManagement = () => {
         (loadCountMap[item.buyerId] || 0) > 0 || (item.outstandingBalance || 0) > 0
       );
 
-      const head = [['S.NO', 'SUPPLIER NAME', 'NO. OF LOADS', 'TOTAL LOAD COST (Rs.)', 'PENDING AMOUNT (Rs.)']];
+      // Check if any active buyer has a pending amount greater than total load cost
+      const hasPreviousBalance = activeBuyers.some(item => {
+        const billed = item.totalLoadsAmount || 0;
+        const pending = Math.max(0, item.outstandingBalance || 0);
+        return pending > billed;
+      });
+
+      const head = hasPreviousBalance
+        ? [['S.NO', 'SUPPLIER NAME', 'NO. OF LOADS', 'TOTAL LOAD COST (Rs.)', 'PREVIOUS BALANCE (Rs.)', 'PENDING AMOUNT (Rs.)']]
+        : [['S.NO', 'SUPPLIER NAME', 'NO. OF LOADS', 'TOTAL LOAD COST (Rs.)', 'PENDING AMOUNT (Rs.)']];
+
       const body = activeBuyers.map((item, idx) => {
         const billed = item.totalLoadsAmount || 0;
         const pending = Math.max(0, item.outstandingBalance || 0);
-        const pendingStr = pending > 0 ? `Rs. ${Number(pending).toLocaleString()}` : 'Nil';
-        return [
-          idx + 1,
-          item.buyerName || '—',
-          loadCountMap[item.buyerId] || 0,
-          `Rs. ${Number(billed).toLocaleString()}`,
-          pendingStr
-        ];
+        const prevPending = Math.max(0, (item.outstandingBalance || 0) - (item.totalLoadsAmount || 0) + (item.totalPaidAmount || 0));
+
+        const billedStr = `Rs. ${Number(billed).toLocaleString()}`;
+        const pendingStr = `Rs. ${Number(pending).toLocaleString()}`;
+        const prevPendingStr = `Rs. ${Number(prevPending).toLocaleString()}`;
+
+        if (hasPreviousBalance) {
+          return [
+            idx + 1,
+            item.buyerName || '—',
+            loadCountMap[item.buyerId] || 0,
+            billedStr,
+            prevPendingStr,
+            pendingStr
+          ];
+        } else {
+          return [
+            idx + 1,
+            item.buyerName || '—',
+            loadCountMap[item.buyerId] || 0,
+            billedStr,
+            pendingStr
+          ];
+        }
       });
 
       autoTable(doc, {

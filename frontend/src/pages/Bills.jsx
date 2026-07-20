@@ -344,18 +344,44 @@ const Bills = () => {
         (billCountMap[item.customerId] || 0) > 0 || (item.outstandingBalance || 0) > 0
       );
 
-      const head = [['S.NO', 'CUSTOMER NAME', 'NO. OF BILLS', 'TOTAL BILLED AMOUNT (Rs.)', 'PENDING AMOUNT (Rs.)']];
+      // Check if any active customer has a pending amount greater than total billed
+      const hasPreviousBalance = activeCustomers.some(item => {
+        const billed = item.totalBillsAmount || 0;
+        const pending = Math.max(0, item.outstandingBalance || 0);
+        return pending > billed;
+      });
+
+      const head = hasPreviousBalance 
+        ? [['S.NO', 'CUSTOMER NAME', 'NO. OF BILLS', 'TOTAL BILLED AMOUNT (Rs.)', 'PREVIOUS BALANCE (Rs.)', 'PENDING AMOUNT (Rs.)']]
+        : [['S.NO', 'CUSTOMER NAME', 'NO. OF BILLS', 'TOTAL BILLED AMOUNT (Rs.)', 'PENDING AMOUNT (Rs.)']];
+
       const body = activeCustomers.map((item, idx) => {
         const billed = item.totalBillsAmount || 0;
         const pending = Math.max(0, item.outstandingBalance || 0);
-        const pendingStr = pending > 0 ? `Rs. ${Number(pending).toLocaleString()}` : 'Nil';
-        return [
-          idx + 1,
-          item.customerName || '—',
-          billCountMap[item.customerId] || 0,
-          `Rs. ${Number(billed).toLocaleString()}`,
-          pendingStr
-        ];
+        const prevPending = Math.max(0, (item.outstandingBalance || 0) - (item.totalBillsAmount || 0) + (item.totalPaidAmount || 0));
+
+        const billedStr = `Rs. ${Number(billed).toLocaleString()}`;
+        const pendingStr = `Rs. ${Number(pending).toLocaleString()}`;
+        const prevPendingStr = `Rs. ${Number(prevPending).toLocaleString()}`;
+
+        if (hasPreviousBalance) {
+          return [
+            idx + 1,
+            item.customerName || '—',
+            billCountMap[item.customerId] || 0,
+            billedStr,
+            prevPendingStr,
+            pendingStr
+          ];
+        } else {
+          return [
+            idx + 1,
+            item.customerName || '—',
+            billCountMap[item.customerId] || 0,
+            billedStr,
+            pendingStr
+          ];
+        }
       });
 
       autoTable(doc, {
