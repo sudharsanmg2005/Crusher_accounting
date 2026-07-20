@@ -358,7 +358,7 @@ const Bills = () => {
       const body = activeCustomers.map((item, idx) => {
         const billed = item.totalBillsAmount || 0;
         const pending = Math.max(0, item.outstandingBalance || 0);
-        const prevPending = Math.max(0, (item.outstandingBalance || 0) - (item.totalBillsAmount || 0) + (item.totalPaidAmount || 0));
+        const prevPending = billed < pending ? (pending - billed) : 0;
 
         const billedStr = `Rs. ${Number(billed).toLocaleString()}`;
         const pendingStr = `Rs. ${Number(pending).toLocaleString()}`;
