@@ -590,17 +590,14 @@ const LoadManagement = () => {
       const head = [['S.NO', 'SUPPLIER NAME', 'NO OF LOADS', 'GRAND TOTAL LOAD COST (Rs.)', 'PREVIOUS PENDING (Rs.)', 'PAYMENTS MADE (Rs.)', 'TOTAL PENDING AMOUNT (Rs.)']];
       const body = activeBuyers.map((item, idx) => {
         const prevPending = (item.outstandingBalance || 0) - (item.totalLoadsAmount || 0) + (item.totalPaidAmount || 0);
-        const isPending = (item.outstandingBalance || 0) > 0;
-        const paymentsReceived = isPending ? 0 : ((item.totalLoadsAmount || 0) + prevPending);
-        const totalPending = isPending ? ((item.totalLoadsAmount || 0) + prevPending) : 0;
         return [
           idx + 1,
           item.buyerName || '—',
           loadCountMap[item.buyerId] || 0,
           Number(item.totalLoadsAmount || 0).toLocaleString(),
           Number(prevPending || 0).toLocaleString(),
-          Number(paymentsReceived || 0).toLocaleString(),
-          Number(totalPending || 0).toLocaleString()
+          Number(item.totalPaidAmount || 0).toLocaleString(),
+          Number(item.outstandingBalance || 0).toLocaleString()
         ];
       });
 
@@ -627,13 +624,8 @@ const LoadManagement = () => {
         grandBilled += b.totalLoadsAmount || 0;
         const prevPending = (b.outstandingBalance || 0) - (b.totalLoadsAmount || 0) + (b.totalPaidAmount || 0);
         grandPreviousPending += prevPending;
-        
-        const isPending = (b.outstandingBalance || 0) > 0;
-        const paymentsReceived = isPending ? 0 : ((b.totalLoadsAmount || 0) + prevPending);
-        const totalPending = isPending ? ((b.totalLoadsAmount || 0) + prevPending) : 0;
-        
-        grandPaid += paymentsReceived;
-        grandPending += totalPending;
+        grandPaid += b.totalPaidAmount || 0;
+        grandPending += b.outstandingBalance || 0;
       });
 
       const grandHead = [['GRAND SUMMARY', 'AMOUNT (Rs.)']];
