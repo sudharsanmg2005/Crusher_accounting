@@ -344,21 +344,25 @@ const Bills = () => {
         (billCountMap[item.customerId] || 0) > 0
       );
 
-      const head = [['S.NO', 'CUSTOMER NAME', 'NO OF BILLS', 'GRAND TOTAL BILLED (Rs.)', 'PENDING AMOUNT (Rs.)']];
-      const body = activeCustomers.map((item, idx) => [
-        idx + 1,
-        item.customerName || '—',
-        billCountMap[item.customerId] || 0,
-        Number(item.totalBillsAmount || 0).toLocaleString(),
-        Number(item.outstandingBalance || 0).toLocaleString()
-      ]);
+      const head = [['S.NO', 'CUSTOMER NAME', 'NO OF BILLS', 'GRAND TOTAL BILLED (Rs.)', 'PREVIOUS PENDING (Rs.)', 'TOTAL PENDING AMOUNT (Rs.)']];
+      const body = activeCustomers.map((item, idx) => {
+        const prevPending = Math.max(0, (item.outstandingBalance || 0) - (item.totalBillsAmount || 0) + (item.totalPaidAmount || 0));
+        return [
+          idx + 1,
+          item.customerName || '—',
+          billCountMap[item.customerId] || 0,
+          Number(item.totalBillsAmount || 0).toLocaleString(),
+          Number(prevPending || 0).toLocaleString(),
+          Number(item.outstandingBalance || 0).toLocaleString()
+        ];
+      });
 
       autoTable(doc, {
         head,
         body,
         startY: 36,
         theme: 'grid',
-        styles: { fontSize: 8, cellPadding: 2.5 },
+        styles: { fontSize: 7.5, cellPadding: 2 },
         headStyles: { fillColor: [245, 246, 250], textColor: [15, 23, 42], fontStyle: 'bold' }
       });
 
@@ -369,16 +373,20 @@ const Bills = () => {
       }
 
       let grandBilled = 0;
+      let grandPreviousPending = 0;
       let grandPending = 0;
       activeCustomers.forEach(c => {
         grandBilled += c.totalBillsAmount || 0;
+        const prevPending = Math.max(0, (c.outstandingBalance || 0) - (c.totalBillsAmount || 0) + (c.totalPaidAmount || 0));
+        grandPreviousPending += prevPending;
         grandPending += c.outstandingBalance || 0;
       });
 
       const grandHead = [['GRAND SUMMARY', 'AMOUNT (Rs.)']];
       const grandBody = [
         ['GRAND TOTAL BILLED', grandBilled.toLocaleString()],
-        ['GRAND TOTAL PENDING', grandPending.toLocaleString()]
+        ['GRAND PREVIOUS PENDING', grandPreviousPending.toLocaleString()],
+        ['GRAND TOTAL PENDING AMOUNT', grandPending.toLocaleString()]
       ];
 
       doc.setFontSize(10);
