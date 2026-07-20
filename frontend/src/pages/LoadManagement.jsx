@@ -587,15 +587,16 @@ const LoadManagement = () => {
         (loadCountMap[item.buyerId] || 0) > 0
       );
 
-      const head = [['S.NO', 'SUPPLIER NAME', 'NO OF LOADS', 'GRAND TOTAL LOAD COST (Rs.)', 'PREVIOUS PENDING (Rs.)', 'TOTAL PENDING AMOUNT (Rs.)']];
+      const head = [['S.NO', 'SUPPLIER NAME', 'NO OF LOADS', 'GRAND TOTAL LOAD COST (Rs.)', 'PREVIOUS PENDING (Rs.)', 'PAYMENTS MADE (Rs.)', 'TOTAL PENDING AMOUNT (Rs.)']];
       const body = activeBuyers.map((item, idx) => {
-        const prevPending = Math.max(0, (item.outstandingBalance || 0) - (item.totalLoadsAmount || 0) + (item.totalPaidAmount || 0));
+        const prevPending = (item.outstandingBalance || 0) - (item.totalLoadsAmount || 0) + (item.totalPaidAmount || 0);
         return [
           idx + 1,
           item.buyerName || '—',
           loadCountMap[item.buyerId] || 0,
           Number(item.totalLoadsAmount || 0).toLocaleString(),
           Number(prevPending || 0).toLocaleString(),
+          Number(item.totalPaidAmount || 0).toLocaleString(),
           Number(item.outstandingBalance || 0).toLocaleString()
         ];
       });
@@ -617,11 +618,13 @@ const LoadManagement = () => {
 
       let grandBilled = 0;
       let grandPreviousPending = 0;
+      let grandPaid = 0;
       let grandPending = 0;
       activeBuyers.forEach(b => {
         grandBilled += b.totalLoadsAmount || 0;
-        const prevPending = Math.max(0, (b.outstandingBalance || 0) - (b.totalLoadsAmount || 0) + (b.totalPaidAmount || 0));
+        const prevPending = (b.outstandingBalance || 0) - (b.totalLoadsAmount || 0) + (b.totalPaidAmount || 0);
         grandPreviousPending += prevPending;
+        grandPaid += b.totalPaidAmount || 0;
         grandPending += b.outstandingBalance || 0;
       });
 
@@ -629,6 +632,7 @@ const LoadManagement = () => {
       const grandBody = [
         ['GRAND TOTAL LOAD COST', grandBilled.toLocaleString()],
         ['GRAND PREVIOUS PENDING', grandPreviousPending.toLocaleString()],
+        ['GRAND TOTAL PAYMENTS MADE', grandPaid.toLocaleString()],
         ['GRAND TOTAL PENDING AMOUNT', grandPending.toLocaleString()]
       ];
 

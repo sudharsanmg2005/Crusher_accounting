@@ -344,15 +344,16 @@ const Bills = () => {
         (billCountMap[item.customerId] || 0) > 0
       );
 
-      const head = [['S.NO', 'CUSTOMER NAME', 'NO OF BILLS', 'GRAND TOTAL BILLED (Rs.)', 'PREVIOUS PENDING (Rs.)', 'TOTAL PENDING AMOUNT (Rs.)']];
+      const head = [['S.NO', 'CUSTOMER NAME', 'NO OF BILLS', 'GRAND TOTAL BILLED (Rs.)', 'PREVIOUS PENDING (Rs.)', 'PAYMENTS RECEIVED (Rs.)', 'TOTAL PENDING AMOUNT (Rs.)']];
       const body = activeCustomers.map((item, idx) => {
-        const prevPending = Math.max(0, (item.outstandingBalance || 0) - (item.totalBillsAmount || 0) + (item.totalPaidAmount || 0));
+        const prevPending = (item.outstandingBalance || 0) - (item.totalBillsAmount || 0) + (item.totalPaidAmount || 0);
         return [
           idx + 1,
           item.customerName || '—',
           billCountMap[item.customerId] || 0,
           Number(item.totalBillsAmount || 0).toLocaleString(),
           Number(prevPending || 0).toLocaleString(),
+          Number(item.totalPaidAmount || 0).toLocaleString(),
           Number(item.outstandingBalance || 0).toLocaleString()
         ];
       });
@@ -374,11 +375,13 @@ const Bills = () => {
 
       let grandBilled = 0;
       let grandPreviousPending = 0;
+      let grandPaid = 0;
       let grandPending = 0;
       activeCustomers.forEach(c => {
         grandBilled += c.totalBillsAmount || 0;
-        const prevPending = Math.max(0, (c.outstandingBalance || 0) - (c.totalBillsAmount || 0) + (c.totalPaidAmount || 0));
+        const prevPending = (c.outstandingBalance || 0) - (c.totalBillsAmount || 0) + (c.totalPaidAmount || 0);
         grandPreviousPending += prevPending;
+        grandPaid += c.totalPaidAmount || 0;
         grandPending += c.outstandingBalance || 0;
       });
 
@@ -386,6 +389,7 @@ const Bills = () => {
       const grandBody = [
         ['GRAND TOTAL BILLED', grandBilled.toLocaleString()],
         ['GRAND PREVIOUS PENDING', grandPreviousPending.toLocaleString()],
+        ['GRAND TOTAL PAYMENTS RECEIVED', grandPaid.toLocaleString()],
         ['GRAND TOTAL PENDING AMOUNT', grandPending.toLocaleString()]
       ];
 
