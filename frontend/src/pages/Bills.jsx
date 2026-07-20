@@ -339,22 +339,22 @@ const Bills = () => {
         }
       });
 
-      // Filter active customers (only those who took load/bill on the particular timeline)
+      // Filter active customers (include if they have bills OR pending dues in the period)
       const activeCustomers = outstandingData.filter(item => 
-        (billCountMap[item.customerId] || 0) > 0
+        (billCountMap[item.customerId] || 0) > 0 || (item.outstandingBalance || 0) > 0
       );
 
-      const head = [['S.NO', 'CUSTOMER NAME', 'NO OF BILLS', 'GRAND TOTAL BILLED (Rs.)', 'PREVIOUS PENDING (Rs.)', 'PAYMENTS RECEIVED (Rs.)', 'TOTAL PENDING AMOUNT (Rs.)']];
+      const head = [['S.NO', 'CUSTOMER NAME', 'NO. OF BILLS', 'TOTAL BILLED AMOUNT (Rs.)', 'PENDING AMOUNT (Rs.)']];
       const body = activeCustomers.map((item, idx) => {
-        const prevPending = (item.outstandingBalance || 0) - (item.totalBillsAmount || 0) + (item.totalPaidAmount || 0);
+        const billed = item.totalBillsAmount || 0;
+        const pending = Math.max(0, item.outstandingBalance || 0);
+        const pendingStr = pending > 0 ? `Rs. ${Number(pending).toLocaleString()}` : 'Nil';
         return [
           idx + 1,
           item.customerName || '—',
           billCountMap[item.customerId] || 0,
-          Number(item.totalBillsAmount || 0).toLocaleString(),
-          Number(prevPending || 0).toLocaleString(),
-          Number(item.totalPaidAmount || 0).toLocaleString(),
-          Number(item.outstandingBalance || 0).toLocaleString()
+          `Rs. ${Number(billed).toLocaleString()}`,
+          pendingStr
         ];
       });
 
@@ -374,23 +374,16 @@ const Bills = () => {
       }
 
       let grandBilled = 0;
-      let grandPreviousPending = 0;
-      let grandPaid = 0;
       let grandPending = 0;
       activeCustomers.forEach(c => {
         grandBilled += c.totalBillsAmount || 0;
-        const prevPending = (c.outstandingBalance || 0) - (c.totalBillsAmount || 0) + (c.totalPaidAmount || 0);
-        grandPreviousPending += prevPending;
-        grandPaid += c.totalPaidAmount || 0;
-        grandPending += c.outstandingBalance || 0;
+        grandPending += Math.max(0, c.outstandingBalance || 0);
       });
 
       const grandHead = [['GRAND SUMMARY', 'AMOUNT (Rs.)']];
       const grandBody = [
         ['GRAND TOTAL BILLED', grandBilled.toLocaleString()],
-        ['GRAND PREVIOUS PENDING', grandPreviousPending.toLocaleString()],
-        ['GRAND TOTAL PAYMENTS RECEIVED', grandPaid.toLocaleString()],
-        ['GRAND TOTAL PENDING AMOUNT', grandPending.toLocaleString()]
+        ['GRAND TOTAL PENDING', grandPending.toLocaleString()]
       ];
 
       doc.setFontSize(10);
