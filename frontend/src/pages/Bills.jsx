@@ -347,14 +347,17 @@ const Bills = () => {
       const head = [['S.NO', 'CUSTOMER NAME', 'NO OF BILLS', 'GRAND TOTAL BILLED (Rs.)', 'PREVIOUS PENDING (Rs.)', 'PAYMENTS RECEIVED (Rs.)', 'TOTAL PENDING AMOUNT (Rs.)']];
       const body = activeCustomers.map((item, idx) => {
         const prevPending = (item.outstandingBalance || 0) - (item.totalBillsAmount || 0) + (item.totalPaidAmount || 0);
+        const isPending = (item.outstandingBalance || 0) > 0;
+        const paymentsReceived = isPending ? 0 : ((item.totalBillsAmount || 0) + prevPending);
+        const totalPending = isPending ? ((item.totalBillsAmount || 0) + prevPending) : 0;
         return [
           idx + 1,
           item.customerName || '—',
           billCountMap[item.customerId] || 0,
           Number(item.totalBillsAmount || 0).toLocaleString(),
           Number(prevPending || 0).toLocaleString(),
-          Number(item.totalPaidAmount || 0).toLocaleString(),
-          Number(item.outstandingBalance || 0).toLocaleString()
+          Number(paymentsReceived || 0).toLocaleString(),
+          Number(totalPending || 0).toLocaleString()
         ];
       });
 
@@ -381,8 +384,13 @@ const Bills = () => {
         grandBilled += c.totalBillsAmount || 0;
         const prevPending = (c.outstandingBalance || 0) - (c.totalBillsAmount || 0) + (c.totalPaidAmount || 0);
         grandPreviousPending += prevPending;
-        grandPaid += c.totalPaidAmount || 0;
-        grandPending += c.outstandingBalance || 0;
+        
+        const isPending = (c.outstandingBalance || 0) > 0;
+        const paymentsReceived = isPending ? 0 : ((c.totalBillsAmount || 0) + prevPending);
+        const totalPending = isPending ? ((c.totalBillsAmount || 0) + prevPending) : 0;
+        
+        grandPaid += paymentsReceived;
+        grandPending += totalPending;
       });
 
       const grandHead = [['GRAND SUMMARY', 'AMOUNT (Rs.)']];
@@ -427,7 +435,7 @@ const Bills = () => {
       }
 
       // Calculate balance values
-      const sortedLedger = [...fullLedger].sort((a, b) => new Date(a.date) - new Date(b.date));
+      const sortedLedger = fullLedger;
       let oldBalance = 0;
       if (startDateVal) {
         const beforeEntries = sortedLedger.filter(e => new Date(e.date) < startDateVal);
