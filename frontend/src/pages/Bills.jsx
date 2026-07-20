@@ -477,11 +477,15 @@ const Bills = () => {
       const grandTotalSum = grandTotal + oldBalance;
       const totalBalanceCalculated = grandTotalSum - amountReceived;
       const totalsBody = [
-        ['GRAND TOTAL BILLED', `Rs. ${Number(grandTotal).toLocaleString()}`],
-        ['PREVIOUS BALANCE', `Rs. ${Number(oldBalance).toLocaleString()}`],
-        ['GRAND TOTAL', `Rs. ${Number(grandTotalSum).toLocaleString()}`],
-        ['AMOUNT RECEIVED', `Rs. ${Number(amountReceived).toLocaleString()}`]
+        ['GRAND TOTAL BILLED', `Rs. ${Number(grandTotal).toLocaleString()}`]
       ];
+
+      if (oldBalance > 0) {
+        totalsBody.push(['PREVIOUS BALANCE', `Rs. ${Number(oldBalance).toLocaleString()}`]);
+        totalsBody.push(['GRAND TOTAL', `Rs. ${Number(grandTotalSum).toLocaleString()}`]);
+      }
+
+      totalsBody.push(['AMOUNT RECEIVED', `Rs. ${Number(amountReceived).toLocaleString()}`]);
 
       if (totalBalanceCalculated < 0) {
         totalsBody.push(['ADVANCE CREDIT', `Rs. ${Number(Math.abs(totalBalanceCalculated)).toLocaleString()}`]);

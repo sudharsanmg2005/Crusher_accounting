@@ -376,11 +376,15 @@ const Buyers = () => {
     const grandTotalSum = selectedBilled + previousOutstanding;
     const balanceValue = grandTotalSum - selectedPaid;
     const totalsBody = [
-      ['GRAND TOTAL LOAD COST', `Rs. ${Number(selectedBilled).toLocaleString()}`],
-      ['PREVIOUS BALANCE', `Rs. ${Number(previousOutstanding).toLocaleString()}`],
-      ['GRAND TOTAL', `Rs. ${Number(grandTotalSum).toLocaleString()}`],
-      ['AMOUNT PAID', `Rs. ${Number(selectedPaid).toLocaleString()}`]
+      ['GRAND TOTAL LOAD COST', `Rs. ${Number(selectedBilled).toLocaleString()}`]
     ];
+
+    if (previousOutstanding > 0) {
+      totalsBody.push(['PREVIOUS BALANCE', `Rs. ${Number(previousOutstanding).toLocaleString()}`]);
+      totalsBody.push(['GRAND TOTAL', `Rs. ${Number(grandTotalSum).toLocaleString()}`]);
+    }
+
+    totalsBody.push(['AMOUNT PAID', `Rs. ${Number(selectedPaid).toLocaleString()}`]);
 
     if (balanceValue < 0) {
       totalsBody.push(['ADVANCE CREDIT', `Rs. ${Number(Math.abs(balanceValue)).toLocaleString()}`]);
