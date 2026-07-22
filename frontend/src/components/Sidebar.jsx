@@ -61,65 +61,70 @@ const Sidebar = ({ isOpen, onClose }) => {
 
       {/* Sidebar Content */}
       <aside
-        className={`bg-white dark:bg-slate-900 border-r border-slate-200 dark:border-slate-800 shadow-sm flex flex-col transition-all duration-300 z-50 md:z-30
-          fixed md:sticky top-14 md:top-16 left-0 h-[calc(100vh-3.5rem)] md:h-[calc(100vh-4rem)] w-64 max-h-screen overflow-y-auto
+        className={`bg-white dark:bg-slate-900 border-r border-slate-200 dark:border-slate-800 shadow-sm transition-all duration-300 z-50 md:z-30
+          fixed md:sticky top-14 md:top-16 left-0 h-[calc(100vh-3.5rem)] md:h-[calc(100vh-4rem)] w-64 overflow-hidden
           ${isOpen ? 'translate-x-0' : '-translate-x-full'} md:translate-x-0
         `}
       >
-        {/* Mobile Header (only shown inside drawer on mobile) */}
-        <div className="px-4 pt-6 pb-3 flex justify-between items-center md:hidden">
-          <div className="flex items-center gap-3">
-            <div 
-              onClick={handleLogoClick}
-              className="h-14 w-14 md:h-16 md:w-16 rounded-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 ring-2 ring-blue-600 flex items-center justify-center overflow-hidden shadow-sm shrink-0 cursor-pointer hover:scale-105 transition-transform duration-200"
-              title="Zoom Logo"
-            >
-              <img src={logoUrl} alt="Krishna Blue Metals" className="h-full w-full object-contain" />
+        {/* Unified Scroll Container */}
+        <div className="h-full overflow-y-auto flex flex-col justify-between p-4 space-y-4">
+          <div>
+            {/* Mobile Header (only shown inside drawer on mobile) */}
+            <div className="pb-3 flex justify-between items-center md:hidden border-b border-slate-100 dark:border-slate-800 mb-2">
+              <div className="flex items-center gap-3">
+                <div 
+                  onClick={handleLogoClick}
+                  className="h-12 w-12 rounded-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 ring-2 ring-blue-600 flex items-center justify-center overflow-hidden shadow-sm shrink-0 cursor-pointer hover:scale-105 transition-transform duration-200"
+                  title="Zoom Logo"
+                >
+                  <img src={logoUrl} alt="Krishna Blue Metals" className="h-full w-full object-contain" />
+                </div>
+                <div className="leading-tight">
+                  <div className="text-sm font-extrabold text-slate-800 dark:text-slate-100 tracking-wide">KRISHNA BLUE METALS</div>
+                  <div className="text-xs font-medium text-slate-500 dark:text-slate-400">{user?.role ? `${user.role.toUpperCase()}` : 'ADMIN'}</div>
+                </div>
+              </div>
+              <button
+                onClick={onClose}
+                className="md:hidden text-slate-400 hover:text-slate-600 text-2xl font-bold leading-none p-2"
+              >
+                &times;
+              </button>
             </div>
-            <div className="leading-tight">
-              <div className="text-sm font-extrabold text-slate-800 dark:text-slate-100 tracking-wide">KRISHNA BLUE METALS</div>
-              <div className="text-xs font-medium text-slate-500 dark:text-slate-400">{user?.role ? `${user.role.toUpperCase()}` : 'ADMIN'}</div>
+
+            <div className="pt-1">
+              <h3 className="text-xs font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-2">Menu</h3>
+            </div>
+
+            <div className="space-y-1.5 w-full">
+              {navItems.map((item) => {
+                const ItemIcon = item.icon;
+                return (
+                  <NavLink
+                    key={item.name}
+                    to={item.path}
+                    className={linkStyles}
+                    onClick={() => {
+                      if (onClose) onClose();
+                    }}
+                  >
+                    <span className="w-6 flex justify-center items-center"><ItemIcon className="h-5 w-5" /></span>
+                    <span>{item.name}</span>
+                  </NavLink>
+                );
+              })}
             </div>
           </div>
-          <button
-            onClick={onClose}
-            className="md:hidden text-slate-400 hover:text-slate-600 text-2xl font-bold leading-none p-2"
-          >
-            &times;
-          </button>
-        </div>
 
-        <div className="px-4 pt-2 md:pt-4">
-          <h3 className="text-xs font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-1">Menu</h3>
-        </div>
-
-        <div className="flex-1 px-4 space-y-2 overflow-y-auto w-full pb-3">
-          {navItems.map((item) => {
-            const ItemIcon = item.icon;
-            return (
-            <NavLink
-              key={item.name}
-              to={item.path}
-              className={linkStyles}
-              onClick={() => {
-                if (onClose) onClose();
-              }}
+          <div className="pt-4 pb-8 border-t border-slate-100 dark:border-slate-800 mt-auto shrink-0">
+            <button
+              type="button"
+              onClick={onLogout}
+              className="w-full bg-slate-800 dark:bg-slate-800 text-white border border-slate-800 dark:border-slate-700 hover:bg-slate-700 dark:hover:bg-slate-700 rounded-lg font-semibold py-2.5 transition-colors duration-200 shadow-sm"
             >
-              <span className="w-6 flex justify-center items-center"><ItemIcon className="h-5 w-5" /></span>
-              <span>{item.name}</span>
-            </NavLink>
-          );
-          })}
-        </div>
-
-        <div className="px-4 pb-6 pt-2 mt-auto">
-          <button
-            type="button"
-            onClick={onLogout}
-            className="w-full bg-slate-800 dark:bg-slate-800 text-white border border-slate-800 dark:border-slate-700 hover:bg-slate-700 dark:hover:bg-slate-700 rounded-lg font-semibold py-2.5 transition-colors duration-200 shadow-sm"
-          >
-            Logout
-          </button>
+              Logout
+            </button>
+          </div>
         </div>
       </aside>
 
