@@ -75,6 +75,7 @@ const Bills = () => {
     month: '',
     weekStart: ''
   });
+  const [isMobileFilterOpen, setIsMobileFilterOpen] = useState(false);
 
   // Calculate total automatically based on selected material and quantity
   const [calculatedTotal, setCalculatedTotal] = useState(0);
@@ -1158,17 +1159,26 @@ const Bills = () => {
   };
 
   return (
-    <div className="space-y-6 flex flex-col h-full min-h-0">
-      <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center shrink-0 gap-4">
-        <div>
-          <h1 className="text-2xl font-bold text-slate-800">Bills</h1>
-          <p className="text-slate-500 text-sm mt-1">Generate and print invoice bills for customers.</p>
+    <div className="space-y-4 md:space-y-6 flex flex-col md:h-full min-h-0">
+      <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center shrink-0 gap-3 md:gap-4">
+        <div className="flex justify-between items-center w-full lg:w-auto">
+          <div>
+            <h1 className="text-xl md:text-2xl font-bold text-slate-800 dark:text-slate-100">Bills</h1>
+            <p className="text-slate-500 dark:text-slate-400 text-xs md:text-sm mt-0.5">Generate and print invoice bills for customers.</p>
+          </div>
+          <button
+            type="button"
+            onClick={() => setIsMobileFilterOpen((prev) => !prev)}
+            className="lg:hidden px-3 py-1.5 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 rounded-lg text-xs font-semibold border border-slate-300 dark:border-slate-700"
+          >
+            {isMobileFilterOpen ? 'Hide Filters ▲' : 'Filters & Actions 🔍'}
+          </button>
         </div>
 
-        <div className="flex flex-col gap-3 bg-white p-3 rounded-xl shadow-sm border border-slate-200 w-full lg:w-auto shrink-0">
+        <div className={`flex flex-col gap-3 bg-white dark:bg-slate-900 p-3 rounded-xl shadow-sm border border-slate-200 dark:border-slate-800 w-full lg:w-auto shrink-0 ${isMobileFilterOpen ? 'block' : 'hidden lg:block'}`}>
           <div className="flex flex-wrap items-end gap-3 w-full">
             <div className="w-full sm:w-auto">
-              <label className="block text-xs font-semibold text-slate-500 mb-1 uppercase tracking-wider">Search</label>
+              <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1 uppercase tracking-wider">Search</label>
               <input
                 type="text"
                 value={filters.search}
@@ -1179,7 +1189,7 @@ const Bills = () => {
             </div>
 
             <div className="w-full sm:w-auto">
-              <label className="block text-xs font-semibold text-slate-500 mb-1 uppercase tracking-wider">Customer</label>
+              <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1 uppercase tracking-wider">Customer</label>
               <select
                 value={filters.customerId}
                 onChange={(e) => setFilters((prev) => ({ ...prev, customerId: e.target.value }))}
@@ -1196,7 +1206,7 @@ const Bills = () => {
 
 
             <div className="w-full sm:w-auto">
-              <label className="block text-xs font-semibold text-slate-500 mb-1 uppercase tracking-wider">Filter Mode</label>
+              <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1 uppercase tracking-wider">Filter Mode</label>
               <select
                 value={filters.mode}
                 onChange={(e) => {
@@ -1245,15 +1255,15 @@ const Bills = () => {
                 type="button"
                 onClick={downloadSummaryPdf}
                 disabled={filteredBills.length === 0 || loading}
-                className="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-blue-700 transition shadow-md disabled:opacity-50 disabled:cursor-not-allowed w-full sm:w-auto justify-center inline-flex items-center cursor-pointer animate-none"
+                className="bg-blue-600 text-white px-3 py-2 rounded-lg text-xs md:text-sm font-medium hover:bg-blue-700 transition shadow-md disabled:opacity-50 disabled:cursor-not-allowed flex-1 sm:flex-none justify-center inline-flex items-center cursor-pointer animate-none"
               >
-                Download Summary PDF
+                Summary PDF
               </button>
               <button
                 type="button"
                 onClick={downloadPaymentsPdf}
                 disabled={loading}
-                className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition shadow-md w-full sm:w-auto justify-center inline-flex items-center cursor-pointer"
+                className="bg-indigo-600 hover:bg-indigo-700 text-white px-3 py-2 rounded-lg text-xs md:text-sm font-medium transition shadow-md flex-1 sm:flex-none justify-center inline-flex items-center cursor-pointer"
               >
                 Payments PDF
               </button>
@@ -1261,13 +1271,13 @@ const Bills = () => {
                 <>
                   <button 
                     onClick={() => { setFormData(emptyForm()); setIsModalOpen(true); }}
-                    className="bg-emerald-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-emerald-700 transition shadow-md inline-flex items-center justify-center w-full sm:w-auto cursor-pointer"
+                    className="bg-emerald-600 text-white px-3.5 py-2 rounded-lg text-xs md:text-sm font-semibold hover:bg-emerald-700 transition shadow-md inline-flex items-center justify-center flex-1 sm:flex-none cursor-pointer"
                   >
                     + Generate Bill
                   </button>
                   <button 
                     onClick={initBulkEntry}
-                    className="bg-teal-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-teal-700 transition shadow-md inline-flex items-center justify-center w-full sm:w-auto cursor-pointer"
+                    className="bg-teal-600 text-white px-3.5 py-2 rounded-lg text-xs md:text-sm font-semibold hover:bg-teal-700 transition shadow-md inline-flex items-center justify-center flex-1 sm:flex-none cursor-pointer"
                   >
                     + Bulk Entry
                   </button>
@@ -1277,10 +1287,10 @@ const Bills = () => {
           </div>
 
           {['particular_date', 'month', 'week', 'selected_dates'].includes(filters.mode) && (
-            <div className="flex flex-wrap items-center gap-3 p-3 bg-slate-50 border border-slate-200 rounded-lg animate-in slide-in-from-top-1 duration-200 w-full">
+            <div className="flex flex-wrap items-center gap-3 p-3 bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-800 rounded-lg animate-in slide-in-from-top-1 duration-200 w-full">
               {filters.mode === 'particular_date' && (
                 <div className="w-full sm:w-auto flex items-center gap-2">
-                  <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider whitespace-nowrap">Date:</span>
+                  <span className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider whitespace-nowrap">Date:</span>
                   <input
                     type="date"
                     value={filters.particularDate}
@@ -1292,7 +1302,7 @@ const Bills = () => {
 
               {filters.mode === 'month' && (
                 <div className="w-full sm:w-auto flex items-center gap-2">
-                  <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider whitespace-nowrap">Month:</span>
+                  <span className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider whitespace-nowrap">Month:</span>
                   <input
                     type="month"
                     value={filters.month}
@@ -1304,7 +1314,7 @@ const Bills = () => {
 
               {filters.mode === 'week' && (
                 <div className="w-full sm:w-auto flex items-center gap-2">
-                  <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider whitespace-nowrap">Week Start:</span>
+                  <span className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider whitespace-nowrap">Week Start:</span>
                   <input
                     type="date"
                     value={filters.weekStart}
@@ -1327,7 +1337,7 @@ const Bills = () => {
 
               {filters.mode === 'selected_dates' && (
                 <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
-                  <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider whitespace-nowrap">Date Range:</span>
+                  <span className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider whitespace-nowrap">Date Range:</span>
                   <input
                     type="date"
                     value={filters.startDate}
@@ -1348,346 +1358,580 @@ const Bills = () => {
         </div>
       </div>
 
-
-
-      <div className="card overflow-hidden p-0 border border-slate-200 flex-1 flex flex-col min-h-0 min-w-0">
+      <div className="card overflow-hidden p-0 border border-slate-200 dark:border-slate-800 flex-1 flex flex-col min-h-0 min-w-0">
         {loading ? (
            <div className="p-8 text-center text-slate-500">Loading bills...</div>
         ) : filteredBills.length === 0 ? (
-           <div className="p-8 text-center text-slate-500 border-t border-slate-100 italic">No bills generated yet.</div>
+           <div className="p-8 text-center text-slate-500 border-t border-slate-100 dark:border-slate-800 italic">No bills generated yet.</div>
         ) : (
-          <div className="overflow-auto flex-1 min-h-0 min-w-0">
-            <table className="data-table">
-              <thead className="sticky top-0 bg-slate-50 dark:bg-slate-900 shadow-sm z-10 w-full min-w-max">
-                <tr className="border-b border-slate-200 dark:border-slate-800 text-sm text-slate-600 dark:text-slate-400 uppercase tracking-wider">
-                  <th className="p-4 font-semibold whitespace-nowrap">Date</th>
-                  <th className="p-4 font-semibold">Customer</th>
-                  <th className="p-4 font-semibold whitespace-nowrap">Vehicle No.</th>
-                  <th className="p-4 font-semibold whitespace-nowrap">Material (Qty)</th>
-                  <th className="p-4 font-semibold whitespace-nowrap text-right">Subtotal (₹)</th>
-                  <th className="p-4 font-semibold whitespace-nowrap text-right">PASS (₹)</th>
-                  <th className="p-4 font-semibold whitespace-nowrap text-right">Grand Total (₹)</th>
-                  <th className="p-4 font-semibold text-right">Actions</th>
-                </tr>
-              </thead>
-              <tbody className="whitespace-nowrap">
-                {filteredBills.map((bill) => {
-                  const billDateTime = formatDateTime(bill.date);
-                  return (
-                    <tr key={bill._id}>
-                      <td className="p-4 text-slate-600 font-medium whitespace-nowrap">{billDateTime.date}</td>
-                      <td className="p-4 text-slate-800 font-semibold">
-                        {customers.find(c => c._id === (bill.customer?._id || bill.customer))?.name || bill.customerNameSnapshot}
-                      </td>
-                      <td className="p-4 text-slate-600"><span className="bg-slate-100 px-2 py-1 rounded border border-slate-200 text-xs font-mono whitespace-nowrap">{bill.vehicleNumber || '—'}</span></td>
-                      <td className="p-4 text-slate-600 text-sm">
-                        <div className="font-medium text-slate-800">{bill.materialNameSnapshot}</div>
-                        <div className="text-xs text-slate-500">{Number(bill.quantity).toFixed(2)} {bill.quantityUnit || 'ton'}s @ ₹{bill.pricePerUnit}</div>
-                        {bill.isBackdated && <div className="text-xs text-amber-600 font-medium">Backdated</div>}
-                      </td>
-                      <td className="p-4 text-right text-slate-600">
-                        ₹{Number(bill.totalAmount || 0).toLocaleString()}
-                      </td>
-                      <td className="p-4 text-right text-slate-600">
-                        ₹{Number(bill.passAmount || 0).toLocaleString()}
-                      </td>
-                      <td className="p-4 text-right font-bold text-slate-800">
-                        ₹{(Number(bill.totalAmount || 0) + Number(bill.passAmount || 0)).toLocaleString()}
-                      </td>
-                      <td className="p-4 text-right space-x-2 whitespace-nowrap">
-                        <button 
-                          onClick={() => downloadBillPdf(bill)} 
-                          className="text-slate-600 hover:text-slate-900 hover:bg-slate-100 p-2 rounded-lg transition-colors inline-flex items-center" 
-                          title="Download PDF"
+          <>
+            {/* Mobile Card Listing View (< md) */}
+            <div className="block md:hidden space-y-3 p-3 overflow-y-auto">
+              {filteredBills.map((bill) => {
+                const billDateTime = formatDateTime(bill.date);
+                const customerName = customers.find(c => c._id === (bill.customer?._id || bill.customer))?.name || bill.customerNameSnapshot;
+                const subtotal = Number(bill.totalAmount || 0);
+                const pass = Number(bill.passAmount || 0);
+                const grandTotal = subtotal + pass;
+
+                return (
+                  <div key={bill._id} className="bg-white dark:bg-slate-900 rounded-xl p-3.5 shadow-sm border border-slate-200 dark:border-slate-800 space-y-2.5">
+                    <div className="flex justify-between items-start">
+                      <div>
+                        <div className="text-xs font-semibold text-slate-400 dark:text-slate-500">{billDateTime.date}</div>
+                        <div className="text-base font-extrabold text-slate-900 dark:text-slate-100 mt-0.5 leading-tight">{customerName}</div>
+                      </div>
+                      {bill.vehicleNumber && (
+                        <span className="bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded border border-slate-200 dark:border-slate-700 text-xs font-mono font-bold text-slate-700 dark:text-slate-300">
+                          {bill.vehicleNumber}
+                        </span>
+                      )}
+                    </div>
+
+                    <div className="bg-slate-50 dark:bg-slate-950 p-2.5 rounded-lg border border-slate-200 dark:border-slate-800 text-xs space-y-1">
+                      <div className="flex justify-between items-center text-slate-700 dark:text-slate-300 font-medium">
+                        <span>Material: <strong className="text-slate-900 dark:text-slate-100 font-semibold">{bill.materialNameSnapshot}</strong></span>
+                        <span className="font-semibold text-slate-800 dark:text-slate-200">{Number(bill.quantity).toFixed(2)} {bill.quantityUnit || 'ton'}s</span>
+                      </div>
+                      <div className="text-slate-500 dark:text-slate-400 text-[11px]">
+                        Rate: ₹{bill.pricePerUnit}/{bill.quantityUnit || 'ton'}
+                        {bill.isBackdated && <span className="ml-2 text-amber-600 font-medium">Backdated</span>}
+                      </div>
+                      <div className="pt-1.5 mt-1 border-t border-slate-200 dark:border-slate-800 flex justify-between items-center text-xs">
+                        <span className="text-slate-500 dark:text-slate-400">Subtotal: ₹{subtotal.toLocaleString()} {pass > 0 ? `| PASS: ₹${pass.toLocaleString()}` : ''}</span>
+                        <span className="font-extrabold text-blue-600 dark:text-blue-400 text-sm">₹{grandTotal.toLocaleString()}</span>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center justify-end gap-2 pt-1 border-t border-slate-100 dark:border-slate-800">
+                      <button
+                        onClick={() => downloadBillPdf(bill)}
+                        className="flex-1 inline-flex items-center justify-center gap-1 px-3 py-2 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 text-slate-700 dark:text-slate-200 rounded-lg text-xs font-semibold transition"
+                      >
+                        <DocumentIcon className="h-4 w-4" /> PDF
+                      </button>
+                      {canWrite && (
+                        <button
+                          onClick={() => openEditModal(bill)}
+                          className="flex-1 inline-flex items-center justify-center gap-1 px-3 py-2 bg-indigo-50 dark:bg-indigo-950/40 hover:bg-indigo-100 text-indigo-700 dark:text-indigo-300 rounded-lg text-xs font-semibold transition"
                         >
-                          <DocumentIcon className="h-5 w-5" />
+                          <EditIcon className="h-4 w-4" /> Edit
                         </button>
-                        {canWrite && (
+                      )}
+                      {canWrite && (
+                        <button
+                          onClick={() => handleDelete(bill._id)}
+                          className="flex-1 inline-flex items-center justify-center gap-1 px-3 py-2 bg-rose-50 dark:bg-rose-950/40 hover:bg-rose-100 text-rose-700 dark:text-rose-300 rounded-lg text-xs font-semibold transition"
+                        >
+                          <TrashIcon className="h-4 w-4" /> Delete
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* Desktop Table View (>= md) */}
+            <div className="hidden md:block overflow-auto flex-1 min-h-0 min-w-0">
+              <table className="data-table">
+                <thead className="sticky top-0 bg-slate-50 dark:bg-slate-900 shadow-sm z-10 w-full min-w-max">
+                  <tr className="border-b border-slate-200 dark:border-slate-800 text-sm text-slate-600 dark:text-slate-400 uppercase tracking-wider">
+                    <th className="p-4 font-semibold whitespace-nowrap">Date</th>
+                    <th className="p-4 font-semibold">Customer</th>
+                    <th className="p-4 font-semibold whitespace-nowrap">Vehicle No.</th>
+                    <th className="p-4 font-semibold whitespace-nowrap">Material (Qty)</th>
+                    <th className="p-4 font-semibold whitespace-nowrap text-right">Subtotal (₹)</th>
+                    <th className="p-4 font-semibold whitespace-nowrap text-right">PASS (₹)</th>
+                    <th className="p-4 font-semibold whitespace-nowrap text-right">Grand Total (₹)</th>
+                    <th className="p-4 font-semibold text-right">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="whitespace-nowrap">
+                  {filteredBills.map((bill) => {
+                    const billDateTime = formatDateTime(bill.date);
+                    return (
+                      <tr key={bill._id}>
+                        <td className="p-4 text-slate-600 font-medium whitespace-nowrap">{billDateTime.date}</td>
+                        <td className="p-4 text-slate-800 font-semibold">
+                          {customers.find(c => c._id === (bill.customer?._id || bill.customer))?.name || bill.customerNameSnapshot}
+                        </td>
+                        <td className="p-4 text-slate-600"><span className="bg-slate-100 px-2 py-1 rounded border border-slate-200 text-xs font-mono whitespace-nowrap">{bill.vehicleNumber || '—'}</span></td>
+                        <td className="p-4 text-slate-600 text-sm">
+                          <div className="font-medium text-slate-800">{bill.materialNameSnapshot}</div>
+                          <div className="text-xs text-slate-500">{Number(bill.quantity).toFixed(2)} {bill.quantityUnit || 'ton'}s @ ₹{bill.pricePerUnit}</div>
+                          {bill.isBackdated && <div className="text-xs text-amber-600 font-medium">Backdated</div>}
+                        </td>
+                        <td className="p-4 text-right text-slate-600">
+                          ₹{Number(bill.totalAmount || 0).toLocaleString()}
+                        </td>
+                        <td className="p-4 text-right text-slate-600">
+                          ₹{Number(bill.passAmount || 0).toLocaleString()}
+                        </td>
+                        <td className="p-4 text-right font-bold text-slate-800">
+                          ₹{(Number(bill.totalAmount || 0) + Number(bill.passAmount || 0)).toLocaleString()}
+                        </td>
+                        <td className="p-4 text-right space-x-2 whitespace-nowrap">
                           <button 
-                            onClick={() => openEditModal(bill)} 
-                            className="text-indigo-600 hover:text-indigo-800 hover:bg-indigo-50 p-2 rounded-lg transition-colors inline-flex items-center"
-                            title="Edit Bill"
+                            onClick={() => downloadBillPdf(bill)} 
+                            className="text-slate-600 hover:text-slate-900 hover:bg-slate-100 p-2 rounded-lg transition-colors inline-flex items-center" 
+                            title="Download PDF"
                           >
-                            <EditIcon className="h-5 w-5" />
+                            <DocumentIcon className="h-5 w-5" />
                           </button>
-                        )}
-                        {canWrite && (
-                          <button 
-                            onClick={() => handleDelete(bill._id)} 
-                            className="text-red-600 hover:text-red-800 hover:bg-red-50 p-2 rounded-lg transition-colors inline-flex items-center"
-                            title="Delete Bill"
-                          >
-                            <TrashIcon className="h-5 w-5" />
-                          </button>
-                        )}
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
+                          {canWrite && (
+                            <button 
+                              onClick={() => openEditModal(bill)} 
+                              className="text-indigo-600 hover:text-indigo-800 hover:bg-indigo-50 p-2 rounded-lg transition-colors inline-flex items-center"
+                              title="Edit Bill"
+                            >
+                              <EditIcon className="h-5 w-5" />
+                            </button>
+                          )}
+                          {canWrite && (
+                            <button 
+                              onClick={() => handleDelete(bill._id)} 
+                              className="text-red-600 hover:text-red-800 hover:bg-red-50 p-2 rounded-lg transition-colors inline-flex items-center"
+                              title="Delete Bill"
+                            >
+                              <TrashIcon className="h-5 w-5" />
+                            </button>
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </>
         )}
       </div>
 
       {/* Bulk Generate Bills Modal */}
       {isBulkModalOpen && (
-        <div className="fixed inset-0 bg-slate-900/50 flex items-center justify-center p-4 z-50 animate-in fade-in duration-200">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-[96vw] xl:max-w-[92vw] overflow-hidden flex flex-col max-h-[96vh]">
-            <div className="p-6 border-b border-slate-100 flex justify-between items-center shrink-0 bg-slate-50/50">
+        <div className="fixed inset-0 bg-slate-900/50 flex items-center justify-center p-2 sm:p-4 z-50 animate-in fade-in duration-200">
+          <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl w-full max-w-[96vw] xl:max-w-[92vw] overflow-hidden flex flex-col max-h-[96vh] landscape-modal-container">
+            <div className="p-4 sm:p-6 border-b border-slate-100 dark:border-slate-800 flex justify-between items-center shrink-0 bg-slate-50/50 dark:bg-slate-950/50">
               <div>
-                <h2 className="text-2xl font-bold text-slate-800">Daily Log Sheet (Bulk Entry)</h2>
-                <p className="text-sm text-slate-500 mt-1">Quickly enter all loads of a day in one spreadsheet view</p>
+                <h2 className="text-lg sm:text-2xl font-bold text-slate-800 dark:text-slate-100">Daily Log Sheet (Bulk Entry)</h2>
+                <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 mt-0.5">Quickly enter all loads of a day in one list view</p>
               </div>
               <button onClick={() => setIsBulkModalOpen(false)} className="text-slate-400 hover:text-slate-600 text-3xl leading-none">&times;</button>
             </div>
             
             <form onSubmit={handleBulkSubmit} className="flex flex-col flex-1 overflow-hidden">
               {/* Batch Settings */}
-              <div className="p-5 bg-slate-50 border-b border-slate-100 flex flex-wrap gap-4 items-center shrink-0">
-                <div className="flex items-center gap-3">
-                  <label className="text-sm font-bold text-slate-700 uppercase tracking-wider">Log Date:</label>
+              <div className="p-3 sm:p-5 bg-slate-50 dark:bg-slate-950 border-b border-slate-100 dark:border-slate-800 flex flex-wrap gap-4 items-center shrink-0">
+                <div className="flex items-center gap-3 w-full sm:w-auto">
+                  <label className="text-xs sm:text-sm font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider whitespace-nowrap">Log Date:</label>
                   <input
                     type="date"
                     required
                     value={bulkDate}
                     onChange={(e) => setBulkDate(e.target.value)}
-                    className="border border-slate-300 rounded-xl p-2.5 text-base focus:ring-2 focus:ring-blue-500 outline-none bg-white w-48 font-semibold text-slate-800"
+                    className="border border-slate-300 rounded-xl p-2.5 text-base focus:ring-2 focus:ring-blue-500 outline-none bg-white font-semibold text-slate-800 flex-1 sm:w-48"
                   />
                 </div>
               </div>
 
-              {/* Grid Table Container */}
-              <div className="flex-1 overflow-auto p-6">
-                <table className="w-full border-collapse text-left text-base mb-64">
-                  <thead>
-                    <tr className="border-b border-slate-200 text-slate-600 uppercase text-xs font-extrabold tracking-wider bg-slate-100/80">
-                      <th className="py-4 px-3 w-12 text-center">#</th>
-                      <th className="py-4 px-3 min-w-[280px]">Customer *</th>
-                      <th className="py-4 px-3 w-[140px]">Vehicle Mode</th>
-                      <th className="py-4 px-3 min-w-[180px]">Vehicle Number</th>
-                      <th className="py-4 px-3 min-w-[220px]">Material *</th>
-                      <th className="py-4 px-3 w-[110px]">Unit</th>
-                      <th className="py-4 px-3 w-[110px]">Qty *</th>
-                      <th className="py-4 px-3 w-[130px]">Price/Unit *</th>
-                      <th className="py-4 px-3 w-[120px]">Pass Fee</th>
-                      <th className="py-4 px-3 w-[140px] text-right">Row Total</th>
-                      <th className="py-4 px-3 w-24 text-center">Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100">
-                    {bulkRows.map((row, index) => {
-                      const rowCustomer = customers.find(c => c._id === row.customer);
-                      const rowVehicles = rowCustomer?.vehicles || [];
-                      const selectedMat = materials.find(m => m._id === row.material);
-                      
-                      // Calculate row total
-                      const unit = row.quantityUnit === 'ton' ? 'ton' : 'unit';
-                      const defaultPrice = selectedMat 
-                        ? (unit === 'ton' ? (selectedMat.pricePerTon ?? selectedMat.currentPrice) : selectedMat.currentPrice)
-                        : 0;
-                      const price = row.useManualPrice && row.manualPrice !== '' ? Number(row.manualPrice) : defaultPrice;
-                      const qty = Number(row.quantity) || 0;
-                      const pass = Number(row.passAmount) || 0;
-                      const rowTotal = roundToNearestTen(qty * price) + pass;
+              {/* Body: Mobile Cards (< md) & Spreadsheet Table (>= md) */}
+              <div className="flex-1 overflow-auto p-3 sm:p-6 landscape-modal-body space-y-4">
+                {/* Mobile View Card Row Items */}
+                <div className="block md:hidden space-y-4">
+                  {bulkRows.map((row, index) => {
+                    const rowCustomer = customers.find(c => c._id === row.customer);
+                    const rowVehicles = rowCustomer?.vehicles || [];
+                    const selectedMat = materials.find(m => m._id === row.material);
+                    const unit = row.quantityUnit === 'ton' ? 'ton' : 'unit';
+                    const defaultPrice = selectedMat 
+                      ? (unit === 'ton' ? (selectedMat.pricePerTon ?? selectedMat.currentPrice) : selectedMat.currentPrice)
+                      : 0;
+                    const price = row.useManualPrice && row.manualPrice !== '' ? Number(row.manualPrice) : defaultPrice;
+                    const qty = Number(row.quantity) || 0;
+                    const pass = Number(row.passAmount) || 0;
+                    const rowTotal = roundToNearestTen(qty * price) + pass;
 
-                      return (
-                        <tr key={row.id} className="hover:bg-slate-50/50 transition duration-150">
-                          <td className="py-3.5 px-3 text-center text-slate-400 font-bold text-base">{index + 1}</td>
-                          
-                          {/* Customer searchable select */}
-                          <td className="py-3.5 px-3">
+                    return (
+                      <div key={row.id} className="bg-slate-50 dark:bg-slate-950 rounded-xl p-4 border border-slate-200 dark:border-slate-800 space-y-3 relative">
+                        <div className="flex justify-between items-center border-b border-slate-200 dark:border-slate-800 pb-2">
+                          <span className="font-extrabold text-blue-600 dark:text-blue-400 text-sm">Row #{index + 1}</span>
+                          <div className="flex items-center gap-2">
+                            <button
+                              type="button"
+                              onClick={() => duplicateBulkRow(index)}
+                              className="text-xs text-blue-600 font-semibold px-2 py-1 bg-blue-50 dark:bg-blue-950/40 rounded border border-blue-200 dark:border-blue-800"
+                            >
+                              Duplicate
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => removeBulkRow(index)}
+                              className="text-xs text-rose-600 font-semibold px-2 py-1 bg-rose-50 dark:bg-rose-950/40 rounded border border-rose-200 dark:border-rose-800"
+                            >
+                              Remove
+                            </button>
+                          </div>
+                        </div>
+
+                        <div className="space-y-3">
+                          <div>
+                            <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Customer *</label>
                             <SearchableSelect
                               options={customers.map(c => ({ value: c._id, label: c.name }))}
                               value={row.customer}
                               onChange={(val) => handleBulkRowChange(index, 'customer', val)}
                               placeholder="Customer"
                               required
-                              className="!p-2.5 !text-[15px] font-semibold text-slate-800"
                             />
-                          </td>
+                          </div>
 
-                          {/* Vehicle Mode */}
-                          <td className="py-3.5 px-3">
-                            <select
-                              value={row.vehicleMode}
-                              onChange={(e) => handleBulkRowChange(index, 'vehicleMode', e.target.value)}
-                              className="w-full border border-slate-300 rounded-xl p-2.5 text-[15px] bg-white focus:ring-2 focus:ring-blue-500 outline-none font-semibold text-slate-800"
-                            >
-                              <option value="select">Existing</option>
-                              <option value="new">New</option>
-                              <option value="none">None</option>
-                            </select>
-                          </td>
-
-                          {/* Vehicle Number */}
-                          <td className="py-3.5 px-3">
-                            {row.vehicleMode === 'select' && (
+                          <div className="grid grid-cols-2 gap-2">
+                            <div>
+                              <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Vehicle Mode</label>
                               <select
-                                value={row.vehicleNumber}
-                                onChange={(e) => handleBulkRowChange(index, 'vehicleNumber', e.target.value)}
-                                className="w-full border border-slate-300 rounded-xl p-2.5 bg-white focus:ring-2 focus:ring-blue-500 outline-none text-[15px] font-semibold text-slate-800"
+                                value={row.vehicleMode}
+                                onChange={(e) => handleBulkRowChange(index, 'vehicleMode', e.target.value)}
+                                className="w-full border border-slate-300 rounded-lg p-2 text-base bg-white focus:ring-2 focus:ring-blue-500 outline-none"
                               >
-                                <option value="">Select</option>
-                                {rowVehicles.map((v) => (
-                                  <option key={v._id || v.number} value={v.number}>{v.number}</option>
+                                <option value="select">Existing</option>
+                                <option value="new">New</option>
+                                <option value="none">None</option>
+                              </select>
+                            </div>
+                            <div>
+                              <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Vehicle No.</label>
+                              {row.vehicleMode === 'select' && (
+                                <select
+                                  value={row.vehicleNumber}
+                                  onChange={(e) => handleBulkRowChange(index, 'vehicleNumber', e.target.value)}
+                                  className="w-full border border-slate-300 rounded-lg p-2 bg-white text-base focus:ring-2 focus:ring-blue-500 outline-none"
+                                >
+                                  <option value="">Select</option>
+                                  {rowVehicles.map((v) => (
+                                    <option key={v._id || v.number} value={v.number}>{v.number}</option>
+                                  ))}
+                                </select>
+                              )}
+                              {row.vehicleMode === 'new' && (
+                                <input
+                                  type="text"
+                                  value={row.vehicleNumber}
+                                  onChange={(e) => handleBulkRowChange(index, 'vehicleNumber', e.target.value)}
+                                  className="w-full border border-slate-300 rounded-lg p-2 uppercase text-base bg-white focus:ring-2 focus:ring-blue-500 outline-none"
+                                  placeholder="TN 74 AE 2003"
+                                />
+                              )}
+                              {row.vehicleMode === 'none' && (
+                                <input
+                                  type="text"
+                                  disabled
+                                  value="None"
+                                  className="w-full border border-slate-200 rounded-lg p-2 bg-slate-100 text-slate-400 text-base cursor-not-allowed outline-none"
+                                />
+                              )}
+                            </div>
+                          </div>
+
+                          <div className="grid grid-cols-2 gap-2">
+                            <div>
+                              <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Material *</label>
+                              <select
+                                required
+                                value={row.material}
+                                onChange={(e) => handleBulkRowChange(index, 'material', e.target.value)}
+                                className="w-full border border-slate-300 rounded-lg p-2 text-base bg-white focus:ring-2 focus:ring-blue-500 outline-none"
+                              >
+                                <option value="" disabled>Select</option>
+                                {materials.map(m => (
+                                  <option key={m._id} value={m._id}>
+                                    {m.name}
+                                  </option>
                                 ))}
                               </select>
-                            )}
-                            {row.vehicleMode === 'new' && (
-                              <input
-                                type="text"
-                                value={row.vehicleNumber}
-                                onChange={(e) => handleBulkRowChange(index, 'vehicleNumber', e.target.value)}
-                                className="w-full border border-slate-300 rounded-xl p-2.5 uppercase focus:ring-2 focus:ring-blue-500 outline-none text-[15px] bg-white font-semibold text-slate-800"
-                                placeholder="TN 74 AE 2003"
-                              />
-                            )}
-                            {row.vehicleMode === 'none' && (
-                              <input
-                                type="text"
-                                disabled
-                                value="None"
-                                className="w-full border border-slate-200 rounded-xl p-2.5 bg-slate-50 text-slate-400 text-[15px] cursor-not-allowed text-center outline-none font-semibold"
-                              />
-                            )}
-                          </td>
-
-                          {/* Material */}
-                          <td className="py-3.5 px-3">
-                            <select
-                              required
-                              value={row.material}
-                              onChange={(e) => handleBulkRowChange(index, 'material', e.target.value)}
-                              className="w-full border border-slate-300 rounded-xl p-2.5 text-[15px] bg-white focus:ring-2 focus:ring-blue-500 outline-none font-semibold text-slate-800"
-                            >
-                              <option value="" disabled>Select</option>
-                              {materials.map(m => (
-                                <option key={m._id} value={m._id}>
-                                  {m.name}
-                                </option>
-                              ))}
-                            </select>
-                          </td>
-
-                          {/* Unit */}
-                          <td className="py-3.5 px-3">
-                            <select
-                              value={row.quantityUnit}
-                              onChange={(e) => handleBulkRowChange(index, 'quantityUnit', e.target.value)}
-                              className="w-full border border-slate-300 rounded-xl p-2.5 text-[15px] bg-white focus:ring-2 focus:ring-blue-500 outline-none font-semibold text-slate-800"
-                            >
-                              <option value="ton">ton</option>
-                              <option value="unit">unit</option>
-                            </select>
-                          </td>
-
-                          {/* Quantity */}
-                          <td className="py-3.5 px-3">
-                            <input
-                              type="number"
-                              required
-                              step="any"
-                              value={row.quantity}
-                              onChange={(e) => handleBulkRowChange(index, 'quantity', e.target.value)}
-                              className="w-full border border-slate-300 rounded-xl p-2.5 text-[15px] focus:ring-2 focus:ring-blue-500 outline-none bg-white font-semibold text-slate-800"
-                              placeholder="Qty"
-                            />
-                          </td>
-
-                          {/* Price per unit */}
-                          <td className="py-3.5 px-3">
-                            <input
-                              type="number"
-                              required
-                              step="any"
-                              value={row.manualPrice}
-                              onChange={(e) => handleBulkRowChange(index, 'manualPrice', e.target.value)}
-                              className="w-full border border-slate-300 rounded-xl p-2.5 text-[15px] focus:ring-2 focus:ring-blue-500 outline-none bg-white font-semibold text-slate-800"
-                              placeholder="Price"
-                            />
-                          </td>
-
-                          {/* Pass Fee */}
-                          <td className="py-3.5 px-3">
-                            <input
-                              type="number"
-                              step="any"
-                              value={row.passAmount}
-                              onChange={(e) => handleBulkRowChange(index, 'passAmount', e.target.value)}
-                              onKeyDown={(e) => {
-                                if (e.key === 'Enter') {
-                                  e.preventDefault();
-                                  if (index === bulkRows.length - 1) {
-                                    addBulkRow();
-                                  }
-                                }
-                              }}
-                              className="w-full border border-slate-300 rounded-xl p-2.5 text-[15px] focus:ring-2 focus:ring-blue-500 outline-none bg-white font-semibold text-slate-800"
-                              placeholder="Pass"
-                            />
-                          </td>
-
-                          {/* Total */}
-                          <td className="py-3.5 px-3 text-right font-extrabold text-slate-800 text-[15px]">
-                            ₹{rowTotal.toLocaleString()}
-                          </td>
-
-                          {/* Actions */}
-                          <td className="py-3.5 px-3 text-center">
-                            <div className="flex items-center justify-center gap-2">
-                              <button
-                                type="button"
-                                onClick={() => duplicateBulkRow(index)}
-                                title="Duplicate Row"
-                                className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition cursor-pointer"
-                              >
-                                <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-                                  <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
-                                  <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
-                                </svg>
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => removeBulkRow(index)}
-                                title="Delete Row"
-                                className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition cursor-pointer"
-                              >
-                                <TrashIcon className="h-5 w-5" />
-                              </button>
                             </div>
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
+                            <div>
+                              <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Unit</label>
+                              <select
+                                value={row.quantityUnit}
+                                onChange={(e) => handleBulkRowChange(index, 'quantityUnit', e.target.value)}
+                                className="w-full border border-slate-300 rounded-lg p-2 text-base bg-white focus:ring-2 focus:ring-blue-500 outline-none"
+                              >
+                                <option value="ton">ton</option>
+                                <option value="unit">unit</option>
+                              </select>
+                            </div>
+                          </div>
+
+                          <div className="grid grid-cols-3 gap-2">
+                            <div>
+                              <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Qty *</label>
+                              <input
+                                type="number"
+                                required
+                                step="any"
+                                value={row.quantity}
+                                onChange={(e) => handleBulkRowChange(index, 'quantity', e.target.value)}
+                                className="w-full border border-slate-300 rounded-lg p-2 text-base bg-white focus:ring-2 focus:ring-blue-500 outline-none"
+                                placeholder="Qty"
+                              />
+                            </div>
+                            <div>
+                              <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Price/Unit</label>
+                              <input
+                                type="number"
+                                required
+                                step="any"
+                                value={row.manualPrice}
+                                onChange={(e) => handleBulkRowChange(index, 'manualPrice', e.target.value)}
+                                className="w-full border border-slate-300 rounded-lg p-2 text-base bg-white focus:ring-2 focus:ring-blue-500 outline-none"
+                                placeholder="Price"
+                              />
+                            </div>
+                            <div>
+                              <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Pass Fee</label>
+                              <input
+                                type="number"
+                                step="any"
+                                value={row.passAmount}
+                                onChange={(e) => handleBulkRowChange(index, 'passAmount', e.target.value)}
+                                className="w-full border border-slate-300 rounded-lg p-2 text-base bg-white focus:ring-2 focus:ring-blue-500 outline-none"
+                                placeholder="Pass"
+                              />
+                            </div>
+                          </div>
+
+                          <div className="pt-2 border-t border-slate-200 dark:border-slate-800 flex justify-between items-center font-bold text-sm">
+                            <span className="text-slate-600 dark:text-slate-400">Row Total:</span>
+                            <span className="text-emerald-600 dark:text-emerald-400 font-extrabold text-base">₹{rowTotal.toLocaleString()}</span>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+
+                {/* Desktop Grid Table Container (>= md) */}
+                <div className="hidden md:block">
+                  <table className="w-full border-collapse text-left text-base mb-32">
+                    <thead>
+                      <tr className="border-b border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400 uppercase text-xs font-extrabold tracking-wider bg-slate-100/80 dark:bg-slate-900">
+                        <th className="py-4 px-3 w-12 text-center">#</th>
+                        <th className="py-4 px-3 min-w-[280px]">Customer *</th>
+                        <th className="py-4 px-3 w-[140px]">Vehicle Mode</th>
+                        <th className="py-4 px-3 min-w-[180px]">Vehicle Number</th>
+                        <th className="py-4 px-3 min-w-[220px]">Material *</th>
+                        <th className="py-4 px-3 w-[110px]">Unit</th>
+                        <th className="py-4 px-3 w-[110px]">Qty *</th>
+                        <th className="py-4 px-3 w-[130px]">Price/Unit *</th>
+                        <th className="py-4 px-3 w-[120px]">Pass Fee</th>
+                        <th className="py-4 px-3 w-[140px] text-right">Row Total</th>
+                        <th className="py-4 px-3 w-24 text-center">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                      {bulkRows.map((row, index) => {
+                        const rowCustomer = customers.find(c => c._id === row.customer);
+                        const rowVehicles = rowCustomer?.vehicles || [];
+                        const selectedMat = materials.find(m => m._id === row.material);
+                        
+                        const unit = row.quantityUnit === 'ton' ? 'ton' : 'unit';
+                        const defaultPrice = selectedMat 
+                          ? (unit === 'ton' ? (selectedMat.pricePerTon ?? selectedMat.currentPrice) : selectedMat.currentPrice)
+                          : 0;
+                        const price = row.useManualPrice && row.manualPrice !== '' ? Number(row.manualPrice) : defaultPrice;
+                        const qty = Number(row.quantity) || 0;
+                        const pass = Number(row.passAmount) || 0;
+                        const rowTotal = roundToNearestTen(qty * price) + pass;
+
+                        return (
+                          <tr key={row.id} className="hover:bg-slate-50/50 transition duration-150">
+                            <td className="py-3.5 px-3 text-center text-slate-400 font-bold text-base">{index + 1}</td>
+                            
+                            <td className="py-3.5 px-3">
+                              <SearchableSelect
+                                options={customers.map(c => ({ value: c._id, label: c.name }))}
+                                value={row.customer}
+                                onChange={(val) => handleBulkRowChange(index, 'customer', val)}
+                                placeholder="Customer"
+                                required
+                                className="!p-2.5 !text-[15px] font-semibold text-slate-800"
+                              />
+                            </td>
+
+                            <td className="py-3.5 px-3">
+                              <select
+                                value={row.vehicleMode}
+                                onChange={(e) => handleBulkRowChange(index, 'vehicleMode', e.target.value)}
+                                className="w-full border border-slate-300 rounded-xl p-2.5 text-[15px] bg-white focus:ring-2 focus:ring-blue-500 outline-none font-semibold text-slate-800"
+                              >
+                                <option value="select">Existing</option>
+                                <option value="new">New</option>
+                                <option value="none">None</option>
+                              </select>
+                            </td>
+
+                            <td className="py-3.5 px-3">
+                              {row.vehicleMode === 'select' && (
+                                <select
+                                  value={row.vehicleNumber}
+                                  onChange={(e) => handleBulkRowChange(index, 'vehicleNumber', e.target.value)}
+                                  className="w-full border border-slate-300 rounded-xl p-2.5 bg-white focus:ring-2 focus:ring-blue-500 outline-none text-[15px] font-semibold text-slate-800"
+                                >
+                                  <option value="">Select</option>
+                                  {rowVehicles.map((v) => (
+                                    <option key={v._id || v.number} value={v.number}>{v.number}</option>
+                                  ))}
+                                </select>
+                              )}
+                              {row.vehicleMode === 'new' && (
+                                <input
+                                  type="text"
+                                  value={row.vehicleNumber}
+                                  onChange={(e) => handleBulkRowChange(index, 'vehicleNumber', e.target.value)}
+                                  className="w-full border border-slate-300 rounded-xl p-2.5 uppercase focus:ring-2 focus:ring-blue-500 outline-none text-[15px] bg-white font-semibold text-slate-800"
+                                  placeholder="TN 74 AE 2003"
+                                />
+                              )}
+                              {row.vehicleMode === 'none' && (
+                                <input
+                                  type="text"
+                                  disabled
+                                  value="None"
+                                  className="w-full border border-slate-200 rounded-xl p-2.5 bg-slate-50 text-slate-400 text-[15px] cursor-not-allowed text-center outline-none font-semibold"
+                                />
+                              )}
+                            </td>
+
+                            <td className="py-3.5 px-3">
+                              <select
+                                required
+                                value={row.material}
+                                onChange={(e) => handleBulkRowChange(index, 'material', e.target.value)}
+                                className="w-full border border-slate-300 rounded-xl p-2.5 text-[15px] bg-white focus:ring-2 focus:ring-blue-500 outline-none font-semibold text-slate-800"
+                              >
+                                <option value="" disabled>Select</option>
+                                {materials.map(m => (
+                                  <option key={m._id} value={m._id}>
+                                    {m.name}
+                                  </option>
+                                ))}
+                              </select>
+                            </td>
+
+                            <td className="py-3.5 px-3">
+                              <select
+                                value={row.quantityUnit}
+                                onChange={(e) => handleBulkRowChange(index, 'quantityUnit', e.target.value)}
+                                className="w-full border border-slate-300 rounded-xl p-2.5 text-[15px] bg-white focus:ring-2 focus:ring-blue-500 outline-none font-semibold text-slate-800"
+                              >
+                                <option value="ton">ton</option>
+                                <option value="unit">unit</option>
+                              </select>
+                            </td>
+
+                            <td className="py-3.5 px-3">
+                              <input
+                                type="number"
+                                required
+                                step="any"
+                                value={row.quantity}
+                                onChange={(e) => handleBulkRowChange(index, 'quantity', e.target.value)}
+                                className="w-full border border-slate-300 rounded-xl p-2.5 text-[15px] focus:ring-2 focus:ring-blue-500 outline-none bg-white font-semibold text-slate-800"
+                                placeholder="Qty"
+                              />
+                            </td>
+
+                            <td className="py-3.5 px-3">
+                              <input
+                                type="number"
+                                required
+                                step="any"
+                                value={row.manualPrice}
+                                onChange={(e) => handleBulkRowChange(index, 'manualPrice', e.target.value)}
+                                className="w-full border border-slate-300 rounded-xl p-2.5 text-[15px] focus:ring-2 focus:ring-blue-500 outline-none bg-white font-semibold text-slate-800"
+                                placeholder="Price"
+                              />
+                            </td>
+
+                            <td className="py-3.5 px-3">
+                              <input
+                                type="number"
+                                step="any"
+                                value={row.passAmount}
+                                onChange={(e) => handleBulkRowChange(index, 'passAmount', e.target.value)}
+                                onKeyDown={(e) => {
+                                  if (e.key === 'Enter') {
+                                    e.preventDefault();
+                                    if (index === bulkRows.length - 1) {
+                                      addBulkRow();
+                                    }
+                                  }
+                                }}
+                                className="w-full border border-slate-300 rounded-xl p-2.5 text-[15px] focus:ring-2 focus:ring-blue-500 outline-none bg-white font-semibold text-slate-800"
+                                placeholder="Pass"
+                              />
+                            </td>
+
+                            <td className="py-3.5 px-3 text-right font-extrabold text-slate-800 text-[15px]">
+                              ₹{rowTotal.toLocaleString()}
+                            </td>
+
+                            <td className="py-3.5 px-3 text-center">
+                              <div className="flex items-center justify-center gap-2">
+                                <button
+                                  type="button"
+                                  onClick={() => duplicateBulkRow(index)}
+                                  title="Duplicate Row"
+                                  className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition cursor-pointer"
+                                >
+                                  <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                                    <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+                                    <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+                                  </svg>
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => removeBulkRow(index)}
+                                  title="Delete Row"
+                                  className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition cursor-pointer"
+                                >
+                                  <TrashIcon className="h-5 w-5" />
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
               </div>
 
               {/* Grid Actions & Sticky Summary Footer */}
-              <div className="p-5 border-t border-slate-100 bg-slate-50 flex flex-col md:flex-row md:items-center justify-between gap-4 shrink-0 shadow-inner">
+              <div className="p-4 sm:p-5 border-t border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-900 flex flex-col md:flex-row md:items-center justify-between gap-3 shrink-0 shadow-inner">
                 <div className="flex gap-2">
                   <button
                     type="button"
                     onClick={addBulkRow}
-                    className="px-6 py-2.5 border border-slate-300 text-slate-700 bg-white hover:bg-slate-50 rounded-xl text-base font-bold transition cursor-pointer shadow-sm"
+                    className="px-4 sm:px-6 py-2.5 border border-slate-300 text-slate-700 dark:text-slate-200 bg-white dark:bg-slate-800 hover:bg-slate-50 rounded-xl text-sm sm:text-base font-bold transition cursor-pointer shadow-sm w-full sm:w-auto"
                   >
                     + Add Row
                   </button>
                 </div>
 
                 {/* Summary calculation */}
-                <div className="flex flex-wrap items-center gap-8 text-base text-slate-600 bg-white px-6 py-3 border border-slate-200 rounded-xl shadow-sm">
+                <div className="flex flex-wrap items-center gap-4 sm:gap-8 text-xs sm:text-base text-slate-600 dark:text-slate-300 bg-white dark:bg-slate-950 px-4 sm:px-6 py-2.5 sm:py-3 border border-slate-200 dark:border-slate-800 rounded-xl shadow-sm justify-between">
                   <div>
-                    Total Rows: <span className="font-extrabold text-slate-800">{bulkRows.length}</span>
+                    Rows: <span className="font-extrabold text-slate-800 dark:text-slate-100">{bulkRows.length}</span>
                   </div>
                   <div>
-                    Total Qty: <span className="font-extrabold text-slate-800">
+                    Qty: <span className="font-extrabold text-slate-800 dark:text-slate-100">
                       {bulkRows.reduce((sum, r) => sum + (Number(r.quantity) || 0), 0).toFixed(2)}
                     </span>
                   </div>
                   <div>
-                    Total Amount: <span className="font-extrabold text-emerald-600">
+                    Amount: <span className="font-extrabold text-emerald-600 dark:text-emerald-400">
                       ₹{bulkRows.reduce((sum, r) => {
                         const selectedMat = materials.find(m => m._id === r.material);
                         const unit = r.quantityUnit === 'ton' ? 'ton' : 'unit';
@@ -1707,13 +1951,13 @@ const Bills = () => {
                   <button
                     type="button"
                     onClick={() => setIsBulkModalOpen(false)}
-                    className="px-6 py-2.5 text-slate-600 bg-white border border-slate-300 hover:bg-slate-50 rounded-xl text-base font-bold transition cursor-pointer"
+                    className="px-4 sm:px-6 py-2.5 text-slate-600 dark:text-slate-300 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 hover:bg-slate-50 rounded-xl text-sm sm:text-base font-bold transition cursor-pointer flex-1 sm:flex-none"
                   >
                     Cancel
                   </button>
                   <button
                     type="submit"
-                    className="px-6 py-2.5 bg-emerald-600 text-white hover:bg-emerald-700 rounded-xl text-base font-bold transition shadow-md hover:shadow-lg cursor-pointer"
+                    className="px-4 sm:px-6 py-2.5 bg-emerald-600 text-white hover:bg-emerald-700 rounded-xl text-sm sm:text-base font-bold transition shadow-md hover:shadow-lg cursor-pointer flex-1 sm:flex-none"
                   >
                     Save Batch Bills
                   </button>
@@ -1726,17 +1970,17 @@ const Bills = () => {
 
       {/* Generate Bill Modal */}
       {isModalOpen && (
-        <div className="fixed inset-0 bg-slate-900/50 flex items-center justify-center p-4 z-50 animate-in fade-in duration-200">
-          <div className="bg-white rounded-xl shadow-2xl w-full max-w-lg overflow-hidden flex flex-col max-h-[90vh]">
-            <div className="p-5 border-b border-slate-100 flex justify-between items-center shrink-0">
-              <h2 className="text-xl font-bold text-slate-800">Generate New Bill</h2>
+        <div className="fixed inset-0 bg-slate-900/50 flex items-center justify-center p-3 sm:p-4 z-50 animate-in fade-in duration-200">
+          <div className="bg-white dark:bg-slate-900 rounded-xl shadow-2xl w-full max-w-lg overflow-hidden flex flex-col max-h-[92vh] landscape-modal-container">
+            <div className="p-4 sm:p-5 border-b border-slate-100 dark:border-slate-800 flex justify-between items-center shrink-0">
+              <h2 className="text-lg sm:text-xl font-bold text-slate-800 dark:text-slate-100">Generate New Bill</h2>
               <button onClick={() => setIsModalOpen(false)} className="text-slate-400 hover:text-slate-600 text-2xl leading-none">&times;</button>
             </div>
             
-            <form onSubmit={handleSubmit} className="p-5 space-y-3.5 overflow-y-auto">
-              <div className="grid grid-cols-2 gap-3.5">
-                <div className="col-span-2">
-                  <label className="block text-xs font-semibold text-slate-500 uppercase">Customer *</label>
+            <form onSubmit={handleSubmit} className="p-4 sm:p-5 space-y-3.5 overflow-y-auto landscape-modal-body">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                <div className="sm:col-span-2">
+                  <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase">Customer *</label>
                   <div className="flex gap-2 mt-1">
                     <div className="flex-1">
                       <SearchableSelect
@@ -1748,18 +1992,18 @@ const Bills = () => {
                       />
                     </div>
                     {canWrite && (
-                      <button type="button" onClick={() => setIsCreateCustomerOpen(true)} className="px-3 py-2 bg-green-600 text-white rounded-lg text-sm font-medium hover:bg-green-700 transition shrink-0">+ New</button>
+                      <button type="button" onClick={() => setIsCreateCustomerOpen(true)} className="px-3 py-2 bg-green-600 text-white rounded-lg text-sm font-semibold hover:bg-green-700 transition shrink-0">+ New</button>
                     )}
                   </div>
                 </div>
                 
-                <div className="col-span-2 grid grid-cols-3 gap-2">
+                <div className="sm:col-span-2 grid grid-cols-3 gap-2">
                   <div className="col-span-1">
-                    <label className="block text-xs font-semibold text-slate-500 uppercase">Vehicle Type</label>
+                    <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase">Vehicle Type</label>
                     <select
                       value={formData.vehicleMode}
                       onChange={(e) => setFormData({ ...formData, vehicleMode: e.target.value, vehicleNumber: '' })}
-                      className="w-full mt-1 border border-slate-300 rounded-lg p-2 text-sm bg-white focus:ring-2 focus:ring-blue-500 outline-none"
+                      className="w-full mt-1 border border-slate-300 rounded-lg p-2 text-base sm:text-sm bg-white focus:ring-2 focus:ring-blue-500 outline-none"
                     >
                       <option value="select">Existing</option>
                       <option value="new">Add New</option>
@@ -1767,13 +2011,13 @@ const Bills = () => {
                     </select>
                   </div>
                   <div className="col-span-2">
-                    <label className="block text-xs font-semibold text-slate-500 uppercase">Vehicle Number</label>
+                    <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase">Vehicle Number</label>
                     {formData.vehicleMode === 'select' && (
                       <select
                         name="vehicleNumber"
                         value={formData.vehicleNumber}
                         onChange={handleChange}
-                        className="w-full mt-1 border border-slate-300 rounded-lg p-2 bg-white focus:ring-2 focus:ring-blue-500 outline-none text-sm"
+                        className="w-full mt-1 border border-slate-300 rounded-lg p-2 bg-white focus:ring-2 focus:ring-blue-500 outline-none text-base sm:text-sm"
                       >
                         <option value="">Select vehicle</option>
                         {customerVehicles.map((v) => (
@@ -1787,7 +2031,7 @@ const Bills = () => {
                         name="vehicleNumber"
                         value={formData.vehicleNumber}
                         onChange={handleChange}
-                        className="w-full mt-1 border border-slate-300 rounded-lg p-2 uppercase focus:ring-2 focus:ring-blue-500 outline-none text-sm"
+                        className="w-full mt-1 border border-slate-300 rounded-lg p-2 uppercase focus:ring-2 focus:ring-blue-500 outline-none text-base sm:text-sm"
                         placeholder="TN 74 AE 2003"
                       />
                     )}
@@ -1796,17 +2040,17 @@ const Bills = () => {
                         type="text"
                         disabled
                         value="No vehicle"
-                        className="w-full mt-1 border border-slate-200 rounded-lg p-2 bg-slate-50 text-slate-400 text-sm outline-none cursor-not-allowed"
+                        className="w-full mt-1 border border-slate-200 rounded-lg p-2 bg-slate-50 dark:bg-slate-800 text-slate-400 text-base sm:text-sm outline-none cursor-not-allowed"
                       />
                     )}
                   </div>
                 </div>
 
                 <div className="col-span-1">
-                  <label className="block text-xs font-semibold text-slate-500 uppercase">Material *</label>
+                  <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase">Material *</label>
                   <select 
                     name="material" required value={formData.material} onChange={handleChange}
-                    className="w-full mt-1 border border-slate-300 rounded-lg p-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition bg-white"
+                    className="w-full mt-1 border border-slate-300 rounded-lg p-2 text-base sm:text-sm focus:ring-2 focus:ring-blue-500 outline-none transition bg-white"
                   >
                     <option value="" disabled>Select Material</option>
                     {materials.map(m => (
@@ -1818,11 +2062,11 @@ const Bills = () => {
                 </div>
 
                 <div className="col-span-1">
-                  <label className="block text-xs font-semibold text-slate-500 uppercase">Quantity *</label>
+                  <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase">Quantity *</label>
                   <div className="flex gap-1.5 mt-1">
                     <input 
                       type="number" name="quantity" required value={formData.quantity} onChange={handleChange} min="0.1" step="0.01"
-                      className="w-2/3 border border-slate-300 rounded-lg p-2 focus:ring-2 focus:ring-blue-500 outline-none transition text-sm"
+                      className="w-2/3 border border-slate-300 rounded-lg p-2 focus:ring-2 focus:ring-blue-500 outline-none transition text-base sm:text-sm"
                       placeholder="e.g. 15.5"
                     />
                     <select
@@ -1838,7 +2082,7 @@ const Bills = () => {
                 </div>
 
                 <div className="col-span-1">
-                  <label className="flex items-center gap-1.5 text-xs font-semibold text-slate-500 uppercase cursor-pointer">
+                  <label className="flex items-center gap-1.5 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase cursor-pointer">
                     <input 
                       type="checkbox" name="useManualPrice" id="useManualPrice" checked={formData.useManualPrice} onChange={handleChange}
                       className="rounded border-slate-300 h-3.5 w-3.5 text-blue-600 focus:ring-blue-500"
@@ -1853,13 +2097,13 @@ const Bills = () => {
                     onChange={handleChange}
                     min="0"
                     step="0.01"
-                    className="w-full mt-1 border border-slate-300 rounded-lg p-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition disabled:bg-slate-50 disabled:text-slate-400 disabled:border-slate-200"
+                    className="w-full mt-1 border border-slate-300 rounded-lg p-2 text-base sm:text-sm focus:ring-2 focus:ring-blue-500 outline-none transition disabled:bg-slate-50 dark:disabled:bg-slate-800 disabled:text-slate-400"
                     placeholder={formData.useManualPrice ? "Price per unit/ton" : "Disabled"}
                   />
                 </div>
 
                 <div className="col-span-1">
-                  <label className="block text-xs font-semibold text-slate-500 uppercase">PASS (Govt Fee)</label>
+                  <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase">PASS (Govt Fee)</label>
                   <input
                     type="number"
                     name="passAmount"
@@ -1867,51 +2111,51 @@ const Bills = () => {
                     onChange={handleChange}
                     min="0"
                     step="1"
-                    className="w-full mt-1 border border-slate-300 rounded-lg p-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition"
+                    className="w-full mt-1 border border-slate-300 rounded-lg p-2 text-base sm:text-sm focus:ring-2 focus:ring-blue-500 outline-none transition"
                     placeholder="e.g. 1200"
                   />
                 </div>
 
                 {canWrite && (
-                  <div className="col-span-2">
-                    <label className="block text-xs font-semibold text-slate-500 mb-1 uppercase tracking-wider">Date *</label>
+                  <div className="sm:col-span-2">
+                    <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1 uppercase tracking-wider">Date *</label>
                     <input
                       type="date"
                       name="customDate"
                       required
                       value={formData.customDate}
                       onChange={handleChange}
-                      className="w-full border border-slate-300 rounded-lg p-2 focus:ring-2 focus:ring-blue-500 outline-none text-sm bg-white text-slate-800"
+                      className="w-full border border-slate-300 rounded-lg p-2 focus:ring-2 focus:ring-blue-500 outline-none text-base sm:text-sm bg-white text-slate-800"
                     />
                   </div>
                 )}
               </div>
 
-              <div className="mt-3 bg-slate-50 p-3 rounded-lg border border-slate-200 grid grid-cols-2 gap-x-4 gap-y-1 text-sm shrink-0">
+              <div className="mt-3 bg-slate-50 dark:bg-slate-950 p-3 rounded-lg border border-slate-200 dark:border-slate-800 grid grid-cols-2 gap-x-4 gap-y-1 text-sm shrink-0">
                 <div>
-                  <span className="text-xs text-slate-500 font-semibold uppercase">Rate:</span>
-                  <span className="ml-1 font-semibold text-slate-700">₹{selectedMaterialPrice.toLocaleString()} / {formData.quantityUnit}</span>
+                  <span className="text-xs text-slate-500 dark:text-slate-400 font-semibold uppercase">Rate:</span>
+                  <span className="ml-1 font-semibold text-slate-700 dark:text-slate-200">₹{selectedMaterialPrice.toLocaleString()} / {formData.quantityUnit}</span>
                 </div>
                 <div className="text-right">
-                  <span className="text-xs text-slate-500 font-semibold uppercase">Subtotal:</span>
-                  <span className="ml-1 font-semibold text-slate-700">₹{calculatedTotal.toLocaleString()}</span>
+                  <span className="text-xs text-slate-500 dark:text-slate-400 font-semibold uppercase">Subtotal:</span>
+                  <span className="ml-1 font-semibold text-slate-700 dark:text-slate-200">₹{calculatedTotal.toLocaleString()}</span>
                 </div>
-                <div className="col-span-2 border-t border-slate-200 my-0.5"></div>
+                <div className="col-span-2 border-t border-slate-200 dark:border-slate-800 my-0.5"></div>
                 <div>
-                  <span className="text-xs text-slate-500 font-semibold uppercase">PASS (Govt):</span>
-                  <span className="ml-1 font-semibold text-slate-700">₹{(Number(formData.passAmount) || 0).toLocaleString()}</span>
+                  <span className="text-xs text-slate-500 dark:text-slate-400 font-semibold uppercase">PASS (Govt):</span>
+                  <span className="ml-1 font-semibold text-slate-700 dark:text-slate-200">₹{(Number(formData.passAmount) || 0).toLocaleString()}</span>
                 </div>
                 <div className="text-right">
-                  <span className="text-xs font-bold text-slate-900 uppercase">Grand Total:</span>
-                  <span className="ml-1 font-extrabold text-blue-600 text-base">₹{(calculatedTotal + (Number(formData.passAmount) || 0)).toLocaleString()}</span>
+                  <span className="text-xs font-bold text-slate-900 dark:text-slate-100 uppercase">Grand Total:</span>
+                  <span className="ml-1 font-extrabold text-blue-600 dark:text-blue-400 text-base">₹{(calculatedTotal + (Number(formData.passAmount) || 0)).toLocaleString()}</span>
                 </div>
               </div>
               
-              <div className="pt-3 flex justify-end space-x-3 border-t border-slate-100 shrink-0">
-                <button type="button" onClick={() => setIsModalOpen(false)} className="px-4 py-2 text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-lg font-medium transition cursor-pointer text-sm">
+              <div className="pt-3 flex justify-end space-x-3 border-t border-slate-100 dark:border-slate-800 shrink-0">
+                <button type="button" onClick={() => setIsModalOpen(false)} className="px-4 py-2.5 text-slate-600 dark:text-slate-300 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 rounded-lg font-semibold transition cursor-pointer text-sm flex-1 sm:flex-none">
                   Cancel
                 </button>
-                <button type="submit" disabled={!formData.customer || !formData.material || !formData.quantity} className="px-4 py-2 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 transition shadow-md cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed text-sm">
+                <button type="submit" disabled={!formData.customer || !formData.material || !formData.quantity} className="px-4 py-2.5 bg-blue-600 text-white rounded-lg font-semibold hover:bg-blue-700 transition shadow-md cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed text-sm flex-1 sm:flex-none">
                   Generate Bill
                 </button>
               </div>

@@ -62,7 +62,7 @@ const Sidebar = ({ isOpen, onClose }) => {
       {/* Sidebar Content */}
       <aside
         className={`bg-white dark:bg-slate-900 border-r border-slate-200 dark:border-slate-800 shadow-sm flex flex-col transition-all duration-300 z-50 md:z-30
-          fixed md:sticky top-16 md:top-16 left-0 h-[calc(100vh-4rem)] md:h-[calc(100vh-4rem)] w-64
+          fixed md:sticky top-14 md:top-16 left-0 h-[calc(100vh-3.5rem)] md:h-[calc(100vh-4rem)] w-64 max-h-screen overflow-y-auto
           ${isOpen ? 'translate-x-0' : '-translate-x-full'} md:translate-x-0
         `}
       >

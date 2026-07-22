@@ -16,7 +16,7 @@ const Navbar = ({ onToggleSidebar }) => {
 
   return (
     <>
-    <nav className="bg-slate-800 dark:bg-slate-900 text-white dark:text-slate-100 shadow-md px-4 py-3 md:py-2 flex justify-between items-center sticky top-0 z-40 md:z-50 shrink-0 transition-colors duration-200">
+    <nav className="bg-slate-800 dark:bg-slate-900 text-white dark:text-slate-100 shadow-md px-4 py-3 md:py-2 flex justify-between items-center sticky top-0 z-40 md:z-50 shrink-0 transition-colors duration-200 landscape-compact-nav">
       <div className="flex items-center space-x-3">
         {/* Hamburger Menu Icon */}
         <button

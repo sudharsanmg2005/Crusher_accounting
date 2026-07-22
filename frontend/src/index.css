@@ -255,4 +255,32 @@ body {
   color: rgb(96, 165, 250) !important;
 }
 
+/* Mobile Touch & Landscape Optimizations */
+@media (max-width: 768px) {
+  input[type="text"],
+  input[type="number"],
+  input[type="email"],
+  input[type="password"],
+  input[type="date"],
+  input[type="month"],
+  select,
+  textarea {
+    font-size: 16px !important; /* Prevents auto-zoom on iOS Safari */
+  }
+}
+
+@media (max-height: 500px) and (orientation: landscape) {
+  .landscape-compact-nav {
+    padding-top: 0.35rem !important;
+    padding-bottom: 0.35rem !important;
+  }
+  .landscape-modal-container {
+    max-height: 96vh !important;
+  }
+  .landscape-modal-body {
+    max-height: calc(96vh - 7rem) !important;
+  }
+}
+
+
 
