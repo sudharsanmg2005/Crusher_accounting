@@ -21,8 +21,8 @@ const Navbar = ({ onToggleSidebar }) => {
         {/* Hamburger Menu Icon */}
         <button
           onClick={onToggleSidebar}
-          className="md:hidden text-white hover:text-blue-300 focus:outline-none mr-1 p-1 text-2xl"
-          title="Open menu"
+          className="lg:hidden text-white hover:text-blue-300 focus:outline-none mr-1 p-1 text-2xl cursor-pointer"
+          title="Toggle menu"
         >
           ☰
         </button>

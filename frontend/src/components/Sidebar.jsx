@@ -54,23 +54,23 @@ const Sidebar = ({ isOpen, onClose }) => {
       {/* Mobile Sidebar Overlay/Backdrop */}
       {isOpen && (
         <div
-          className="fixed inset-0 bg-slate-900/50 dark:bg-slate-950/60 z-40 md:hidden transition-opacity duration-300"
+          className="fixed inset-0 bg-slate-900/50 dark:bg-slate-950/60 z-40 lg:hidden transition-opacity duration-300"
           onClick={onClose}
         />
       )}
 
       {/* Sidebar Content */}
       <aside
-        className={`bg-white dark:bg-slate-900 border-r border-slate-200 dark:border-slate-800 shadow-sm transition-all duration-300 z-50 md:z-30
-          fixed md:sticky top-14 md:top-16 left-0 h-[calc(100vh-3.5rem)] md:h-[calc(100vh-4rem)] w-64 overflow-hidden
-          ${isOpen ? 'translate-x-0' : '-translate-x-full'} md:translate-x-0
+        className={`bg-white dark:bg-slate-900 border-r border-slate-200 dark:border-slate-800 shadow-sm transition-all duration-300 z-50 lg:z-30
+          fixed lg:sticky top-14 lg:top-16 left-0 h-[calc(100vh-3.5rem)] lg:h-[calc(100vh-4rem)] w-64 overflow-hidden
+          ${isOpen ? 'translate-x-0' : '-translate-x-full'} lg:translate-x-0
         `}
       >
         {/* Unified Scroll Container */}
         <div className="h-full overflow-y-auto flex flex-col justify-between p-4 space-y-4">
           <div>
-            {/* Mobile Header (only shown inside drawer on mobile) */}
-            <div className="pb-3 flex justify-between items-center md:hidden border-b border-slate-100 dark:border-slate-800 mb-2">
+            {/* Mobile Header (only shown inside drawer on mobile & landscape) */}
+            <div className="pb-3 flex justify-between items-center lg:hidden border-b border-slate-100 dark:border-slate-800 mb-2">
               <div className="flex items-center gap-3">
                 <div 
                   onClick={handleLogoClick}
@@ -86,7 +86,7 @@ const Sidebar = ({ isOpen, onClose }) => {
               </div>
               <button
                 onClick={onClose}
-                className="md:hidden text-slate-400 hover:text-slate-600 text-2xl font-bold leading-none p-2"
+                className="lg:hidden text-slate-400 hover:text-slate-600 text-2xl font-bold leading-none p-2 cursor-pointer"
               >
                 &times;
               </button>
