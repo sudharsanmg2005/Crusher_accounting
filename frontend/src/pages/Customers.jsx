@@ -439,8 +439,9 @@ const Customers = () => {
       });
     }
 
+    const timelineSlug = rangeLabel.replaceAll('/', '-').replaceAll(' ', '_').replaceAll(':', '').replaceAll(',', '');
     const customerSlug = customerDetails.customer.name.replaceAll(' ', '_').replaceAll('/', '-');
-    doc.save(`${customerSlug}_statement.pdf`);
+    doc.save(`${customerSlug}_statement_${timelineSlug}.pdf`);
   };
 
   const toggleVehicles = (customerId) => {

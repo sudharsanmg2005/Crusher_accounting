@@ -669,7 +669,8 @@ const LoadManagement = () => {
         headStyles: { fillColor: [37, 99, 235], textColor: [255, 255, 255], fontStyle: 'bold' }
       });
 
-      doc.save('buyer_loads_summary.pdf');
+      const timelineSlug = rangeLabel.replaceAll('/', '-').replaceAll(' ', '_').replaceAll(':', '').replaceAll(',', '');
+      doc.save(`buyer_loads_summary_${timelineSlug}.pdf`);
     } else {
       // 2. EACH BUYER STATEMENT REPORT
       let titleParts = [];
@@ -828,8 +829,9 @@ const LoadManagement = () => {
         });
       }
 
+      const timelineSlug = rangeLabel.replaceAll('/', '-').replaceAll(' ', '_').replaceAll(':', '').replaceAll(',', '');
       const fileSlug = buyerName ? buyerName.replaceAll(' ', '_') : 'buyer';
-      doc.save(`${fileSlug}_statement.pdf`);
+      doc.save(`${fileSlug}_statement_${timelineSlug}.pdf`);
     }
   };
 
@@ -976,7 +978,8 @@ const LoadManagement = () => {
         headStyles: { fillColor: [37, 99, 235], textColor: [255, 255, 255], fontStyle: 'bold' }
       });
 
-      doc.save('buyer_payments_summary.pdf');
+      const timelineSlug = rangeLabel.replaceAll('/', '-').replaceAll(' ', '_').replaceAll(':', '').replaceAll(',', '');
+      doc.save(`buyer_payments_summary_${timelineSlug}.pdf`);
     } else {
       // MODE B: PARTICULAR BUYER PAYMENTS REPORT
       try {
@@ -1046,7 +1049,8 @@ const LoadManagement = () => {
         headStyles: { fillColor: [37, 99, 235], textColor: [255, 255, 255], fontStyle: 'bold' }
       });
 
-      doc.save(`${buyerName.replaceAll(' ', '_')}_payments_statement.pdf`);
+      const timelineSlug = rangeLabel.replaceAll('/', '-').replaceAll(' ', '_').replaceAll(':', '').replaceAll(',', '');
+      doc.save(`${buyerName.replaceAll(' ', '_')}_payments_statement_${timelineSlug}.pdf`);
     }
   };
 

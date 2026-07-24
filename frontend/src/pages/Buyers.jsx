@@ -446,8 +446,9 @@ const Buyers = () => {
       });
     }
 
+    const timelineSlug = rangeLabel.replaceAll('/', '-').replaceAll(' ', '_').replaceAll(':', '').replaceAll(',', '');
     const buyerSlug = buyerDetails.buyer.name.replaceAll(' ', '_').replaceAll('/', '-');
-    doc.save(`${buyerSlug}_statement.pdf`);
+    doc.save(`${buyerSlug}_statement_${timelineSlug}.pdf`);
   };
 
   const filteredBuyers = useMemo(() => {

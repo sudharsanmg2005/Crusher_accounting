@@ -427,7 +427,8 @@ const Bills = () => {
         headStyles: { fillColor: [37, 99, 235], textColor: [255, 255, 255], fontStyle: 'bold' }
       });
 
-      doc.save('customer_bills_summary.pdf');
+      const timelineSlug = rangeLabel.replaceAll('/', '-').replaceAll(' ', '_').replaceAll(':', '').replaceAll(',', '');
+      doc.save(`customer_bills_summary_${timelineSlug}.pdf`);
     } else {
       // 2. EACH CUSTOMER STATEMENT REPORT
       const titleText = `${customerName.toUpperCase()} BILL STATEMENT`;
@@ -584,8 +585,9 @@ const Bills = () => {
         });
       }
 
+      const timelineSlug = rangeLabel.replaceAll('/', '-').replaceAll(' ', '_').replaceAll(':', '').replaceAll(',', '');
       const filePrefix = customerName ? customerName.replaceAll(' ', '_') : 'customer';
-      doc.save(`${filePrefix}_statement.pdf`);
+      doc.save(`${filePrefix}_statement_${timelineSlug}.pdf`);
     }
   };
 
@@ -751,7 +753,8 @@ const Bills = () => {
         headStyles: { fillColor: [37, 99, 235], textColor: [255, 255, 255], fontStyle: 'bold' }
       });
 
-      doc.save('customer_payments_summary.pdf');
+      const timelineSlug = rangeLabel.replaceAll('/', '-').replaceAll(' ', '_').replaceAll(':', '').replaceAll(',', '');
+      doc.save(`customer_payments_summary_${timelineSlug}.pdf`);
     } else {
       // MODE B: PARTICULAR CUSTOMER PAYMENTS REPORT
       try {
@@ -821,7 +824,8 @@ const Bills = () => {
         headStyles: { fillColor: [37, 99, 235], textColor: [255, 255, 255], fontStyle: 'bold' }
       });
 
-      doc.save(`${customerName.replaceAll(' ', '_')}_payments_statement.pdf`);
+      const timelineSlug = rangeLabel.replaceAll('/', '-').replaceAll(' ', '_').replaceAll(':', '').replaceAll(',', '');
+      doc.save(`${customerName.replaceAll(' ', '_')}_payments_statement_${timelineSlug}.pdf`);
     }
   };
 
