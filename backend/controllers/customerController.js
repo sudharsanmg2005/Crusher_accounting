@@ -8,7 +8,7 @@ import { permanentlyDeleteCustomer as purgeCustomer } from '../services/purgeSer
 
 export const getCustomers = async (req, res, next) => {
   try {
-    const customers = await Customer.find({ isDeleted: false }).sort({ createdAt: -1 });
+    const customers = await Customer.find({ isDeleted: false }).sort({ name: 1 });
     res.json(customers);
   } catch (err) {
     next(err);

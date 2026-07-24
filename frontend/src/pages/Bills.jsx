@@ -344,6 +344,7 @@ const Bills = () => {
       const activeCustomers = outstandingData.filter(item => 
         (billCountMap[item.customerId] || 0) > 0 || (item.outstandingBalance || 0) > 0
       );
+      activeCustomers.sort((a, b) => (a.customerName || '').localeCompare(b.customerName || ''));
 
       // Check if any active customer has a pending amount greater than total billed
       const hasPreviousBalance = activeCustomers.some(item => {
@@ -665,7 +666,10 @@ const Bills = () => {
       doc.setDrawColor(200, 200, 200);
       doc.line(14, 29, pageWidth - 14, 29);
 
-      const sortedPayments = [...payments].sort((a, b) => new Date(a.paymentDate) - new Date(b.paymentDate));
+      const sortedPayments = [...payments].sort((a, b) => 
+        (a.customerName || '').localeCompare(b.customerName || '') || 
+        (new Date(a.paymentDate) - new Date(b.paymentDate))
+      );
 
       const head = [['S.NO', 'DATE', 'RECEIPT NO', 'CUSTOMER NAME', 'RECEIVED BY', 'NOTES', 'AMOUNT (Rs.)']];
       const body = sortedPayments.map((p, idx) => [
@@ -701,10 +705,12 @@ const Bills = () => {
       });
 
       const summaryTableHead = [['CUSTOMER NAME', 'TOTAL PAYMENTS RECEIVED (Rs.)']];
-      const summaryTableBody = Object.entries(customerTotals).map(([name, total]) => [
-        name,
-        Number(total).toLocaleString()
-      ]);
+      const summaryTableBody = Object.entries(customerTotals)
+        .sort(([nameA], [nameB]) => nameA.localeCompare(nameB))
+        .map(([name, total]) => [
+          name,
+          Number(total).toLocaleString()
+        ]);
 
       doc.setFontSize(10);
       doc.setFont(undefined, 'bold');

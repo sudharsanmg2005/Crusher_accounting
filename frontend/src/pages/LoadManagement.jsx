@@ -586,6 +586,7 @@ const LoadManagement = () => {
       const activeBuyers = outstandingData.filter(item => 
         (loadCountMap[item.buyerId] || 0) > 0 || (item.outstandingBalance || 0) > 0
       );
+      activeBuyers.sort((a, b) => (a.buyerName || '').localeCompare(b.buyerName || ''));
 
       // Check if any active buyer has a pending amount greater than total load cost
       const hasPreviousBalance = activeBuyers.some(item => {
@@ -890,7 +891,10 @@ const LoadManagement = () => {
       doc.setDrawColor(200, 200, 200);
       doc.line(14, 29, pageWidth - 14, 29);
 
-      const sortedPayments = [...payments].sort((a, b) => new Date(a.paymentDate) - new Date(b.paymentDate));
+      const sortedPayments = [...payments].sort((a, b) => 
+        (a.buyerName || '').localeCompare(b.buyerName || '') || 
+        (new Date(a.paymentDate) - new Date(b.paymentDate))
+      );
 
       const head = [['S.NO', 'DATE', 'VOUCHER NO', 'BUYER NAME', 'PAID BY', 'NOTES', 'AMOUNT (Rs.)']];
       const body = sortedPayments.map((p, idx) => [
@@ -926,10 +930,12 @@ const LoadManagement = () => {
       });
 
       const summaryTableHead = [['BUYER NAME', 'TOTAL PAYMENTS PAID (Rs.)']];
-      const summaryTableBody = Object.entries(buyerTotals).map(([name, total]) => [
-        name,
-        Number(total).toLocaleString()
-      ]);
+      const summaryTableBody = Object.entries(buyerTotals)
+        .sort(([nameA], [nameB]) => nameA.localeCompare(nameB))
+        .map(([name, total]) => [
+          name,
+          Number(total).toLocaleString()
+        ]);
 
       doc.setFontSize(10);
       doc.setFont(undefined, 'bold');

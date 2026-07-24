@@ -449,6 +449,8 @@ export const getOutstandingReport = async (req, res, next) => {
       };
     });
 
+    report.sort((a, b) => (a.customerName || '').localeCompare(b.customerName || ''));
+
     res.json(report);
   } catch (err) {
     next(err);
@@ -675,6 +677,8 @@ export const getBuyerOutstandingReport = async (req, res, next) => {
         outstandingBalance: outstanding
       };
     });
+
+    report.sort((a, b) => (a.buyerName || '').localeCompare(b.buyerName || ''));
 
     res.json(report);
   } catch (err) {
