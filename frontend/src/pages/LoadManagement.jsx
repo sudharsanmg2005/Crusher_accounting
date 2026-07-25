@@ -39,6 +39,7 @@ const LoadManagement = () => {
   const [loads, setLoads] = useState([]);
   const [buyers, setBuyers] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [pdfFilterScope, setPdfFilterScope] = useState('all'); // 'all' | 'purchased_only'
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [reportType, setReportType] = useState('all'); // all | daily | weekly | monthly | range
   const [dateRange, setDateRange] = useState({ startDate: '', endDate: '', particularDate: '', month: '', weekStart: '' });
@@ -582,10 +583,17 @@ const LoadManagement = () => {
         }
       });
 
-      // Filter active buyers (include if they have loads OR pending dues in the period)
-      const activeBuyers = outstandingData.filter(item => 
-        (loadCountMap[item.buyerId] || 0) > 0 || (item.outstandingBalance || 0) > 0
-      );
+      // Filter active buyers based on pdfFilterScope
+      let activeBuyers = [];
+      if (pdfFilterScope === 'purchased_only') {
+        activeBuyers = outstandingData.filter(item => 
+          (loadCountMap[item.buyerId] || 0) > 0 || (item.totalLoadsAmount || 0) > 0
+        );
+      } else {
+        activeBuyers = outstandingData.filter(item => 
+          (loadCountMap[item.buyerId] || 0) > 0 || (item.outstandingBalance || 0) > 0
+        );
+      }
       activeBuyers.sort((a, b) => (a.buyerName || '').localeCompare(b.buyerName || ''));
 
       // Check if any active buyer has a pending amount greater than total load cost
@@ -670,7 +678,8 @@ const LoadManagement = () => {
       });
 
       const timelineSlug = rangeLabel.replaceAll('/', '-').replaceAll(' ', '_').replaceAll(':', '').replaceAll(',', '');
-      doc.save(`buyer_loads_summary_${timelineSlug}.pdf`);
+      const scopeSlug = pdfFilterScope === 'purchased_only' ? '_purchased_only' : '';
+      doc.save(`buyer_loads_summary${scopeSlug}_${timelineSlug}.pdf`);
     } else {
       // 2. EACH BUYER STATEMENT REPORT
       let titleParts = [];
@@ -883,8 +892,14 @@ const LoadManagement = () => {
         return;
       }
 
-      if (payments.length === 0) {
-        alert('No payments found for the selected timeline.');
+      let paymentsToExport = payments;
+      if (pdfFilterScope === 'purchased_only') {
+        const activeBuyerIds = new Set(filteredLoads.map(l => (l.buyer?._id || l.buyer || '').toString()));
+        paymentsToExport = payments.filter(p => activeBuyerIds.has((p.buyerId || '').toString()));
+      }
+
+      if (paymentsToExport.length === 0) {
+        alert('No payments found for the selected timeline and filter options.');
         return;
       }
 
@@ -893,7 +908,7 @@ const LoadManagement = () => {
       doc.setDrawColor(200, 200, 200);
       doc.line(14, 29, pageWidth - 14, 29);
 
-      const sortedPayments = [...payments].sort((a, b) => 
+      const sortedPayments = [...paymentsToExport].sort((a, b) => 
         (a.buyerName || '').localeCompare(b.buyerName || '') || 
         (new Date(a.paymentDate) - new Date(b.paymentDate))
       );
@@ -979,7 +994,8 @@ const LoadManagement = () => {
       });
 
       const timelineSlug = rangeLabel.replaceAll('/', '-').replaceAll(' ', '_').replaceAll(':', '').replaceAll(',', '');
-      doc.save(`buyer_payments_summary_${timelineSlug}.pdf`);
+      const scopeSlug = pdfFilterScope === 'purchased_only' ? '_purchased_only' : '';
+      doc.save(`buyer_payments_summary${scopeSlug}_${timelineSlug}.pdf`);
     } else {
       // MODE B: PARTICULAR BUYER PAYMENTS REPORT
       try {
@@ -1121,7 +1137,19 @@ const LoadManagement = () => {
               </select>
             </div>
 
-            <div className="flex flex-wrap gap-2 w-full sm:w-auto ml-auto">
+            <div className="flex flex-wrap gap-2 w-full sm:w-auto ml-auto items-center">
+              <div className="flex items-center gap-1 bg-slate-50 border border-slate-300 rounded-lg p-1">
+                <span className="text-[11px] font-bold text-slate-500 uppercase px-1 hidden lg:inline">PDF Scope:</span>
+                <select
+                  value={pdfFilterScope}
+                  onChange={(e) => setPdfFilterScope(e.target.value)}
+                  className="bg-white border-0 text-xs md:text-sm font-medium text-slate-700 outline-none cursor-pointer rounded px-1 py-1"
+                  title="Filter PDF Buyer Scope"
+                >
+                  <option value="all">PDF: All Buyers (With Dues)</option>
+                  <option value="purchased_only">PDF: Loaded in Timeline Only</option>
+                </select>
+              </div>
               <button
                 type="button"
                 onClick={downloadPdf}

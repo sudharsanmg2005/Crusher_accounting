@@ -40,6 +40,7 @@ const Bills = () => {
   const [customers, setCustomers] = useState([]);
   const [materials, setMaterials] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [pdfFilterScope, setPdfFilterScope] = useState('all'); // 'all' | 'purchased_only'
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isBulkModalOpen, setIsBulkModalOpen] = useState(false);
   const [bulkDate, setBulkDate] = useState(new Date().toISOString().split('T')[0]);
@@ -340,10 +341,17 @@ const Bills = () => {
         }
       });
 
-      // Filter active customers (include if they have bills OR pending dues in the period)
-      const activeCustomers = outstandingData.filter(item => 
-        (billCountMap[item.customerId] || 0) > 0 || (item.outstandingBalance || 0) > 0
-      );
+      // Filter active customers based on pdfFilterScope
+      let activeCustomers = [];
+      if (pdfFilterScope === 'purchased_only') {
+        activeCustomers = outstandingData.filter(item => 
+          (billCountMap[item.customerId] || 0) > 0 || (item.totalBillsAmount || 0) > 0
+        );
+      } else {
+        activeCustomers = outstandingData.filter(item => 
+          (billCountMap[item.customerId] || 0) > 0 || (item.outstandingBalance || 0) > 0
+        );
+      }
       activeCustomers.sort((a, b) => (a.customerName || '').localeCompare(b.customerName || ''));
 
       // Check if any active customer has a pending amount greater than total billed
@@ -428,7 +436,8 @@ const Bills = () => {
       });
 
       const timelineSlug = rangeLabel.replaceAll('/', '-').replaceAll(' ', '_').replaceAll(':', '').replaceAll(',', '');
-      doc.save(`customer_bills_summary_${timelineSlug}.pdf`);
+      const scopeSlug = pdfFilterScope === 'purchased_only' ? '_purchased_only' : '';
+      doc.save(`customer_bills_summary${scopeSlug}_${timelineSlug}.pdf`);
     } else {
       // 2. EACH CUSTOMER STATEMENT REPORT
       const titleText = `${customerName.toUpperCase()} BILL STATEMENT`;
@@ -658,8 +667,14 @@ const Bills = () => {
         return;
       }
 
-      if (payments.length === 0) {
-        alert('No payments found for the selected timeline.');
+      let paymentsToExport = payments;
+      if (pdfFilterScope === 'purchased_only') {
+        const purchasedCustomerIds = new Set(filteredBills.map(b => (b.customer?._id || b.customer || '').toString()));
+        paymentsToExport = payments.filter(p => purchasedCustomerIds.has((p.customerId || '').toString()));
+      }
+
+      if (paymentsToExport.length === 0) {
+        alert('No payments found for the selected timeline and filter options.');
         return;
       }
 
@@ -668,7 +683,7 @@ const Bills = () => {
       doc.setDrawColor(200, 200, 200);
       doc.line(14, 29, pageWidth - 14, 29);
 
-      const sortedPayments = [...payments].sort((a, b) => 
+      const sortedPayments = [...paymentsToExport].sort((a, b) => 
         (a.customerName || '').localeCompare(b.customerName || '') || 
         (new Date(a.paymentDate) - new Date(b.paymentDate))
       );
@@ -754,7 +769,8 @@ const Bills = () => {
       });
 
       const timelineSlug = rangeLabel.replaceAll('/', '-').replaceAll(' ', '_').replaceAll(':', '').replaceAll(',', '');
-      doc.save(`customer_payments_summary_${timelineSlug}.pdf`);
+      const scopeSlug = pdfFilterScope === 'purchased_only' ? '_purchased_only' : '';
+      doc.save(`customer_payments_summary${scopeSlug}_${timelineSlug}.pdf`);
     } else {
       // MODE B: PARTICULAR CUSTOMER PAYMENTS REPORT
       try {
@@ -1260,7 +1276,19 @@ const Bills = () => {
               </select>
             </div>
 
-            <div className="flex flex-wrap gap-2 w-full sm:w-auto ml-auto">
+            <div className="flex flex-wrap gap-2 w-full sm:w-auto ml-auto items-center">
+              <div className="flex items-center gap-1 bg-slate-50 border border-slate-300 rounded-lg p-1">
+                <span className="text-[11px] font-bold text-slate-500 uppercase px-1 hidden lg:inline">PDF Scope:</span>
+                <select
+                  value={pdfFilterScope}
+                  onChange={(e) => setPdfFilterScope(e.target.value)}
+                  className="bg-white border-0 text-xs md:text-sm font-medium text-slate-700 outline-none cursor-pointer rounded px-1 py-1"
+                  title="Filter PDF Customer Scope"
+                >
+                  <option value="all">PDF: All Customers (With Dues)</option>
+                  <option value="purchased_only">PDF: Purchased in Timeline Only</option>
+                </select>
+              </div>
               <button
                 type="button"
                 onClick={downloadSummaryPdf}
