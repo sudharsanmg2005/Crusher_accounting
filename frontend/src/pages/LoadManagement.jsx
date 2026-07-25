@@ -39,7 +39,6 @@ const LoadManagement = () => {
   const [loads, setLoads] = useState([]);
   const [buyers, setBuyers] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [pdfFilterScope, setPdfFilterScope] = useState('all'); // 'all' | 'purchased_only'
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [reportType, setReportType] = useState('all'); // all | daily | weekly | monthly | range
   const [dateRange, setDateRange] = useState({ startDate: '', endDate: '', particularDate: '', month: '', weekStart: '' });
@@ -166,11 +165,14 @@ const LoadManagement = () => {
 
   const filteredLoads = useMemo(() => {
     let list = loads;
+    if (selectedBuyerId && selectedBuyerId !== '__purchased_only__') {
+      list = list.filter((l) => (l.buyer?._id || l.buyer || '').toString() === selectedBuyerId);
+    }
     if (selectedQuarryName) {
       list = list.filter((l) => l.quarryName?.trim() === selectedQuarryName);
     }
     return list;
-  }, [loads, selectedQuarryName]);
+  }, [loads, selectedBuyerId, selectedQuarryName]);
 
   const handleDateFilterChange = (name, value) => {
     if (name === 'particularDate') {
@@ -555,12 +557,14 @@ const LoadManagement = () => {
       endDateVal = new Date(dateRange.endDate + 'T23:59:59');
     }
 
-    const selectedBuyer = buyers.find((b) => b._id === selectedBuyerId);
+    const isPurchasedOnly = selectedBuyerId === '__purchased_only__';
+    const isSingleBuyer = selectedBuyerId && selectedBuyerId !== '__purchased_only__';
+    const selectedBuyer = isSingleBuyer ? buyers.find((b) => b._id === selectedBuyerId) : null;
     const buyerName = selectedBuyer ? selectedBuyer.name : '';
 
-    if (!selectedBuyerId) {
+    if (!isSingleBuyer) {
       // 1. ALL BUYERS SUMMARY REPORT
-      centerText('BUYER LOAD SUMMARY REPORT', 19, 12, 'bold');
+      centerText(isPurchasedOnly ? 'BUYER LOAD SUMMARY REPORT (TIMELINE PURCHASES ONLY)' : 'BUYER LOAD SUMMARY REPORT', 19, 12, 'bold');
       centerText(rangeLabel, 26, 9);
       doc.setDrawColor(200, 200, 200);
       doc.line(14, 29, pageWidth - 14, 29);
@@ -583,9 +587,9 @@ const LoadManagement = () => {
         }
       });
 
-      // Filter active buyers based on pdfFilterScope
+      // Filter active buyers based on isPurchasedOnly
       let activeBuyers = [];
-      if (pdfFilterScope === 'purchased_only') {
+      if (isPurchasedOnly) {
         activeBuyers = outstandingData.filter(item => 
           (loadCountMap[item.buyerId] || 0) > 0 || (item.totalLoadsAmount || 0) > 0
         );
@@ -678,7 +682,7 @@ const LoadManagement = () => {
       });
 
       const timelineSlug = rangeLabel.replaceAll('/', '-').replaceAll(' ', '_').replaceAll(':', '').replaceAll(',', '');
-      const scopeSlug = pdfFilterScope === 'purchased_only' ? '_purchased_only' : '';
+      const scopeSlug = isPurchasedOnly ? '_purchased_only' : '';
       doc.save(`buyer_loads_summary${scopeSlug}_${timelineSlug}.pdf`);
     } else {
       // 2. EACH BUYER STATEMENT REPORT
@@ -875,12 +879,14 @@ const LoadManagement = () => {
       doc.text(str, (pageWidth - w) / 2, xY);
     };
 
-    const selectedBuyer = buyers.find((b) => b._id === selectedBuyerId);
+    const isPurchasedOnly = selectedBuyerId === '__purchased_only__';
+    const isSingleBuyer = selectedBuyerId && selectedBuyerId !== '__purchased_only__';
+    const selectedBuyer = isSingleBuyer ? buyers.find((b) => b._id === selectedBuyerId) : null;
     const buyerName = selectedBuyer ? selectedBuyer.name : '';
 
     let payments = [];
 
-    if (!selectedBuyerId) {
+    if (!isSingleBuyer) {
       // MODE A: ALL BUYERS PAYMENTS REPORT
       try {
         const params = new URLSearchParams(queryParams);
@@ -893,7 +899,7 @@ const LoadManagement = () => {
       }
 
       let paymentsToExport = payments;
-      if (pdfFilterScope === 'purchased_only') {
+      if (isPurchasedOnly) {
         const activeBuyerIds = new Set(filteredLoads.map(l => (l.buyer?._id || l.buyer || '').toString()));
         paymentsToExport = payments.filter(p => activeBuyerIds.has((p.buyerId || '').toString()));
       }
@@ -903,7 +909,7 @@ const LoadManagement = () => {
         return;
       }
 
-      centerText('BUYER PAYMENTS SUMMARY REPORT', 19, 12, 'bold');
+      centerText(isPurchasedOnly ? 'BUYER PAYMENTS REPORT (TIMELINE PURCHASERS ONLY)' : 'BUYER PAYMENTS SUMMARY REPORT', 19, 12, 'bold');
       centerText(rangeLabel, 26, 9);
       doc.setDrawColor(200, 200, 200);
       doc.line(14, 29, pageWidth - 14, 29);
@@ -994,7 +1000,7 @@ const LoadManagement = () => {
       });
 
       const timelineSlug = rangeLabel.replaceAll('/', '-').replaceAll(' ', '_').replaceAll(':', '').replaceAll(',', '');
-      const scopeSlug = pdfFilterScope === 'purchased_only' ? '_purchased_only' : '';
+      const scopeSlug = isPurchasedOnly ? '_purchased_only' : '';
       doc.save(`buyer_payments_summary${scopeSlug}_${timelineSlug}.pdf`);
     } else {
       // MODE B: PARTICULAR BUYER PAYMENTS REPORT
@@ -1099,9 +1105,10 @@ const LoadManagement = () => {
               <select
                 value={selectedBuyerId}
                 onChange={(e) => setSelectedBuyerId(e.target.value)}
-                className="border border-slate-300 rounded-lg p-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none bg-white w-full sm:w-40"
+                className="border border-slate-300 rounded-lg p-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none bg-white w-full sm:w-48"
               >
-                <option value="">All Buyers</option>
+                <option value="">All Buyers (With Dues)</option>
+                <option value="__purchased_only__">Loaded in timeline only</option>
                 {buyers.map((b) => (
                   <option key={b._id} value={b._id}>{b.name}</option>
                 ))}
@@ -1137,19 +1144,7 @@ const LoadManagement = () => {
               </select>
             </div>
 
-            <div className="flex flex-wrap gap-2 w-full sm:w-auto ml-auto items-center">
-              <div className="flex items-center gap-1 bg-slate-50 border border-slate-300 rounded-lg p-1">
-                <span className="text-[11px] font-bold text-slate-500 uppercase px-1 hidden lg:inline">PDF Scope:</span>
-                <select
-                  value={pdfFilterScope}
-                  onChange={(e) => setPdfFilterScope(e.target.value)}
-                  className="bg-white border-0 text-xs md:text-sm font-medium text-slate-700 outline-none cursor-pointer rounded px-1 py-1"
-                  title="Filter PDF Buyer Scope"
-                >
-                  <option value="all">PDF: All Buyers (With Dues)</option>
-                  <option value="purchased_only">PDF: Loaded in Timeline Only</option>
-                </select>
-              </div>
+            <div className="flex flex-wrap gap-2 w-full sm:w-auto ml-auto">
               <button
                 type="button"
                 onClick={downloadPdf}

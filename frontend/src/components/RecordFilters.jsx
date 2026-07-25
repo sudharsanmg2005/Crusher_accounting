@@ -103,7 +103,8 @@ const RecordFilters = ({
             onChange={(e) => set({ customerId: e.target.value })}
             className="border border-slate-300 rounded-lg p-2 text-sm bg-white focus:ring-2 focus:ring-blue-500 outline-none"
           >
-            <option value="">All customers</option>
+            <option value="">All customers (With Dues)</option>
+            <option value="__purchased_only__">Purchased in timeline only</option>
             {customers.map((customer) => (
               <option key={customer._id} value={customer._id}>{customer.name}</option>
             ))}

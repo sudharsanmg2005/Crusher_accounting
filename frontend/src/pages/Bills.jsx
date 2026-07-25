@@ -40,7 +40,6 @@ const Bills = () => {
   const [customers, setCustomers] = useState([]);
   const [materials, setMaterials] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [pdfFilterScope, setPdfFilterScope] = useState('all'); // 'all' | 'purchased_only'
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isBulkModalOpen, setIsBulkModalOpen] = useState(false);
   const [bulkDate, setBulkDate] = useState(new Date().toISOString().split('T')[0]);
@@ -123,7 +122,7 @@ const Bills = () => {
       });
     }
 
-    if (filters.customerId) {
+    if (filters.customerId && filters.customerId !== '__purchased_only__') {
       result = result.filter((bill) => {
         const billCustId = bill.customer?._id || bill.customer || '';
         return String(billCustId) === filters.customerId;
@@ -313,12 +312,14 @@ const Bills = () => {
       endDateVal = new Date(end.setHours(23, 59, 59, 999));
     }
 
-    const selectedCustomer = customers.find((c) => c._id === filters.customerId);
+    const isPurchasedOnly = filters.customerId === '__purchased_only__';
+    const isSingleCustomer = filters.customerId && filters.customerId !== '__purchased_only__';
+    const selectedCustomer = isSingleCustomer ? customers.find((c) => c._id === filters.customerId) : null;
     const customerName = selectedCustomer ? selectedCustomer.name : '';
 
-    if (!filters.customerId) {
+    if (!isSingleCustomer) {
       // 1. ALL CUSTOMERS SUMMARY REPORT
-      centerText('CUSTOMER BILL SUMMARY REPORT', 19, 12, 'bold');
+      centerText(isPurchasedOnly ? 'CUSTOMER BILL SUMMARY REPORT (TIMELINE PURCHASES ONLY)' : 'CUSTOMER BILL SUMMARY REPORT', 19, 12, 'bold');
       centerText(rangeLabel, 26, 9);
       doc.setDrawColor(200, 200, 200);
       doc.line(14, 29, pageWidth - 14, 29);
@@ -341,9 +342,9 @@ const Bills = () => {
         }
       });
 
-      // Filter active customers based on pdfFilterScope
+      // Filter active customers based on isPurchasedOnly
       let activeCustomers = [];
-      if (pdfFilterScope === 'purchased_only') {
+      if (isPurchasedOnly) {
         activeCustomers = outstandingData.filter(item => 
           (billCountMap[item.customerId] || 0) > 0 || (item.totalBillsAmount || 0) > 0
         );
@@ -436,7 +437,7 @@ const Bills = () => {
       });
 
       const timelineSlug = rangeLabel.replaceAll('/', '-').replaceAll(' ', '_').replaceAll(':', '').replaceAll(',', '');
-      const scopeSlug = pdfFilterScope === 'purchased_only' ? '_purchased_only' : '';
+      const scopeSlug = isPurchasedOnly ? '_purchased_only' : '';
       doc.save(`customer_bills_summary${scopeSlug}_${timelineSlug}.pdf`);
     } else {
       // 2. EACH CUSTOMER STATEMENT REPORT
@@ -650,12 +651,14 @@ const Bills = () => {
       doc.text(str, (pageWidth - w) / 2, xY);
     };
 
-    const selectedCustomer = customers.find((c) => c._id === filters.customerId);
+    const isPurchasedOnly = filters.customerId === '__purchased_only__';
+    const isSingleCustomer = filters.customerId && filters.customerId !== '__purchased_only__';
+    const selectedCustomer = isSingleCustomer ? customers.find((c) => c._id === filters.customerId) : null;
     const customerName = selectedCustomer ? selectedCustomer.name : '';
 
     let payments = [];
 
-    if (!filters.customerId) {
+    if (!isSingleCustomer) {
       // MODE A: ALL CUSTOMERS PAYMENTS REPORT
       try {
         const params = new URLSearchParams(queryParams);
@@ -668,7 +671,7 @@ const Bills = () => {
       }
 
       let paymentsToExport = payments;
-      if (pdfFilterScope === 'purchased_only') {
+      if (isPurchasedOnly) {
         const purchasedCustomerIds = new Set(filteredBills.map(b => (b.customer?._id || b.customer || '').toString()));
         paymentsToExport = payments.filter(p => purchasedCustomerIds.has((p.customerId || '').toString()));
       }
@@ -678,7 +681,7 @@ const Bills = () => {
         return;
       }
 
-      centerText('CUSTOMER PAYMENTS SUMMARY REPORT', 19, 12, 'bold');
+      centerText(isPurchasedOnly ? 'CUSTOMER PAYMENTS REPORT (TIMELINE PURCHASERS ONLY)' : 'CUSTOMER PAYMENTS SUMMARY REPORT', 19, 12, 'bold');
       centerText(rangeLabel, 26, 9);
       doc.setDrawColor(200, 200, 200);
       doc.line(14, 29, pageWidth - 14, 29);
@@ -769,7 +772,7 @@ const Bills = () => {
       });
 
       const timelineSlug = rangeLabel.replaceAll('/', '-').replaceAll(' ', '_').replaceAll(':', '').replaceAll(',', '');
-      const scopeSlug = pdfFilterScope === 'purchased_only' ? '_purchased_only' : '';
+      const scopeSlug = isPurchasedOnly ? '_purchased_only' : '';
       doc.save(`customer_payments_summary${scopeSlug}_${timelineSlug}.pdf`);
     } else {
       // MODE B: PARTICULAR CUSTOMER PAYMENTS REPORT
@@ -1276,19 +1279,7 @@ const Bills = () => {
               </select>
             </div>
 
-            <div className="flex flex-wrap gap-2 w-full sm:w-auto ml-auto items-center">
-              <div className="flex items-center gap-1 bg-slate-50 border border-slate-300 rounded-lg p-1">
-                <span className="text-[11px] font-bold text-slate-500 uppercase px-1 hidden lg:inline">PDF Scope:</span>
-                <select
-                  value={pdfFilterScope}
-                  onChange={(e) => setPdfFilterScope(e.target.value)}
-                  className="bg-white border-0 text-xs md:text-sm font-medium text-slate-700 outline-none cursor-pointer rounded px-1 py-1"
-                  title="Filter PDF Customer Scope"
-                >
-                  <option value="all">PDF: All Customers (With Dues)</option>
-                  <option value="purchased_only">PDF: Purchased in Timeline Only</option>
-                </select>
-              </div>
+            <div className="flex flex-wrap gap-2 w-full sm:w-auto ml-auto">
               <button
                 type="button"
                 onClick={downloadSummaryPdf}
