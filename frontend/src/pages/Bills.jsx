@@ -1222,9 +1222,10 @@ const Bills = () => {
               <select
                 value={filters.customerId}
                 onChange={(e) => setFilters((prev) => ({ ...prev, customerId: e.target.value }))}
-                className="border border-slate-300 rounded-lg p-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none bg-white w-full"
+                className="border border-slate-300 rounded-lg p-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none bg-white w-full sm:w-48"
               >
-                <option value="">All Customers</option>
+                <option value="">All Customers (With Dues)</option>
+                <option value="__purchased_only__">Purchased in timeline only</option>
                 {customers.map((c) => (
                   <option key={c._id} value={c._id}>
                     {c.name}
