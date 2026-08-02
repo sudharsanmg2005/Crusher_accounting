@@ -22,7 +22,7 @@ import buyerRoutes from './routes/buyerRoutes.js';
 import paymentRoutes from './routes/paymentRoutes.js';
 import buyerPaymentRoutes from './routes/buyerPaymentRoutes.js';
 
-import { migrateOldPayments } from './services/paymentService.js';
+import { cleanupMigratedPayments } from './services/paymentService.js';
 import { migrateOldBuyerPayments } from './services/buyerPaymentService.js';
 
 dotenv.config();
@@ -39,10 +39,10 @@ if (isProduction) {
 
 connectDB().then(async () => {
   try {
-    await migrateOldPayments();
+    await cleanupMigratedPayments();
     await migrateOldBuyerPayments();
   } catch (err) {
-    console.error('Database migration failed on startup:', err);
+    console.error('Database cleanup failed on startup:', err);
   }
 });
 

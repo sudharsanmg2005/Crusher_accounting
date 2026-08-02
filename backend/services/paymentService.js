@@ -256,109 +256,33 @@ export const recalculateCustomerBalances = async (customerId, providedSession = 
 };
 
 /**
- * Migrates old bill-specific payments to the new Customer Outstanding Balance System.
- * Creates payment records for any active bills with physical paidAmount values that don't have payment documents,
- * converts old payment documents to the new format, and recalulates outstanding balances for all active customers.
+ * Removes all auto-generated migrated payment documents (PAY-MIG-*) from the database
+ * and recalculates customer balances for all active customers based strictly on
+ * user-recorded payment documents.
  */
-export const migrateOldPayments = async () => {
+export const cleanupMigratedPayments = async () => {
   try {
-    // 1. Recreate missing payment documents for bills with physical `paidAmount > 0` but no payment documents.
-    const activeBills = await Bill.find({ isDeleted: false });
-    
-    for (const bill of activeBills) {
-      if (!bill.customer) {
-        console.warn(`[Migration] Active bill ${bill.billNumber || bill._id} has no customer reference. Skipping.`);
-        continue;
-      }
-      const oldPaid = Number(bill._doc?.paidAmount || bill.get('paidAmount') || 0);
-      if (oldPaid > 0) {
-        const paymentCount = await Payment.countDocuments({ bill: bill._id });
-        const newPaymentCount = await Payment.countDocuments({ 'allocationDetails.billId': bill._id });
-        
-        if (paymentCount === 0 && newPaymentCount === 0) {
-          console.log(`[Migration] Bill ${bill.billNumber} has physical paidAmount ₹${oldPaid} but no Payment record. Creating migrated payment record...`);
-          
-          const paymentNumber = await generateMigratedPaymentNumber();
-          
-          await Payment.create({
-            paymentNumber,
-            customerId: bill.customer,
-            paymentDate: bill.date || new Date(),
-            amount: oldPaid,
-            notes: 'Migrated from bill paidAmount record',
-            receivedBy: 'System Migration',
-            outstandingBalanceAfterPayment: 0,
-            allocationDetails: [
-              {
-                billId: bill._id,
-                billNumber: bill.billNumber || 'Unknown',
-                allocatedAmount: oldPaid
-              }
-            ],
-            bill: bill._id
-          });
-        }
-      }
+    const deleteResult = await Payment.deleteMany({
+      $or: [
+        { paymentNumber: /^PAY-MIG-/ },
+        { receivedBy: 'System Migration' }
+      ]
+    });
+    if (deleteResult.deletedCount > 0) {
+      console.log(`[Cleanup] Removed ${deleteResult.deletedCount} auto-migrated payment records.`);
     }
 
-    // 2. Migrate old payment documents (which have a bill ref but no customerId)
-    const oldPayments = await Payment.find({ customerId: { $exists: false } });
-    if (oldPayments.length > 0) {
-      console.log(`[Migration] Found ${oldPayments.length} old payment records to migrate...`);
-      
-      const customerIdsToRecalculate = new Set();
-      
-      for (const oldPayment of oldPayments) {
-        const billId = oldPayment.bill || oldPayment._doc?.bill;
-        if (!billId) continue;
-        
-        const bill = await Bill.findById(billId);
-        if (!bill) {
-          console.warn(`[Migration] Bill not found for old payment ${oldPayment._id}. Skipping.`);
-          continue;
-        }
-        
-        const customerId = bill.customer;
-        if (!customerId) continue;
-        
-        const paymentNumber = await generateMigratedPaymentNumber();
-        
-        oldPayment.paymentNumber = paymentNumber;
-        oldPayment.customerId = customerId;
-        oldPayment.paymentDate = oldPayment.date || oldPayment.createdAt || new Date();
-        oldPayment.receivedBy = oldPayment.method || 'Cash';
-        oldPayment.notes = oldPayment.note || 'Migrated payment';
-        oldPayment.outstandingBalanceAfterPayment = 0;
-        oldPayment.allocationDetails = [
-          {
-            billId: bill._id,
-            billNumber: bill.billNumber || 'Unknown',
-            allocatedAmount: oldPayment.amount
-          }
-        ];
-        
-        await oldPayment.save();
-        customerIdsToRecalculate.add(customerId.toString());
-      }
-      
-      console.log(`[Migration] Migrated ${oldPayments.length} payment records.`);
-      
-      for (const cid of customerIdsToRecalculate) {
-        await recalculateCustomerBalances(cid);
-      }
-    }
-
-
-
-    // 3. Make sure all customers have their balances/allocations computed to initialize default values
+    // Make sure all customers have their balances/allocations computed based strictly on real payments
     const customers = await Customer.find({ isDeleted: false });
     for (const customer of customers) {
       await recalculateCustomerBalances(customer._id);
     }
-    
-    console.log('[Migration] Database migration & outstanding balance reconciliation complete.');
+    console.log('[Cleanup] Database cleanup & outstanding balance reconciliation complete.');
   } catch (err) {
-    console.error('[Migration] Error during old payments migration:', err);
+    console.error('[Cleanup] Error during migrated payments cleanup:', err);
   }
 };
+
+export const migrateOldPayments = cleanupMigratedPayments;
+
 
