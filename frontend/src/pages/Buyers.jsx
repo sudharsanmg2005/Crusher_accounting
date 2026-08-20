@@ -104,6 +104,24 @@ const Buyers = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [dateRange.startDate, dateRange.endDate, detailModalOpen]);
 
+  const filteredBuyers = useMemo(() => {
+    const term = searchTerm.trim().toLowerCase();
+    if (!term) return buyers;
+    return buyers
+      .filter(
+        (b) =>
+          (b.name || '').toLowerCase().includes(term) ||
+          (b.phone || '').includes(term)
+      )
+      .sort((a, b) => {
+        const aStarts = (a.name || '').toLowerCase().startsWith(term);
+        const bStarts = (b.name || '').toLowerCase().startsWith(term);
+        if (aStarts && !bStarts) return -1;
+        if (!aStarts && bStarts) return 1;
+        return 0;
+      });
+  }, [buyers, searchTerm]);
+
   useEffect(() => {
     if (searchTerm && filteredBuyers.length > 0) {
       setSearchHighlightedIndex(0);
@@ -494,23 +512,7 @@ const Buyers = () => {
     doc.save(`${buyerSlug}_statement_${timelineSlug}.pdf`);
   };
 
-  const filteredBuyers = useMemo(() => {
-    const term = searchTerm.trim().toLowerCase();
-    if (!term) return buyers;
-    return buyers
-      .filter(
-        (b) =>
-          (b.name || '').toLowerCase().includes(term) ||
-          (b.phone || '').includes(term)
-      )
-      .sort((a, b) => {
-        const aStarts = (a.name || '').toLowerCase().startsWith(term);
-        const bStarts = (b.name || '').toLowerCase().startsWith(term);
-        if (aStarts && !bStarts) return -1;
-        if (!aStarts && bStarts) return 1;
-        return 0;
-      });
-  }, [buyers, searchTerm]);
+
 
   return (
     <div className="space-y-6">
