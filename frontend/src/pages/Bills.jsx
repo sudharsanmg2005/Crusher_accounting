@@ -83,6 +83,7 @@ const Bills = () => {
     weekStart: ''
   });
   const [isMobileFilterOpen, setIsMobileFilterOpen] = useState(false);
+  const [searchHighlightedIndex, setSearchHighlightedIndex] = useState(-1);
 
   // Calculate total automatically based on selected material and quantity
   const [calculatedTotal, setCalculatedTotal] = useState(0);
@@ -180,6 +181,33 @@ const Bills = () => {
 
     return result;
   }, [bills, filters, customers]);
+
+  useEffect(() => {
+    if (filters.search && filteredBills.length > 0) {
+      setSearchHighlightedIndex(0);
+    } else {
+      setSearchHighlightedIndex(-1);
+    }
+  }, [filters.search, filteredBills.length]);
+
+  const handleSearchKeyDown = (e) => {
+    if (filteredBills.length === 0) return;
+
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      setSearchHighlightedIndex((prev) => (prev < filteredBills.length - 1 ? prev + 1 : 0));
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      setSearchHighlightedIndex((prev) => (prev > 0 ? prev - 1 : filteredBills.length - 1));
+    } else if (e.key === 'Enter') {
+      e.preventDefault();
+      const targetIndex = searchHighlightedIndex >= 0 && searchHighlightedIndex < filteredBills.length ? searchHighlightedIndex : 0;
+      const targetBill = filteredBills[targetIndex];
+      if (targetBill) {
+        openEditModal(targetBill);
+      }
+    }
+  };
 
   const filteredTotals = useMemo(() => {
     return filteredBills.reduce(
@@ -1219,6 +1247,7 @@ const Bills = () => {
                 type="text"
                 value={filters.search}
                 onChange={(e) => setFilters((prev) => ({ ...prev, search: e.target.value }))}
+                onKeyDown={handleSearchKeyDown}
                 placeholder="Name, vehicle, material"
                 className="border border-slate-300 rounded-lg p-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none bg-white w-full sm:w-44"
               />
@@ -1485,10 +1514,11 @@ const Bills = () => {
                   </tr>
                 </thead>
                 <tbody className="whitespace-nowrap">
-                  {filteredBills.map((bill) => {
+                  {filteredBills.map((bill, idx) => {
                     const billDateTime = formatDateTime(bill.date);
+                    const isHighlighted = idx === searchHighlightedIndex;
                     return (
-                      <tr key={bill._id}>
+                      <tr key={bill._id} className={isHighlighted ? 'bg-blue-50/80 dark:bg-slate-800/80 ring-2 ring-blue-500/50' : ''}>
                         <td className="p-4 text-slate-600 font-medium whitespace-nowrap">{billDateTime.date}</td>
                         <td className="p-4 text-slate-800 font-semibold">
                           {customers.find(c => c._id === (bill.customer?._id || bill.customer))?.name || bill.customerNameSnapshot}

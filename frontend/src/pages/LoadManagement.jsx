@@ -66,6 +66,7 @@ const LoadManagement = () => {
   const [isBulkModalOpen, setIsBulkModalOpen] = useState(false);
   const [bulkDate, setBulkDate] = useState(new Date().toISOString().split('T')[0]);
   const [bulkRows, setBulkRows] = useState([]);
+  const [searchHighlightedIndex, setSearchHighlightedIndex] = useState(-1);
 
 
 
@@ -180,6 +181,33 @@ const LoadManagement = () => {
     }
     return list;
   }, [loads, selectedBuyerId, selectedQuarryName]);
+
+  useEffect(() => {
+    if (searchQuery && filteredLoads.length > 0) {
+      setSearchHighlightedIndex(0);
+    } else {
+      setSearchHighlightedIndex(-1);
+    }
+  }, [searchQuery, filteredLoads.length]);
+
+  const handleSearchKeyDown = (e) => {
+    if (filteredLoads.length === 0) return;
+
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      setSearchHighlightedIndex((prev) => (prev < filteredLoads.length - 1 ? prev + 1 : 0));
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      setSearchHighlightedIndex((prev) => (prev > 0 ? prev - 1 : filteredLoads.length - 1));
+    } else if (e.key === 'Enter') {
+      e.preventDefault();
+      const targetIndex = searchHighlightedIndex >= 0 && searchHighlightedIndex < filteredLoads.length ? searchHighlightedIndex : 0;
+      const targetLoad = filteredLoads[targetIndex];
+      if (targetLoad) {
+        handleEdit(targetLoad);
+      }
+    }
+  };
 
   const handleDateFilterChange = (name, value) => {
     if (name === 'particularDate') {
@@ -1099,6 +1127,7 @@ const LoadManagement = () => {
                 placeholder="Search buyer, quarry, vehicle..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
+                onKeyDown={handleSearchKeyDown}
                 className="border border-slate-300 rounded-lg p-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none w-full sm:w-48 bg-white"
               />
             </div>
@@ -1281,8 +1310,10 @@ const LoadManagement = () => {
                 </tr>
               </thead>
               <tbody className="whitespace-nowrap">
-                {filteredLoads.map((load) => (
-                  <tr key={load._id}>
+                {filteredLoads.map((load, idx) => {
+                  const isHighlighted = idx === searchHighlightedIndex;
+                  return (
+                    <tr key={load._id} className={isHighlighted ? 'bg-blue-50/80 dark:bg-slate-800/80 ring-2 ring-blue-500/50' : ''}>
                     <td className="p-4 text-slate-600 whitespace-nowrap">{formatDateDDMMYYYY(load.date)}</td>
                     <td className="p-4 font-medium text-slate-800 whitespace-nowrap">{load.vehicleNumber || '—'}</td>
                     <td className="p-4 text-slate-600 whitespace-nowrap">{load.quarryName || '—'}</td>
@@ -1311,7 +1342,8 @@ const LoadManagement = () => {
                       )}
                     </td>
                   </tr>
-                ))}
+                );
+                })}
               </tbody>
             </table>
           </div>

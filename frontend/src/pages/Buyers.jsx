@@ -55,6 +55,9 @@ const Buyers = () => {
   // Submission locking states
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isPaymentSubmitting, setIsPaymentSubmitting] = useState(false);
+
+  // Search keyboard navigation state
+  const [searchHighlightedIndex, setSearchHighlightedIndex] = useState(-1);
   // Add/Edit Buyer form state
   const [formData, setFormData] = useState({ name: '', phone: '', address: '', vehicles: [] });
   const [newVehicle, setNewVehicle] = useState('');
@@ -100,6 +103,33 @@ const Buyers = () => {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [dateRange.startDate, dateRange.endDate, detailModalOpen]);
+
+  useEffect(() => {
+    if (searchTerm && filteredBuyers.length > 0) {
+      setSearchHighlightedIndex(0);
+    } else {
+      setSearchHighlightedIndex(-1);
+    }
+  }, [searchTerm, filteredBuyers.length]);
+
+  const handleSearchKeyDown = (e) => {
+    if (filteredBuyers.length === 0) return;
+
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      setSearchHighlightedIndex((prev) => (prev < filteredBuyers.length - 1 ? prev + 1 : 0));
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      setSearchHighlightedIndex((prev) => (prev > 0 ? prev - 1 : filteredBuyers.length - 1));
+    } else if (e.key === 'Enter') {
+      e.preventDefault();
+      const targetIndex = searchHighlightedIndex >= 0 && searchHighlightedIndex < filteredBuyers.length ? searchHighlightedIndex : 0;
+      const targetBuyer = filteredBuyers[targetIndex];
+      if (targetBuyer) {
+        openBuyerDetailModal(targetBuyer);
+      }
+    }
+  };
 
   const fetchBuyers = async () => {
     setLoading(true);
@@ -507,6 +537,7 @@ const Buyers = () => {
             placeholder="Search by name or phone number..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
+            onKeyDown={handleSearchKeyDown}
             className="w-full pl-10 pr-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition text-sm bg-white"
           />
           <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400">
@@ -537,14 +568,15 @@ const Buyers = () => {
                 </tr>
               </thead>
               <tbody className="whitespace-nowrap">
-                {filteredBuyers.map((b) => {
+                {filteredBuyers.map((b, idx) => {
                   const vehicles = b.vehicles || [];
                   const vehicleCount = vehicles.length;
                   const isExpanded = expandedVehicleId === b._id;
+                  const isHighlighted = idx === searchHighlightedIndex;
  
                   return (
                     <React.Fragment key={b._id}>
-                      <tr>
+                      <tr className={isHighlighted ? 'bg-blue-50/80 dark:bg-slate-800/80 ring-2 ring-blue-500/50' : ''}>
                         <td className="p-4 font-medium text-slate-800">{b.name}</td>
                         <td className="p-4 text-slate-600">{b.phone || '-'}</td>
                         <td className="p-4 text-slate-600 text-sm">
