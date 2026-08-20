@@ -626,7 +626,7 @@ const LoadManagement = () => {
 
   const downloadPdf = async () => {
     const listToExport = filteredLoads;
-    if (listToExport.length === 0 && !selectedBuyerId) return;
+    if (listToExport.length === 0 && !filters.buyerId) return;
 
     const doc = new jsPDF();
     const pageWidth = doc.internal.pageSize.getWidth();
@@ -808,7 +808,7 @@ const LoadManagement = () => {
       // 2. EACH BUYER STATEMENT REPORT
       let titleParts = [];
       if (buyerName) titleParts.push(buyerName.toUpperCase());
-      if (selectedQuarryName) titleParts.push(selectedQuarryName.toUpperCase());
+      if (filters.quarryName) titleParts.push(filters.quarryName.toUpperCase());
       const titleText = `${titleParts.join(' - ')} STATEMENT`;
 
       centerText(titleText, 19, 12, 'bold');
@@ -822,7 +822,7 @@ const LoadManagement = () => {
       let previousBalance = 0;
       try {
         const params = new URLSearchParams(queryParams);
-        const { data } = await api.get(`/buyers/${selectedBuyerId}?${params.toString()}`);
+        const { data } = await api.get(`/buyers/${filters.buyerId}?${params.toString()}`);
         fullLedger = data.ledger || [];
         fullPayments = data.payments || [];
         previousBalance = data.summary?.previousOutstanding || 0;
@@ -1131,7 +1131,7 @@ const LoadManagement = () => {
       // MODE B: PARTICULAR BUYER PAYMENTS REPORT
       try {
         const params = new URLSearchParams(queryParams);
-        const { data } = await api.get(`/buyers/${selectedBuyerId}?${params.toString()}`);
+        const { data } = await api.get(`/buyers/${filters.buyerId}?${params.toString()}`);
         payments = data.payments || [];
       } catch (err) {
         console.error('Error fetching buyer details for payments PDF', err);
