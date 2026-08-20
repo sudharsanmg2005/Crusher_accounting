@@ -1,4 +1,4 @@
-import { recordPayment, recalculateCustomerBalances } from '../services/paymentService.js';
+import { recordPayment, recalculateCustomerBalances, runInTransaction } from '../services/paymentService.js';
 import Payment from '../models/Payment.js';
 import Bill from '../models/Bill.js';
 
@@ -32,54 +32,55 @@ export const updatePayment = async (req, res, next) => {
     const { id } = req.params;
     const { amount, date, notes, receivedBy } = req.body;
 
-    const payment = await Payment.findById(id);
-    if (!payment) {
+    const initialPayment = await Payment.findById(id);
+    if (!initialPayment) {
       return res.status(404).json({ message: 'Payment not found' });
     }
 
-    const customerId = payment.customerId;
+    const customerId = initialPayment.customerId;
 
-    // Validate payment amount limit if it is being updated
-    if (amount !== undefined) {
-      const numAmount = Number(amount);
-      if (Number.isNaN(numAmount) || numAmount <= 0) {
-        return res.status(400).json({ message: 'Payment amount must be greater than zero' });
+    const updatedPayment = await runInTransaction(async (session) => {
+      const payment = await Payment.findById(id).session(session);
+      if (!payment) {
+        const err = new Error('Payment not found');
+        err.statusCode = 404;
+        throw err;
       }
 
-      const allBills = await Bill.find({ customer: customerId, isDeleted: false });
-      const allPayments = await Payment.find({ customerId });
+      if (amount !== undefined) {
+        const numAmount = Number(amount);
+        if (Number.isNaN(numAmount) || numAmount <= 0) {
+          const err = new Error('Payment amount must be greater than zero');
+          err.statusCode = 400;
+          throw err;
+        }
+        payment.amount = numAmount;
+      }
 
-      const totalBilled = allBills.reduce((sum, b) => sum + b.totalAmount + (b.passAmount || 0), 0);
-      const totalPaidOther = allPayments
-        .filter((p) => p._id.toString() !== payment._id.toString())
-        .reduce((sum, p) => sum + p.amount, 0);
+      if (date !== undefined) {
+        payment.paymentDate = new Date(date);
+      }
+      if (notes !== undefined) {
+        payment.notes = notes;
+      }
+      if (receivedBy !== undefined) {
+        payment.receivedBy = receivedBy;
+      }
 
-      // Overpayments/advances are allowed; excess will carry over as credit.
-      payment.amount = numAmount;
-    }
+      await payment.save({ session });
 
-    if (date !== undefined) {
-      payment.paymentDate = new Date(date);
-    }
-    if (notes !== undefined) {
-      payment.notes = notes;
-    }
-    if (receivedBy !== undefined) {
-      payment.receivedBy = receivedBy;
-    }
+      // Recalculate balances and allocations for the customer
+      await recalculateCustomerBalances(customerId, session);
 
-    await payment.save();
-
-    // Recalculate balances and allocations for the customer
-    await recalculateCustomerBalances(customerId);
-
-    const updatedPayment = await Payment.findById(id);
+      return await Payment.findById(id).session(session);
+    }, customerId ? `customer:${customerId}` : null);
 
     res.json({
       payment: updatedPayment,
-      auditDetails: `Updated payment ${payment.paymentNumber} for customer ${customerId} to amount ${payment.amount}`
+      auditDetails: `Updated payment ${updatedPayment.paymentNumber} for customer ${customerId} to amount ${updatedPayment.amount}`
     });
   } catch (err) {
+    if (err.statusCode) res.status(err.statusCode);
     next(err);
   }
 };
@@ -88,23 +89,26 @@ export const deletePayment = async (req, res, next) => {
   try {
     const { id } = req.params;
 
-    const payment = await Payment.findById(id);
-    if (!payment) {
+    const initialPayment = await Payment.findById(id);
+    if (!initialPayment) {
       return res.status(404).json({ message: 'Payment not found' });
     }
 
-    const customerId = payment.customerId;
+    const customerId = initialPayment.customerId;
 
-    await Payment.deleteOne({ _id: id });
+    await runInTransaction(async (session) => {
+      await Payment.deleteOne({ _id: id }).session(session);
 
-    // Recalculate balances and allocations for the customer after deleting the payment
-    await recalculateCustomerBalances(customerId);
+      // Recalculate balances and allocations for the customer after deleting the payment
+      await recalculateCustomerBalances(customerId, session);
+    }, customerId ? `customer:${customerId}` : null);
 
     res.json({
       message: 'Payment deleted successfully',
-      auditDetails: `Deleted payment ${payment.paymentNumber} for customer ${customerId} of amount ${payment.amount}`
+      auditDetails: `Deleted payment ${initialPayment.paymentNumber} for customer ${customerId} of amount ${initialPayment.amount}`
     });
   } catch (err) {
+    if (err.statusCode) res.status(err.statusCode);
     next(err);
   }
 };

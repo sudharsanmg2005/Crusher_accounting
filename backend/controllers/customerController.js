@@ -189,7 +189,7 @@ export const getCustomerHistory = async (req, res, next) => {
       });
       const paymentsBeforeAmount = paymentsBefore.reduce((sum, p) => sum + (p.amount || 0), 0);
 
-      previousOutstanding = Math.max(0, billsBeforeAmount - paymentsBeforeAmount);
+      previousOutstanding = billsBeforeAmount - paymentsBeforeAmount;
     }
 
     // Overall outstanding (cumulative of all time, ignoring date filter)

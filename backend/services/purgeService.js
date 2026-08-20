@@ -5,6 +5,7 @@ import Expense from '../models/Expense.js';
 import Material from '../models/Material.js';
 import Payment from '../models/Payment.js';
 import Attendance from '../models/Attendance.js';
+import { recalculateCustomerBalances } from './paymentService.js';
 
 const notArchivedError = (label) => {
   const err = new Error(`${label} must be in deleted backups before permanent deletion`);
@@ -52,9 +53,14 @@ export const permanentlyDeleteBill = async (id) => {
   if (!bill) throw notFoundError('Bill');
   if (!bill.isDeleted) throw notArchivedError('Bill');
 
+  const customerId = bill.customer;
   const label = `${bill.customerNameSnapshot} - ${bill.billNumber || bill._id}`;
   await Payment.deleteMany({ bill: bill._id });
   await Bill.deleteOne({ _id: bill._id });
+
+  if (customerId) {
+    await recalculateCustomerBalances(customerId);
+  }
 
   return {
     message: `Bill permanently deleted from database`,

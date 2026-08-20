@@ -6,7 +6,7 @@ import { HistoryIcon, ChevronDownIcon, DocumentIcon, EditIcon, TrashIcon } from 
 import SearchableSelect from '../components/SearchableSelect';
 import { formatVehicleInput, isValidVehicleNumber } from '../utils/vehicleNumber';
 import { downloadBillPdf } from '../utils/billPdf';
-import { formatDateTime } from '../utils/dateTime';
+import { formatDateTime, formatDateDDMMYYYY } from '../utils/dateTime';
 import jsPDF from 'jspdf';
 import { autoTable } from 'jspdf-autotable';
 
@@ -60,6 +60,13 @@ const Bills = () => {
   // State for creating new customer
   const [isCreateCustomerOpen, setIsCreateCustomerOpen] = useState(false);
   const [newCustomerData, setNewCustomerData] = useState({ name: '', phone: '', address: '' });
+
+  // Submission locking states to prevent double submits
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isBulkSubmitting, setIsBulkSubmitting] = useState(false);
+  const [isEditSubmitting, setIsEditSubmitting] = useState(false);
+  const [isCustomerSubmitting, setIsCustomerSubmitting] = useState(false);
+  const [isPaymentSubmitting, setIsPaymentSubmitting] = useState(false);
 
   // State for payment history
   const [expandedBillId, setExpandedBillId] = useState(null);
@@ -491,7 +498,7 @@ const Bills = () => {
       const sortedList = [...listToExport].sort((a, b) => new Date(a.date) - new Date(b.date));
       const body = sortedList.map((b, idx) => [
         idx + 1,
-        new Date(b.date).toLocaleDateString(),
+        formatDateDDMMYYYY(b.date),
         b.vehicleNumber || '—',
         b.materialNameSnapshot || '—',
         Number(b.quantity || 0).toFixed(2),
@@ -694,7 +701,7 @@ const Bills = () => {
       const head = [['S.NO', 'DATE', 'RECEIPT NO', 'CUSTOMER NAME', 'RECEIVED BY', 'NOTES', 'AMOUNT (Rs.)']];
       const body = sortedPayments.map((p, idx) => [
         idx + 1,
-        new Date(p.paymentDate).toLocaleDateString(),
+        formatDateDDMMYYYY(p.paymentDate),
         p.paymentNumber || '—',
         p.customerName || '—',
         p.receivedBy || '—',
@@ -801,7 +808,7 @@ const Bills = () => {
       const head = [['S.NO', 'DATE', 'RECEIPT NO', 'RECEIVED BY', 'NOTES', 'AMOUNT (Rs.)']];
       const body = sortedPayments.map((p, idx) => [
         idx + 1,
-        new Date(p.paymentDate).toLocaleDateString(),
+        formatDateDDMMYYYY(p.paymentDate),
         p.paymentNumber || '—',
         p.receivedBy || '—',
         p.notes || '—',
@@ -933,6 +940,7 @@ const Bills = () => {
 
   const handleBulkSubmit = async (e) => {
     e.preventDefault();
+    if (isBulkSubmitting) return;
     
     const validRows = [];
     for (let i = 0; i < bulkRows.length; i++) {
@@ -975,6 +983,7 @@ const Bills = () => {
     }
 
     try {
+      setIsBulkSubmitting(true);
       const payload = {
         date: new Date(`${bulkDate}T12:00`).toISOString(),
         bills: validRows
@@ -986,6 +995,8 @@ const Bills = () => {
     } catch (error) {
       console.error('Error saving bulk bills', error);
       alert('Error saving bills: ' + (error.response?.data?.message || 'Unknown error'));
+    } finally {
+      setIsBulkSubmitting(false);
     }
   };
 
@@ -996,12 +1007,14 @@ const Bills = () => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    if (isSubmitting) return;
     const vehicle = formData.vehicleMode === 'none' ? '' : (formData.vehicleNumber || '');
     if (vehicle && !isValidVehicleNumber(vehicle)) {
       alert('Vehicle number must be TN 74 2003, TN 74 AE 2003, or TMR 7177 format');
       return;
     }
     try {
+      setIsSubmitting(true);
       const billData = {
         customerId: formData.customer,
         vehicleNumber: vehicle,
@@ -1026,6 +1039,8 @@ const Bills = () => {
     } catch (error) {
       console.error('Error saving bill', error);
       alert('Error saving bill: ' + (error.response?.data?.message || 'Unknown error'));
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -1043,11 +1058,13 @@ const Bills = () => {
 
   const handleEditSubmit = async (e) => {
     e.preventDefault();
+    if (isEditSubmitting) return;
     if (editFormData.vehicleNumber && !isValidVehicleNumber(editFormData.vehicleNumber)) {
       alert('Vehicle number must be TN 74 2003, TN 74 AE 2003, or TMR 7177 format');
       return;
     }
     try {
+      setIsEditSubmitting(true);
       await api.put(`/bills/${editingBill._id}`, {
         date: editFormData.date,
         vehicleNumber: editFormData.vehicleNumber || '',
@@ -1060,12 +1077,16 @@ const Bills = () => {
       fetchData();
     } catch (error) {
       alert(error.response?.data?.message || 'Error updating bill');
+    } finally {
+      setIsEditSubmitting(false);
     }
   };
 
   const handleCreateCustomer = async (e) => {
     e.preventDefault();
+    if (isCustomerSubmitting) return;
     try {
+      setIsCustomerSubmitting(true);
       const { data: newCustomer } = await api.post('/customers', newCustomerData);
       setFormData({ ...formData, customer: newCustomer._id });
       setIsCreateCustomerOpen(false);
@@ -1074,6 +1095,8 @@ const Bills = () => {
     } catch (error) {
       console.error('Error creating customer', error);
       alert('Error creating customer: ' + (error.response?.data?.message || 'Unknown error'));
+    } finally {
+      setIsCustomerSubmitting(false);
     }
   };
 
@@ -1135,12 +1158,14 @@ const Bills = () => {
 
   const handleEditPaymentSubmit = async (e) => {
     e.preventDefault();
+    if (isPaymentSubmitting) return;
     const amount = Number(editPaymentAmount);
     if (!amount || amount <= 0) {
       alert('Please enter a valid payment amount');
       return;
     }
     try {
+      setIsPaymentSubmitting(true);
       await api.put(`/payments/${editingPayment._id}`, {
         amount,
         date: editPaymentDate,
@@ -1156,6 +1181,8 @@ const Bills = () => {
     } catch (error) {
       console.error('Error updating payment', error);
       alert('Error updating payment: ' + (error.response?.data?.message || 'Unknown error'));
+    } finally {
+      setIsPaymentSubmitting(false);
     }
   };
 
@@ -1987,9 +2014,10 @@ const Bills = () => {
                   </button>
                   <button
                     type="submit"
-                    className="px-4 sm:px-6 py-2.5 bg-emerald-600 text-white hover:bg-emerald-700 rounded-xl text-sm sm:text-base font-bold transition shadow-md hover:shadow-lg cursor-pointer flex-1 sm:flex-none"
+                    disabled={isBulkSubmitting}
+                    className="px-4 sm:px-6 py-2.5 bg-emerald-600 text-white hover:bg-emerald-700 rounded-xl text-sm sm:text-base font-bold transition shadow-md hover:shadow-lg cursor-pointer flex-1 sm:flex-none disabled:opacity-50 disabled:cursor-not-allowed disabled:pointer-events-none"
                   >
-                    Save Batch Bills
+                    {isBulkSubmitting ? 'Saving Batch...' : 'Save Batch Bills'}
                   </button>
                 </div>
               </div>
@@ -2185,8 +2213,8 @@ const Bills = () => {
                 <button type="button" onClick={() => setIsModalOpen(false)} className="px-4 py-2.5 text-slate-600 dark:text-slate-300 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 rounded-lg font-semibold transition cursor-pointer text-sm flex-1 sm:flex-none">
                   Cancel
                 </button>
-                <button type="submit" disabled={!formData.customer || !formData.material || !formData.quantity} className="px-4 py-2.5 bg-blue-600 text-white rounded-lg font-semibold hover:bg-blue-700 transition shadow-md cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed text-sm flex-1 sm:flex-none">
-                  Generate Bill
+                <button type="submit" disabled={isSubmitting || !formData.customer || !formData.material || !formData.quantity} className="px-4 py-2.5 bg-blue-600 text-white rounded-lg font-semibold hover:bg-blue-700 transition shadow-md cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed disabled:pointer-events-none text-sm flex-1 sm:flex-none">
+                  {isSubmitting ? 'Generating Bill...' : 'Generate Bill'}
                 </button>
               </div>
             </form>
@@ -2241,7 +2269,9 @@ const Bills = () => {
               </div>
               <div className="flex justify-end gap-3 pt-2">
                 <button type="button" onClick={() => setEditModalOpen(false)} className="px-4 py-2 bg-slate-100 rounded-lg">Cancel</button>
-                <button type="submit" className="px-4 py-2 bg-blue-600 text-white rounded-lg font-medium">Save Changes</button>
+                <button type="submit" disabled={isEditSubmitting} className="px-4 py-2 bg-blue-600 text-white rounded-lg font-medium disabled:opacity-50 disabled:cursor-not-allowed disabled:pointer-events-none">
+                  {isEditSubmitting ? 'Saving...' : 'Save Changes'}
+                </button>
               </div>
             </form>
           </div>
@@ -2287,8 +2317,8 @@ const Bills = () => {
                 <button type="button" onClick={() => setIsCreateCustomerOpen(false)} className="px-4 py-2 text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-lg font-medium transition">
                   Cancel
                 </button>
-                <button type="submit" className="px-5 py-2 bg-green-600 text-white rounded-lg font-medium hover:bg-green-700 transition shadow-md">
-                  Create Customer
+                <button type="submit" disabled={isCustomerSubmitting} className="px-5 py-2 bg-green-600 text-white rounded-lg font-medium hover:bg-green-700 transition shadow-md disabled:opacity-50 disabled:cursor-not-allowed disabled:pointer-events-none">
+                  {isCustomerSubmitting ? 'Creating...' : 'Create Customer'}
                 </button>
               </div>
             </form>
@@ -2334,8 +2364,8 @@ const Bills = () => {
                 <button type="button" onClick={() => setEditPaymentModalOpen(false)} className="px-4 py-2 text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-lg font-medium transition text-sm">
                   Cancel
                 </button>
-                <button type="submit" className="px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition shadow-md text-sm">
-                  Save Changes
+                <button type="submit" disabled={isPaymentSubmitting} className="px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition shadow-md text-sm disabled:opacity-50 disabled:cursor-not-allowed disabled:pointer-events-none">
+                  {isPaymentSubmitting ? 'Saving...' : 'Save Changes'}
                 </button>
               </div>
             </form>

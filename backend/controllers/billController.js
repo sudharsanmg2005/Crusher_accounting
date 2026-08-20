@@ -5,7 +5,7 @@ import Payment from '../models/Payment.js';
 import Expense from '../models/Expense.js';
 import { normalizeVehicleNumber, validateVehicleNumber } from '../utils/vehicleNumber.js';
 import { permanentlyDeleteBill as purgeBill } from '../services/purgeService.js';
-import { recordPayment, recalculateCustomerBalances } from '../services/paymentService.js';
+import { recordPayment, recalculateCustomerBalances, runInTransaction } from '../services/paymentService.js';
 
 const normalizeVehicle = normalizeVehicleNumber;
 
@@ -117,182 +117,234 @@ export const createBill = async (req, res, next) => {
       passAmount
     } = req.body;
 
-    const customer = await Customer.findById(customerId);
-    if (!customer || customer.isDeleted) {
-      res.status(400);
-      throw new Error('Customer not found');
-    }
-    const material = await Material.findById(materialId);
-    if (!material) {
-      res.status(400);
-      throw new Error('Material not found');
-    }
-
-    const normalizedVehicle = normalizeVehicle(vehicleNumber);
-    if (normalizedVehicle) {
-      const vehicleError = validateVehicleNumber(normalizedVehicle);
-      if (vehicleError) {
-        return res.status(400).json({ message: vehicleError });
+    const result = await runInTransaction(async (session) => {
+      const customer = await Customer.findOne({ _id: customerId, isDeleted: false }).session(session);
+      if (!customer) {
+        const err = new Error('Customer not found');
+        err.statusCode = 400;
+        throw err;
       }
-      const exists = customer.vehicles.some((v) => normalizeVehicle(v.number) === normalizedVehicle);
-      if (!exists) {
-        customer.vehicles.push({ number: normalizedVehicle });
-        await customer.save();
+      const material = await Material.findById(materialId).session(session);
+      if (!material) {
+        const err = new Error('Material not found');
+        err.statusCode = 400;
+        throw err;
       }
-    }
 
-    const unit = quantityUnit === 'ton' ? 'ton' : 'unit';
-    const defaultPrice = unit === 'ton'
-      ? (material.pricePerTon ?? material.currentPrice)
-      : material.currentPrice;
-    const effectivePrice = pricePerUnit ?? defaultPrice;
-    const totalAmount = roundToNearestTen(quantity * effectivePrice);
-    const passFee = passAmount != null ? Number(passAmount) : 0;
-    const permissionCost = Number.isFinite(passFee) ? passFee : 0;
-    const grandTotal = totalAmount + permissionCost;
+      const normalizedVehicle = normalizeVehicle(vehicleNumber);
+      if (normalizedVehicle) {
+        const vehicleError = validateVehicleNumber(normalizedVehicle);
+        if (vehicleError) {
+          const err = new Error(vehicleError);
+          err.statusCode = 400;
+          throw err;
+        }
+        const exists = customer.vehicles.some((v) => normalizeVehicle(v.number) === normalizedVehicle);
+        if (!exists) {
+          customer.vehicles.push({ number: normalizedVehicle });
+          await customer.save({ session });
+        }
+      }
 
-    const billDate = date ? new Date(date) : new Date();
-    const now = new Date();
-    const isBackdated = billDate.getTime() < now.getTime() - 60000;
+      const unit = quantityUnit === 'ton' ? 'ton' : 'unit';
+      const defaultPrice = unit === 'ton'
+        ? (material.pricePerTon ?? material.currentPrice)
+        : material.currentPrice;
+      const effectivePrice = pricePerUnit ?? defaultPrice;
+      const totalAmount = roundToNearestTen(quantity * effectivePrice);
+      const passFee = passAmount != null ? Number(passAmount) : 0;
+      const permissionCost = Number.isFinite(passFee) ? passFee : 0;
+      const grandTotal = totalAmount + permissionCost;
 
-    const bill = await Bill.create({
-      billNumber: await generateBillNumber(),
-      date: billDate,
-      customer: customer._id,
-      customerNameSnapshot: customer.name,
-      vehicleNumber: normalizedVehicle,
-      material: material._id,
-      materialNameSnapshot: material.name,
-      quantity,
-      quantityUnit: unit,
-      pricePerUnit: effectivePrice,
-      totalAmount,
-      passAmount: permissionCost,
-      allocatedAmount: 0,
-      isBackdated
-    });
+      const billDate = date ? new Date(date) : new Date();
+      const now = new Date();
+      const isBackdated = billDate.getTime() < now.getTime() - 60000;
+      const billNumber = await generateBillNumber();
 
-    if (bill.customer) {
-      await recalculateCustomerBalances(bill.customer);
-    }
+      const [bill] = await Bill.create(
+        [
+          {
+            billNumber,
+            date: billDate,
+            customer: customer._id,
+            customerNameSnapshot: customer.name,
+            vehicleNumber: normalizedVehicle,
+            material: material._id,
+            materialNameSnapshot: material.name,
+            quantity,
+            quantityUnit: unit,
+            pricePerUnit: effectivePrice,
+            totalAmount,
+            passAmount: permissionCost,
+            allocatedAmount: 0,
+            isBackdated
+          }
+        ],
+        { session }
+      );
 
-    const auditBase = `Created bill ${bill.billNumber} for ${bill.customerNameSnapshot}`;
-    const auditDetails = isBackdated
-      ? `${auditBase} — BACKDATED entry for ${billDate.toISOString()} (missed bill recorded on past date/time)`
-      : `${auditBase} (${bill.vehicleNumber || 'no vehicle'}) amount ${grandTotal}`;
+      if (bill.customer) {
+        await recalculateCustomerBalances(bill.customer, session);
+      }
 
-    // Reload bill to get the updated allocatedAmount after recalculation
-    const reloadedBill = await Bill.findById(bill._id);
+      const auditBase = `Created bill ${bill.billNumber} for ${bill.customerNameSnapshot}`;
+      const auditDetails = isBackdated
+        ? `${auditBase} — BACKDATED entry for ${billDate.toISOString()} (missed bill recorded on past date/time)`
+        : `${auditBase} (${bill.vehicleNumber || 'no vehicle'}) amount ${grandTotal}`;
+
+      const reloadedBill = await Bill.findById(bill._id).session(session);
+      return { reloadedBill, auditDetails };
+    }, customerId ? `customer:${customerId}` : null);
 
     res.status(201).json({
-      ...reloadedBill.toObject(),
-      auditDetails
+      ...result.reloadedBill.toObject(),
+      auditDetails: result.auditDetails
     });
   } catch (err) {
+    if (err.statusCode) res.status(err.statusCode);
     next(err);
   }
 };
 
 export const updateBill = async (req, res, next) => {
   try {
-    const bill = await Bill.findById(req.params.id);
-    if (!bill || bill.isDeleted) {
+    const { id } = req.params;
+    const { date, vehicleNumber, quantity, quantityUnit, pricePerUnit, passAmount } = req.body;
+
+    const initialBill = await Bill.findById(id);
+    if (!initialBill || initialBill.isDeleted) {
       res.status(404);
       throw new Error('Bill not found');
     }
 
-    const { date, vehicleNumber, quantity, quantityUnit, pricePerUnit, passAmount } = req.body;
+    const customerId = initialBill.customer;
 
-    if (date) bill.date = new Date(date);
-    if (vehicleNumber !== undefined) {
-      const normalizedVehicle = normalizeVehicle(vehicleNumber);
-      if (normalizedVehicle) {
-        const vehicleError = validateVehicleNumber(normalizedVehicle);
-        if (vehicleError) {
-          return res.status(400).json({ message: vehicleError });
-        }
+    const updated = await runInTransaction(async (session) => {
+      const bill = await Bill.findById(id).session(session);
+      if (!bill || bill.isDeleted) {
+        const err = new Error('Bill not found');
+        err.statusCode = 404;
+        throw err;
       }
-      bill.vehicleNumber = normalizedVehicle;
-      if (normalizedVehicle && bill.customer) {
-        const customer = await Customer.findById(bill.customer);
-        if (customer) {
-          const exists = customer.vehicles.some((v) => normalizeVehicle(v.number) === normalizedVehicle);
-          if (!exists) {
-            customer.vehicles.push({ number: normalizedVehicle });
-            await customer.save();
+
+      if (date) bill.date = new Date(date);
+      if (vehicleNumber !== undefined) {
+        const normalizedVehicle = normalizeVehicle(vehicleNumber);
+        if (normalizedVehicle) {
+          const vehicleError = validateVehicleNumber(normalizedVehicle);
+          if (vehicleError) {
+            const err = new Error(vehicleError);
+            err.statusCode = 400;
+            throw err;
+          }
+        }
+        bill.vehicleNumber = normalizedVehicle;
+        if (normalizedVehicle && bill.customer) {
+          const customer = await Customer.findById(bill.customer).session(session);
+          if (customer) {
+            const exists = customer.vehicles.some((v) => normalizeVehicle(v.number) === normalizedVehicle);
+            if (!exists) {
+              customer.vehicles.push({ number: normalizedVehicle });
+              await customer.save({ session });
+            }
           }
         }
       }
-    }
-    if (quantity != null) bill.quantity = quantity;
-    if (quantityUnit) bill.quantityUnit = quantityUnit === 'ton' ? 'ton' : 'unit';
-    if (pricePerUnit != null) bill.pricePerUnit = pricePerUnit;
-    if (passAmount != null) bill.passAmount = Number(passAmount) || 0;
+      if (quantity != null) bill.quantity = quantity;
+      if (quantityUnit) bill.quantityUnit = quantityUnit === 'ton' ? 'ton' : 'unit';
+      if (pricePerUnit != null) bill.pricePerUnit = pricePerUnit;
+      if (passAmount != null) bill.passAmount = Number(passAmount) || 0;
 
-    bill.totalAmount = roundToNearestTen(bill.quantity * bill.pricePerUnit);
-    
-    // Save bill and trigger recalculation of allocations
-    await bill.save();
-    
-    if (bill.customer) {
-      await recalculateCustomerBalances(bill.customer);
-    }
+      bill.totalAmount = roundToNearestTen(bill.quantity * bill.pricePerUnit);
+      await bill.save({ session });
+      
+      if (bill.customer) {
+        await recalculateCustomerBalances(bill.customer, session);
+      }
 
-    const updated = await Bill.findById(bill._id);
+      return await Bill.findById(bill._id).session(session);
+    }, customerId ? `customer:${customerId}` : null);
 
     res.json({
       ...updated.toObject(),
       auditDetails: `Edited bill ${updated.billNumber} for ${updated.customerNameSnapshot} dated ${updated.date.toISOString().split('T')[0]}`
     });
   } catch (err) {
+    if (err.statusCode) res.status(err.statusCode);
     next(err);
   }
 };
 
 export const deleteBill = async (req, res, next) => {
   try {
-    const bill = await Bill.findById(req.params.id);
-    if (!bill) {
+    const { id } = req.params;
+    const initialBill = await Bill.findById(id);
+    if (!initialBill) {
       res.status(404);
       throw new Error('Bill not found');
     }
-    bill.isDeleted = true;
-    await bill.save();
 
-    if (bill.customer) {
-      await recalculateCustomerBalances(bill.customer);
-    }
+    const customerId = initialBill.customer;
+
+    await runInTransaction(async (session) => {
+      const bill = await Bill.findById(id).session(session);
+      if (!bill) {
+        const err = new Error('Bill not found');
+        err.statusCode = 404;
+        throw err;
+      }
+      bill.isDeleted = true;
+      await bill.save({ session });
+
+      if (bill.customer) {
+        await recalculateCustomerBalances(bill.customer, session);
+      }
+    }, customerId ? `customer:${customerId}` : null);
 
     res.json({
       message: 'Bill removed',
-      auditDetails: `Deleted bill ${bill.billNumber || ''} for ${bill.customerNameSnapshot} dated ${bill.date.toISOString().split('T')[0]}`
+      auditDetails: `Deleted bill ${initialBill.billNumber || ''} for ${initialBill.customerNameSnapshot} dated ${initialBill.date.toISOString().split('T')[0]}`
     });
   } catch (err) {
+    if (err.statusCode) res.status(err.statusCode);
     next(err);
   }
 };
 
 export const restoreBill = async (req, res, next) => {
   try {
-    const bill = await Bill.findById(req.params.id);
-    if (!bill) {
+    const { id } = req.params;
+    const initialBill = await Bill.findById(id);
+    if (!initialBill) {
       res.status(404);
       throw new Error('Bill not found');
     }
 
-    bill.isDeleted = false;
-    await bill.save();
+    const customerId = initialBill.customer;
 
-    if (bill.customer) {
-      await recalculateCustomerBalances(bill.customer);
-    }
+    const restoredBill = await runInTransaction(async (session) => {
+      const bill = await Bill.findById(id).session(session);
+      if (!bill) {
+        const err = new Error('Bill not found');
+        err.statusCode = 404;
+        throw err;
+      }
+      bill.isDeleted = false;
+      await bill.save({ session });
+
+      if (bill.customer) {
+        await recalculateCustomerBalances(bill.customer, session);
+      }
+      return await Bill.findById(bill._id).session(session);
+    }, customerId ? `customer:${customerId}` : null);
 
     res.json({
       message: 'Bill restored',
-      restored: bill,
-      auditDetails: `Restored bill ${bill.billNumber} for ${bill.customerNameSnapshot}`
+      restored: restoredBill,
+      auditDetails: `Restored bill ${restoredBill.billNumber} for ${restoredBill.customerNameSnapshot}`
     });
   } catch (err) {
+    if (err.statusCode) res.status(err.statusCode);
     next(err);
   }
 };

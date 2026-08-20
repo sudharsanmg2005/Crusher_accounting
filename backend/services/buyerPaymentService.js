@@ -17,24 +17,28 @@ export const generateBuyerPaymentNumber = async () => {
   return `BUYPAY-${String(nextNum).padStart(5, '0')}`;
 };
 
-const runInTransaction = async (fn) => {
-  const session = await mongoose.startSession();
-  try {
-    session.startTransaction();
-    const result = await fn(session);
-    await session.commitTransaction();
-    return result;
-  } catch (error) {
-    if (session.inTransaction()) {
-      await session.abortTransaction();
+import { withEntityLock } from '../utils/transactionLock.js';
+
+export const runInTransaction = async (fn, entityKey = null) => {
+  return withEntityLock(entityKey, async () => {
+    const session = await mongoose.startSession();
+    try {
+      session.startTransaction();
+      const result = await fn(session);
+      await session.commitTransaction();
+      return result;
+    } catch (error) {
+      if (session.inTransaction()) {
+        await session.abortTransaction();
+      }
+      if (error.message?.includes('replica set') || error.codeName === 'CommandNotSupportedOnReplicaSet') {
+        return fn(null);
+      }
+      throw error;
+    } finally {
+      session.endSession();
     }
-    if (error.message?.includes('replica set') || error.codeName === 'CommandNotSupportedOnReplicaSet') {
-      return fn(null);
-    }
-    throw error;
-  } finally {
-    session.endSession();
-  }
+  });
 };
 
 export const recordBuyerPayment = async ({ buyerId, amount, date, notes, paidBy }) => {
@@ -49,42 +53,6 @@ export const recordBuyerPayment = async ({ buyerId, amount, date, notes, paidBy 
       throw new Error('Buyer not found');
     }
 
-    const loads = await Load.find({ buyer: buyerId, isDeleted: false })
-      .sort({ date: 1, createdAt: 1 })
-      .session(session);
-
-    let totalOutstanding = 0;
-    const pendingLoads = [];
-
-    for (const load of loads) {
-      const pending = (load.totalAmount ?? roundToNearestTen(load.price * load.quantity)) - (load.allocatedAmount || 0);
-      if (pending > 0) {
-        totalOutstanding += pending;
-        pendingLoads.push({ load, pending });
-      }
-    }
-
-    // Overpayments/advances are allowed; excess will carry over as credit.
-    let remaining = received;
-    const allocationDetails = [];
-
-    for (const item of pendingLoads) {
-      if (remaining <= 0) break;
-      const { load, pending } = item;
-      const allocate = Math.min(remaining, pending);
-
-      load.allocatedAmount = (load.allocatedAmount || 0) + allocate;
-      await load.save({ session });
-
-      allocationDetails.push({
-        loadId: load._id,
-        allocatedAmount: allocate
-      });
-
-      remaining -= allocate;
-    }
-
-    const outstandingBalanceAfterPayment = Math.max(0, totalOutstanding - received);
     const paymentNumber = await generateBuyerPaymentNumber();
 
     // Create Expense of type "Load"
@@ -110,16 +78,19 @@ export const recordBuyerPayment = async ({ buyerId, amount, date, notes, paidBy 
           amount: received,
           notes: notes || '',
           paidBy: paidBy || '',
-          outstandingBalanceAfterPayment,
-          allocationDetails,
+          outstandingBalanceAfterPayment: 0,
+          allocationDetails: [],
           expenseId: expense._id
         }
       ],
       { session }
     );
 
-    return payment;
-  });
+    await recalculateBuyerBalances(buyerId, session);
+
+    const updatedPayment = await BuyerPayment.findById(payment._id).session(session);
+    return updatedPayment;
+  }, `buyer:${buyerId}`);
 };
 
 export const recalculateBuyerBalances = async (buyerId, providedSession = null) => {
@@ -185,8 +156,8 @@ export const recalculateBuyerBalances = async (buyerId, providedSession = null) 
     }
 
     sortedTimeline.sort((a, b) => {
-      const dateA = new Date(a.date).getTime();
-      const dateB = new Date(b.date).getTime();
+      const dateA = new Date(a.date).setHours(0, 0, 0, 0);
+      const dateB = new Date(b.date).setHours(0, 0, 0, 0);
       if (dateA !== dateB) return dateA - dateB;
       if (a.type !== b.type) return a.type === 'load' ? -1 : 1;
       return new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
@@ -214,7 +185,7 @@ export const recalculateBuyerBalances = async (buyerId, providedSession = null) 
   if (providedSession) {
     await runRecalc(providedSession);
   } else {
-    await runInTransaction(runRecalc);
+    await runInTransaction(runRecalc, `buyer:${buyerId}`);
   }
 };
 

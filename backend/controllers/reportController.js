@@ -14,7 +14,7 @@ const formatDateDDMMYYYY = (d) => {
   const dd = pad2(date.getDate());
   const mm = pad2(date.getMonth() + 1);
   const yyyy = date.getFullYear();
-  return `${dd}/${mm}/${yyyy}`;
+  return `${dd}-${mm}-${yyyy}`;
 };
 
 const formatDateDDMMYYYY_DOTS = (d) => {
@@ -23,7 +23,7 @@ const formatDateDDMMYYYY_DOTS = (d) => {
   const dd = pad2(date.getDate());
   const mm = pad2(date.getMonth() + 1);
   const yyyy = date.getFullYear();
-  return `${dd}.${mm}.${yyyy}`;
+  return `${dd}-${mm}-${yyyy}`;
 };
 
 const formatINR2 = (n) => {
@@ -62,9 +62,9 @@ export const getGeneralStatement = async (req, res, next) => {
     const prevStart = new Date(start.getTime() - durationDays * 24 * 60 * 60 * 1000);
 
     const billFilter = { date: { $gte: start, $lte: end }, isDeleted: false };
-    const prevBillFilter = { date: { $gte: prevStart, $lte: prevEnd }, isDeleted: false };
+    const prevBillFilter = { date: { $lt: start }, isDeleted: false };
     const paymentFilter = { paymentDate: { $gte: start, $lte: end } };
-    const prevPaymentFilter = { paymentDate: { $gte: prevStart, $lte: prevEnd } };
+    const prevPaymentFilter = { paymentDate: { $lt: start } };
     if (customerId) {
       billFilter.customer = customerId;
       prevBillFilter.customer = customerId;
@@ -121,9 +121,11 @@ export const getGeneralStatement = async (req, res, next) => {
     const prevSumAmount = prevBills.reduce((sum, b) => sum + (Number(b.totalAmount) || 0), 0);
     const prevSumPass = prevBills.reduce((sum, b) => sum + (Number(b.passAmount) || 0), 0);
     const prevSumPaid = prevPayments.reduce((sum, p) => sum + (Number(p.amount) || 0), 0);
-    const lastWeekBalance = Math.max(0, prevSumAmount + prevSumPass - prevSumPaid);
+    const lastWeekBalance = (prevSumAmount + prevSumPass) - prevSumPaid;
+    const grandTotal = lastWeekBalance + currentWeekBalance;
+    const totalBalance = Math.max(0, grandTotal - sumPaid);
 
-  const title = customer ? `${customer.name} Bill` : 'GENERAL STATEMENT';
+    const title = customer ? `${customer.name} Bill` : 'GENERAL STATEMENT';
 
     return res.json({
       title,
@@ -136,11 +138,10 @@ export const getGeneralStatement = async (req, res, next) => {
         : null,
       totals: {
         currentWeekBalance: `₹ ${formatINR2(currentWeekBalance)}`,
-        // "RECEIVED AMOUNT" must reflect partial payments received.
         receivedAmount: `₹ ${formatINR2(sumPaid)}`,
         lastWeekBalance: `₹ ${formatINR2(lastWeekBalance)}`,
-        // Remaining balance after received payments.
-        totalBalance: `₹ ${formatINR2(Math.max(0, currentWeekBalance - sumPaid))}`
+        grandTotal: `₹ ${formatINR2(grandTotal)}`,
+        totalBalance: `₹ ${formatINR2(totalBalance)}`
       },
       rows,
       payments: payments.map((p) => ({

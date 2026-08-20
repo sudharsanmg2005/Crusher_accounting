@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import api from '../api';
 import { useAuth } from '../AuthContext';
 import logoUrl from '../assets/dark KBM.png';
+import { formatDateDDMMYYYY } from '../utils/dateTime';
 import {
   CargoIcon,
   ReceiptIcon,
@@ -706,11 +707,7 @@ const Dashboard = () => {
                   {filteredLoads.map((load, index) => (
                     <tr key={load._id || index} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/30 transition-colors font-medium">
                       <td className="py-3.5 pr-2 text-xs font-mono text-slate-500 whitespace-nowrap">
-                        {new Date(load.date).toLocaleDateString(undefined, {
-                          month: 'short',
-                          day: 'numeric',
-                          year: 'numeric'
-                        })}
+                        {formatDateDDMMYYYY(load.date)}
                       </td>
                       <td className="py-3.5 px-2 font-semibold text-slate-800 dark:text-slate-200 uppercase font-mono whitespace-nowrap">
                         {load.vehicleNumber || '—'}
@@ -758,11 +755,7 @@ const Dashboard = () => {
                   {filteredBills.map((bill, index) => (
                     <tr key={bill._id || index} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/30 transition-colors font-medium">
                       <td className="py-3.5 pr-2 text-xs font-mono text-slate-500 whitespace-nowrap">
-                        {new Date(bill.date).toLocaleDateString(undefined, {
-                          month: 'short',
-                          day: 'numeric',
-                          year: 'numeric'
-                        })}
+                        {formatDateDDMMYYYY(bill.date)}
                       </td>
                       <td className="py-3.5 px-2 font-mono text-xs text-slate-500 whitespace-nowrap">
                         {bill.billNumber || '—'}

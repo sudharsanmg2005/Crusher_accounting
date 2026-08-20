@@ -2,6 +2,7 @@ import mongoose from 'mongoose';
 import Bill from '../models/Bill.js';
 import Payment from '../models/Payment.js';
 import Customer from '../models/Customer.js';
+import { withEntityLock } from '../utils/transactionLock.js';
 
 /**
  * Generate a unique sequential payment number like PAY-00001
@@ -36,29 +37,31 @@ export const generateMigratedPaymentNumber = async () => {
 };
 
 /**
- * Helper to run operations within a MongoDB transaction.
- * If MongoDB is running in standalone mode (no replica set), it falls back to a sessionless run.
+ * Helper to run operations within a MongoDB transaction & entity lock.
+ * If MongoDB is running in standalone mode (no replica set), it falls back to a sessionless run,
+ * protected by per-entity concurrency locking.
  */
-export const runInTransaction = async (fn) => {
-  const session = await mongoose.startSession();
-  try {
-    session.startTransaction();
-    const result = await fn(session);
-    await session.commitTransaction();
-    return result;
-  } catch (error) {
-    if (session.inTransaction()) {
-      await session.abortTransaction();
+export const runInTransaction = async (fn, entityKey = null) => {
+  return withEntityLock(entityKey, async () => {
+    const session = await mongoose.startSession();
+    try {
+      session.startTransaction();
+      const result = await fn(session);
+      await session.commitTransaction();
+      return result;
+    } catch (error) {
+      if (session.inTransaction()) {
+        await session.abortTransaction();
+      }
+      // Fallback if standalone MongoDB does not support transactions
+      if (error.message?.includes('replica set') || error.codeName === 'CommandNotSupportedOnReplicaSet') {
+        return fn(null);
+      }
+      throw error;
+    } finally {
+      session.endSession();
     }
-    // Fallback if standalone MongoDB does not support transactions
-    if (error.message?.includes('replica set') || error.codeName === 'CommandNotSupportedOnReplicaSet') {
-      console.warn('MongoDB is not running as a replica set. Falling back to non-transactional execution.');
-      return fn(null);
-    }
-    throw error;
-  } finally {
-    session.endSession();
-  }
+  });
 };
 
 /**
@@ -78,53 +81,9 @@ export const recordPayment = async ({ customerId, amount, date, notes, receivedB
       throw new Error('Customer not found');
     }
 
-    // 2. Fetch all active bills for the customer, sorted oldest first
-    const bills = await Bill.find({ customer: customerId, isDeleted: false })
-      .sort({ date: 1, createdAt: 1 })
-      .session(session);
-
-    // Calculate total outstanding balance
-    let totalOutstanding = 0;
-    const pendingBills = [];
-
-    for (const bill of bills) {
-      const grandTotal = bill.totalAmount + (bill.passAmount || 0);
-      const allocated = bill.allocatedAmount || 0;
-      const pending = grandTotal - allocated;
-      if (pending > 0) {
-        totalOutstanding += pending;
-        pendingBills.push({ bill, pending });
-      }
-    }
-
-    // Overpayments/advances are allowed; excess will carry over as credit.
-    
-    // 3. FIFO Payment Allocation
-    let remaining = received;
-    const allocationDetails = [];
-
-    for (const item of pendingBills) {
-      if (remaining <= 0) break;
-      const { bill, pending } = item;
-      const allocate = Math.min(remaining, pending);
-
-      bill.allocatedAmount = (bill.allocatedAmount || 0) + allocate;
-      await bill.save({ session });
-
-      allocationDetails.push({
-        billId: bill._id,
-        billNumber: bill.billNumber,
-        allocatedAmount: allocate
-      });
-
-      remaining -= allocate;
-    }
-
-    // Calculate remaining outstanding balance
-    const outstandingBalanceAfterPayment = Math.max(0, totalOutstanding - received);
     const paymentNumber = await generatePaymentNumber();
 
-    // 4. Store payment history permanently
+    // 2. Create the payment record initially
     const [payment] = await Payment.create(
       [
         {
@@ -134,15 +93,20 @@ export const recordPayment = async ({ customerId, amount, date, notes, receivedB
           amount: received,
           notes: notes || '',
           receivedBy: receivedBy || '',
-          outstandingBalanceAfterPayment,
-          allocationDetails
+          outstandingBalanceAfterPayment: 0,
+          allocationDetails: []
         }
       ],
       { session }
     );
 
-    return payment;
-  });
+    // 3. Recalculate customer allocations & outstanding balance history atomically
+    await recalculateCustomerBalances(customerId, session);
+
+    // 4. Return updated payment document
+    const updatedPayment = await Payment.findById(payment._id).session(session);
+    return updatedPayment;
+  }, `customer:${customerId}`);
 };
 
 /**
@@ -152,7 +116,7 @@ export const recordPayment = async ({ customerId, amount, date, notes, receivedB
  */
 export const recalculateCustomerBalances = async (customerId, providedSession = null) => {
   const runRecalc = async (session) => {
-    // Fetch all active bills (sorted by date/createdAt) and all payments (sorted by paymentDate/createdAt)
+    // Fetch all active bills and all payments
     const bills = await Bill.find({ customer: customerId, isDeleted: false })
       .sort({ date: 1, createdAt: 1 })
       .session(session);
@@ -219,10 +183,10 @@ export const recalculateCustomerBalances = async (customerId, providedSession = 
       });
     }
 
-    // Sort to determine running balance at each payment point
+    // Sort to determine running balance at each payment point (same day: bills first)
     sortedBillsAndPayments.sort((a, b) => {
-      const dateA = new Date(a.date).getTime();
-      const dateB = new Date(b.date).getTime();
+      const dateA = new Date(a.date).setHours(0, 0, 0, 0);
+      const dateB = new Date(b.date).setHours(0, 0, 0, 0);
       if (dateA !== dateB) return dateA - dateB;
       if (a.type !== b.type) return a.type === 'bill' ? -1 : 1;
       return new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
@@ -251,7 +215,7 @@ export const recalculateCustomerBalances = async (customerId, providedSession = 
   if (providedSession) {
     await runRecalc(providedSession);
   } else {
-    await runInTransaction(runRecalc);
+    await runInTransaction(runRecalc, `customer:${customerId}`);
   }
 };
 

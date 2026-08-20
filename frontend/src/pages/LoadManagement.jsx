@@ -7,6 +7,7 @@ import { useAuth } from '../AuthContext';
 import { EditIcon, TrashIcon } from '../components/Icons';
 import SearchableSelect from '../components/SearchableSelect';
 import { formatVehicleInput, isValidVehicleNumber } from '../utils/vehicleNumber';
+import { formatDateTime, formatDateDDMMYYYY } from '../utils/dateTime';
 
 const toYMD = (d) => {
   const year = d.getFullYear();
@@ -46,6 +47,12 @@ const LoadManagement = () => {
   const [selectedBuyerId, setSelectedBuyerId] = useState('');
   const [selectedQuarryName, setSelectedQuarryName] = useState('');
   const [materials, setMaterials] = useState([]);
+
+  // Submission locking states to prevent double submits
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isBulkSubmitting, setIsBulkSubmitting] = useState(false);
+  const [isBuyerSubmitting, setIsBuyerSubmitting] = useState(false);
+  const [isMaterialSubmitting, setIsMaterialSubmitting] = useState(false);
   
   // New buyer modal states
   const [isCreateBuyerOpen, setIsCreateBuyerOpen] = useState(false);
@@ -322,6 +329,7 @@ const LoadManagement = () => {
 
   const handleBulkSubmit = async (e) => {
     e.preventDefault();
+    if (isBulkSubmitting) return;
 
     const validRows = bulkRows.filter(
       (r) => r.buyerId || r.vehicleNumber || r.quarryName || r.quantity || r.price
@@ -361,6 +369,7 @@ const LoadManagement = () => {
     }
 
     try {
+      setIsBulkSubmitting(true);
       const payload = {
         date: new Date(`${bulkDate}T12:00`).toISOString(),
         loads: validRows.map((r) => ({
@@ -380,11 +389,14 @@ const LoadManagement = () => {
     } catch (error) {
       console.error('Error saving bulk loads', error);
       alert('Error saving loads: ' + (error.response?.data?.message || 'Unknown error'));
+    } finally {
+      setIsBulkSubmitting(false);
     }
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    if (isSubmitting) return;
     if (!formData.buyerId) {
       alert('Buyer is required.');
       return;
@@ -395,6 +407,7 @@ const LoadManagement = () => {
       return;
     }
     try {
+      setIsSubmitting(true);
       const payload = {
         vehicleNumber: vehicle,
         date: formData.date,
@@ -426,16 +439,20 @@ const LoadManagement = () => {
     } catch (error) {
       console.error('Error saving load', error);
       alert(error.response?.data?.message || 'Error saving load');
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
   const handleCreateBuyer = async (e) => {
     e.preventDefault();
+    if (isBuyerSubmitting) return;
     if (!newBuyerData.name || !newBuyerData.phone) {
       alert('Name and phone number are required');
       return;
     }
     try {
+      setIsBuyerSubmitting(true);
       const { data: newBuyer } = await api.post('/buyers', newBuyerData);
       setFormData({ ...formData, buyerId: newBuyer._id });
       setIsCreateBuyerOpen(false);
@@ -444,16 +461,20 @@ const LoadManagement = () => {
     } catch (error) {
       console.error('Error creating buyer', error);
       alert(error.response?.data?.message || 'Error creating buyer');
+    } finally {
+      setIsBuyerSubmitting(false);
     }
   };
 
   const handleCreateMaterial = async (e) => {
     e.preventDefault();
+    if (isMaterialSubmitting) return;
     if (!newMaterialData.name || !newMaterialData.currentPrice) {
       alert('Material name and unit price are required');
       return;
     }
     try {
+      setIsMaterialSubmitting(true);
       const { data: newMat } = await api.post('/materials', {
         name: newMaterialData.name,
         currentPrice: Number(newMaterialData.currentPrice),
@@ -466,6 +487,8 @@ const LoadManagement = () => {
     } catch (error) {
       console.error('Error creating material', error);
       alert(error.response?.data?.message || 'Error creating material');
+    } finally {
+      setIsMaterialSubmitting(false);
     }
   };
 
@@ -549,7 +572,7 @@ const LoadManagement = () => {
       const formatDateDots = (d) => {
         if (!d) return '';
         const [yy, mm, dd] = d.split('-');
-        return `${dd}.${mm}.${yy}`;
+        return `${dd}-${mm}-${yy}`;
       };
       rangeLabel = `${formatDateDots(dateRange.startDate)} - ${formatDateDots(dateRange.endDate)}`;
       queryParams = { startDate: dateRange.startDate, endDate: dateRange.endDate };
@@ -740,7 +763,7 @@ const LoadManagement = () => {
       const sortedList = [...listToExport].sort((a, b) => new Date(a.date) - new Date(b.date));
       const body = sortedList.map((l, idx) => [
         idx + 1,
-        new Date(l.date).toLocaleDateString(),
+        formatDateDDMMYYYY(l.date),
         l.vehicleNumber || '—',
         l.quarryName || '—',
         Number(l.price || 0).toLocaleString(),
@@ -825,7 +848,7 @@ const LoadManagement = () => {
         const payHead = [['S.NO', 'DATE', 'PAYMENT NUMBER', 'AMOUNT PAID (Rs.)', 'PAID BY / METHOD', 'NOTES']];
         const payBody = paymentsInTimeline.map((p, idx) => [
           idx + 1,
-          new Date(p.paymentDate || p.date).toLocaleDateString(),
+          formatDateDDMMYYYY(p.paymentDate || p.date),
           p.paymentNumber || '—',
           Number(p.amount || 0).toLocaleString(),
           p.paidBy || p.method || '—',
@@ -859,7 +882,7 @@ const LoadManagement = () => {
       const formatDateDots = (d) => {
         if (!d) return '';
         const [yy, mm, dd] = d.split('-');
-        return `${dd}.${mm}.${yy}`;
+        return `${dd}-${mm}-${yy}`;
       };
       rangeLabel = `${formatDateDots(dateRange.startDate)} - ${formatDateDots(dateRange.endDate)}`;
       queryParams = { startDate: dateRange.startDate, endDate: dateRange.endDate };
@@ -922,7 +945,7 @@ const LoadManagement = () => {
       const head = [['S.NO', 'DATE', 'VOUCHER NO', 'BUYER NAME', 'PAID BY', 'NOTES', 'AMOUNT (Rs.)']];
       const body = sortedPayments.map((p, idx) => [
         idx + 1,
-        new Date(p.paymentDate).toLocaleDateString(),
+        formatDateDDMMYYYY(p.paymentDate),
         p.paymentNumber || '—',
         p.buyerName || '—',
         p.paidBy || '—',
@@ -1029,7 +1052,7 @@ const LoadManagement = () => {
       const head = [['S.NO', 'DATE', 'VOUCHER NO', 'PAID BY', 'NOTES', 'AMOUNT (Rs.)']];
       const body = sortedPayments.map((p, idx) => [
         idx + 1,
-        new Date(p.paymentDate).toLocaleDateString(),
+        formatDateDDMMYYYY(p.paymentDate),
         p.paymentNumber || '—',
         p.paidBy || '—',
         p.notes || '—',
@@ -1280,7 +1303,7 @@ const LoadManagement = () => {
               <tbody className="whitespace-nowrap">
                 {filteredLoads.map((load) => (
                   <tr key={load._id}>
-                    <td className="p-4 text-slate-600 whitespace-nowrap">{new Date(load.date).toLocaleDateString()}</td>
+                    <td className="p-4 text-slate-600 whitespace-nowrap">{formatDateDDMMYYYY(load.date)}</td>
                     <td className="p-4 font-medium text-slate-800 whitespace-nowrap">{load.vehicleNumber || '—'}</td>
                     <td className="p-4 text-slate-600 whitespace-nowrap">{load.quarryName || '—'}</td>
                     <td className="p-4 text-slate-600 whitespace-nowrap">{load.buyerNameSnapshot || '—'}</td>
@@ -1491,8 +1514,8 @@ const LoadManagement = () => {
                 <button type="button" onClick={() => setIsModalOpen(false)} className="px-4 py-2 text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-lg font-medium transition cursor-pointer">
                   Cancel
                 </button>
-                <button type="submit" className="px-4 py-2 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 transition shadow-md cursor-pointer">
-                  {formData._id ? 'Update Load' : 'Save Load'}
+                <button type="submit" disabled={isSubmitting} className="px-4 py-2 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 transition shadow-md cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed disabled:pointer-events-none">
+                  {isSubmitting ? 'Saving...' : (formData._id ? 'Update Load' : 'Save Load')}
                 </button>
               </div>
             </form>
@@ -1539,8 +1562,8 @@ const LoadManagement = () => {
                 <button type="button" onClick={() => setIsCreateBuyerOpen(false)} className="px-4 py-2 text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-lg font-medium transition">
                   Cancel
                 </button>
-                <button type="submit" className="px-5 py-2 bg-green-600 text-white rounded-lg font-medium hover:bg-green-700 transition shadow-md">
-                  Create Buyer
+                <button type="submit" disabled={isBuyerSubmitting} className="px-5 py-2 bg-green-600 text-white rounded-lg font-medium hover:bg-green-700 transition shadow-md disabled:opacity-50 disabled:cursor-not-allowed disabled:pointer-events-none">
+                  {isBuyerSubmitting ? 'Creating...' : 'Create Buyer'}
                 </button>
               </div>
             </form>
@@ -1590,8 +1613,8 @@ const LoadManagement = () => {
                 <button type="button" onClick={() => setIsCreateMaterialOpen(false)} className="px-4 py-2 text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-lg font-medium transition">
                   Cancel
                 </button>
-                <button type="submit" className="px-5 py-2 bg-green-600 text-white rounded-lg font-medium hover:bg-green-700 transition shadow-md">
-                  Create Material
+                <button type="submit" disabled={isMaterialSubmitting} className="px-5 py-2 bg-green-600 text-white rounded-lg font-medium hover:bg-green-700 transition shadow-md disabled:opacity-50 disabled:cursor-not-allowed disabled:pointer-events-none">
+                  {isMaterialSubmitting ? 'Creating...' : 'Create Material'}
                 </button>
               </div>
             </form>
@@ -1856,9 +1879,10 @@ const LoadManagement = () => {
                   </button>
                   <button
                     type="submit"
-                    className="px-6 py-2.5 bg-emerald-600 text-white hover:bg-emerald-700 rounded-xl text-base font-bold transition shadow-md hover:shadow-lg cursor-pointer"
+                    disabled={isBulkSubmitting}
+                    className="px-6 py-2.5 bg-emerald-600 text-white hover:bg-emerald-700 rounded-xl text-base font-bold transition shadow-md hover:shadow-lg cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed disabled:pointer-events-none"
                   >
-                    Save Batch Loads
+                    {isBulkSubmitting ? 'Saving Batch...' : 'Save Batch Loads'}
                   </button>
                 </div>
               </div>

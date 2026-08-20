@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import api from '../api';
 import { useAuth } from '../AuthContext';
 import { useConfirm } from '../components/ConfirmDialog';
-import { formatDateTime } from '../utils/dateTime';
+import { formatDateTime, formatDateDDMMYYYY } from '../utils/dateTime';
 import { EditIcon, TrashIcon, EyeIcon, PlusIcon, ChevronDownIcon, CargoIcon } from '../components/Icons';
 import { formatVehicleInput, isValidVehicleNumber } from '../utils/vehicleNumber';
 import jsPDF from 'jspdf';
@@ -48,10 +48,13 @@ const Buyers = () => {
   const [editPaymentModalOpen, setEditPaymentModalOpen] = useState(false);
   const [editingPayment, setEditingPayment] = useState(null);
   const [editPaymentAmount, setEditPaymentAmount] = useState('');
-  const [editPaymentDate, setEditPaymentDate] = useState('');
   const [editPaymentNote, setEditPaymentNote] = useState('');
   const [editPaymentPaidBy, setEditPaymentPaidBy] = useState('');
+  const [editPaymentDate, setEditPaymentDate] = useState('');
 
+  // Submission locking states
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isPaymentSubmitting, setIsPaymentSubmitting] = useState(false);
   // Add/Edit Buyer form state
   const [formData, setFormData] = useState({ name: '', phone: '', address: '', vehicles: [] });
   const [newVehicle, setNewVehicle] = useState('');
@@ -169,11 +172,13 @@ const Buyers = () => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    if (isSubmitting) return;
     if (!formData.name || !formData.phone || formData.phone.length !== 10) {
       alert('Name and a valid 10-digit phone number are required');
       return;
     }
     try {
+      setIsSubmitting(true);
       const payload = {
         name: formData.name,
         phone: formData.phone,
@@ -191,6 +196,8 @@ const Buyers = () => {
     } catch (error) {
       console.error('Error saving buyer', error);
       alert(error.response?.data?.message || 'Error saving buyer');
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -231,6 +238,7 @@ const Buyers = () => {
 
   const handlePaymentSubmit = async (e) => {
     e.preventDefault();
+    if (isPaymentSubmitting) return;
     const amount = Number(paymentAmount);
     if (!amount || amount <= 0) {
       alert('Please enter a valid payment amount');
@@ -239,6 +247,7 @@ const Buyers = () => {
     // Overpayments are allowed and rollover as credit.
 
     try {
+      setIsPaymentSubmitting(true);
       await api.post('/buyer-payments', {
         buyerId: buyerDetails.buyer._id,
         amount,
@@ -251,6 +260,8 @@ const Buyers = () => {
     } catch (error) {
       console.error('Error recording buyer payment', error);
       alert(error.response?.data?.message || 'Error recording payment');
+    } finally {
+      setIsPaymentSubmitting(false);
     }
   };
 
@@ -265,6 +276,7 @@ const Buyers = () => {
 
   const handleEditPaymentSubmit = async (e) => {
     e.preventDefault();
+    if (isPaymentSubmitting) return;
     const amount = Number(editPaymentAmount);
     if (!amount || amount <= 0) {
       alert('Please enter a valid payment amount');
@@ -272,6 +284,7 @@ const Buyers = () => {
     }
 
     try {
+      setIsPaymentSubmitting(true);
       await api.put(`/buyer-payments/${editingPayment._id}`, {
         amount,
         date: editPaymentDate,
@@ -283,6 +296,8 @@ const Buyers = () => {
     } catch (error) {
       console.error('Error updating payment', error);
       alert(error.response?.data?.message || 'Error updating payment');
+    } finally {
+      setIsPaymentSubmitting(false);
     }
   };
 
@@ -379,10 +394,8 @@ const Buyers = () => {
       ['GRAND TOTAL LOAD COST', `Rs. ${Number(selectedBilled).toLocaleString()}`]
     ];
 
-    if (previousOutstanding > 0) {
-      totalsBody.push(['PREVIOUS BALANCE', `Rs. ${Number(previousOutstanding).toLocaleString()}`]);
-      totalsBody.push(['GRAND TOTAL', `Rs. ${Number(grandTotalSum).toLocaleString()}`]);
-    }
+    totalsBody.push(['PREVIOUS BALANCE', `Rs. ${Number(previousOutstanding).toLocaleString()}`]);
+    totalsBody.push(['GRAND TOTAL', `Rs. ${Number(grandTotalSum).toLocaleString()}`]);
 
     totalsBody.push(['AMOUNT PAID', `Rs. ${Number(selectedPaid).toLocaleString()}`]);
 
@@ -429,7 +442,7 @@ const Buyers = () => {
       const payHead = [['S.NO', 'DATE', 'PAYMENT NUMBER', 'AMOUNT PAID (Rs.)', 'PAID BY / METHOD', 'NOTES']];
       const payBody = buyerDetails.payments.map((p, idx) => [
         idx + 1,
-        new Date(p.paymentDate || p.date).toLocaleDateString(),
+        formatDateDDMMYYYY(p.paymentDate || p.date),
         p.paymentNumber || '—',
         Number(p.amount || 0).toLocaleString(),
         p.paidBy || p.method || '—',
@@ -734,8 +747,8 @@ const Buyers = () => {
                 <button type="button" onClick={() => setIsModalOpen(false)} className="px-5 py-2.5 text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-lg font-medium transition">
                   Cancel
                 </button>
-                <button type="submit" className="px-5 py-2.5 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 transition shadow-md">
-                  {formData._id ? 'Update Buyer' : 'Save Buyer'}
+                <button type="submit" disabled={isSubmitting} className="px-5 py-2.5 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 transition shadow-md disabled:opacity-50 disabled:cursor-not-allowed disabled:pointer-events-none">
+                  {isSubmitting ? 'Saving...' : (formData._id ? 'Update Buyer' : 'Save Buyer')}
                 </button>
               </div>
             </form>
@@ -1238,10 +1251,10 @@ const Buyers = () => {
                 </button>
                 <button
                   type="submit"
-                  disabled={Number(paymentAmount) <= 0}
-                  className="px-5 py-2 bg-emerald-600 text-white rounded-lg font-semibold text-sm hover:bg-emerald-700 disabled:opacity-40 disabled:cursor-not-allowed transition shadow-md"
+                  disabled={isPaymentSubmitting || Number(paymentAmount) <= 0}
+                  className="px-5 py-2 bg-emerald-600 text-white rounded-lg font-semibold text-sm hover:bg-emerald-700 disabled:opacity-40 disabled:cursor-not-allowed disabled:pointer-events-none transition shadow-md"
                 >
-                  Record Payment
+                  {isPaymentSubmitting ? 'Recording...' : 'Record Payment'}
                 </button>
               </div>
             </form>
@@ -1331,10 +1344,10 @@ const Buyers = () => {
                 </button>
                 <button
                   type="submit"
-                  disabled={Number(editPaymentAmount) <= 0}
-                  className="px-5 py-2 bg-blue-600 text-white rounded-lg font-semibold text-sm hover:bg-blue-700 disabled:opacity-40 disabled:cursor-not-allowed transition shadow-md"
+                  disabled={isPaymentSubmitting || Number(editPaymentAmount) <= 0}
+                  className="px-5 py-2 bg-blue-600 text-white rounded-lg font-semibold text-sm hover:bg-blue-700 disabled:opacity-40 disabled:cursor-not-allowed disabled:pointer-events-none transition shadow-md"
                 >
-                  Update Payment
+                  {isPaymentSubmitting ? 'Saving...' : 'Update Payment'}
                 </button>
               </div>
             </form>

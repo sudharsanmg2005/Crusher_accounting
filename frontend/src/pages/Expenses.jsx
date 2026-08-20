@@ -5,6 +5,7 @@ import { autoTable } from 'jspdf-autotable';
 import { useConfirm } from '../components/ConfirmDialog';
 import { EditIcon, TrashIcon } from '../components/Icons';
 import { useAuth } from '../AuthContext';
+import { formatDateDDMMYYYY } from '../utils/dateTime';
 
 const toYMD = (d) => {
   const year = d.getFullYear();
@@ -31,6 +32,7 @@ const Expenses = () => {
   const [expenses, setExpenses] = useState([]);
   const [selectedType, setSelectedType] = useState('All');
   const [loading, setLoading] = useState(true);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const filteredExpenses = useMemo(() => {
     if (selectedType === 'All') return expenses;
@@ -132,7 +134,7 @@ const Expenses = () => {
       const formatDateDots = (d) => {
         if (!d) return '';
         const [yy, mm, dd] = d.split('-');
-        return `${dd}.${mm}.${yy}`;
+        return `${dd}-${mm}-${yy}`;
       };
       rangeLabel = `${formatDateDots(dateRange.startDate)} - ${formatDateDots(dateRange.endDate)}`;
     }
@@ -148,7 +150,7 @@ const Expenses = () => {
     const head = [['S.NO', 'DATE', 'EXPENSE TYPE', 'DESCRIPTION', 'AMOUNT']];
     const body = filteredExpenses.map((e, idx) => [
       idx + 1,
-      new Date(e.date).toLocaleDateString(),
+      formatDateDDMMYYYY(e.date),
       e.type,
       e.description || '-',
       e.amount.toFixed(2)
@@ -224,7 +226,9 @@ const Expenses = () => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    if (isSubmitting) return;
     try {
+      setIsSubmitting(true);
       const expenseType = formData.type === 'Other' ? customType.trim() : formData.type;
       if (!expenseType) {
         alert('Please specify an expense type');
@@ -252,6 +256,8 @@ const Expenses = () => {
     } catch (error) {
       console.error('Error saving expense', error);
       alert('Error saving expense');
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -395,7 +401,7 @@ const Expenses = () => {
               <tbody className="whitespace-nowrap md:whitespace-normal">
                 {filteredExpenses.map((exp) => (
                   <tr key={exp._id}>
-                    <td className="p-4 text-slate-600 whitespace-nowrap">{new Date(exp.date).toLocaleDateString()}</td>
+                    <td className="p-4 text-slate-600 whitespace-nowrap">{formatDateDDMMYYYY(exp.date)}</td>
                     <td className="p-4 font-medium text-slate-800 whitespace-nowrap"><span className="bg-slate-100 px-2 py-1 rounded text-sm border border-slate-200">{exp.type}</span></td>
                     <td className="p-4 text-slate-600 min-w-[200px] break-words">{exp.description || '-'}</td>
                     <td className="p-4 text-slate-800 font-bold whitespace-nowrap">₹{exp.amount.toLocaleString()}</td>
@@ -492,8 +498,8 @@ const Expenses = () => {
                 <button type="button" onClick={() => setIsModalOpen(false)} className="px-4 py-2 text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-lg font-medium transition cursor-pointer">
                   Cancel
                 </button>
-                <button type="submit" className="px-4 py-2 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 transition shadow-md cursor-pointer">
-                  {formData._id ? 'Update Expense' : 'Save Expense'}
+                <button type="submit" disabled={isSubmitting} className="px-4 py-2 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 transition shadow-md cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed disabled:pointer-events-none">
+                  {isSubmitting ? 'Saving...' : (formData._id ? 'Update Expense' : 'Save Expense')}
                 </button>
               </div>
             </form>

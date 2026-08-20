@@ -199,7 +199,7 @@ export const getBuyerById = async (req, res, next) => {
       });
       const paymentsBeforeAmount = paymentsBefore.reduce((sum, p) => sum + (p.amount || 0), 0);
 
-      previousOutstanding = Math.max(0, loadsBeforeAmount - paymentsBeforeAmount);
+      previousOutstanding = loadsBeforeAmount - paymentsBeforeAmount;
     }
 
     const allLoadsForOutstanding = await Load.find({ buyer: buyerId, isDeleted: false });

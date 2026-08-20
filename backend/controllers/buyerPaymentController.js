@@ -1,4 +1,4 @@
-import { recordBuyerPayment, recalculateBuyerBalances } from '../services/buyerPaymentService.js';
+import { recordBuyerPayment, recalculateBuyerBalances, runInTransaction } from '../services/buyerPaymentService.js';
 import BuyerPayment from '../models/BuyerPayment.js';
 import Load, { roundToNearestTen } from '../models/Load.js';
 import Expense from '../models/Expense.js';
@@ -34,78 +34,80 @@ export const updateBuyerPayment = async (req, res, next) => {
     const { id } = req.params;
     const { amount, date, notes, paidBy } = req.body;
 
-    const payment = await BuyerPayment.findById(id);
-    if (!payment) {
+    const initialPayment = await BuyerPayment.findById(id);
+    if (!initialPayment) {
       return res.status(404).json({ message: 'Buyer payment not found' });
     }
 
-    const buyerId = payment.buyerId;
+    const buyerId = initialPayment.buyerId;
 
-    if (amount !== undefined) {
-      const numAmount = Number(amount);
-      if (Number.isNaN(numAmount) || numAmount <= 0) {
-        return res.status(400).json({ message: 'Payment amount must be greater than zero' });
+    const updatedPayment = await runInTransaction(async (session) => {
+      const payment = await BuyerPayment.findById(id).session(session);
+      if (!payment) {
+        const err = new Error('Buyer payment not found');
+        err.statusCode = 404;
+        throw err;
       }
 
-      const allLoads = await Load.find({ buyer: buyerId, isDeleted: false });
-      const allPayments = await BuyerPayment.find({ buyerId });
+      if (amount !== undefined) {
+        const numAmount = Number(amount);
+        if (Number.isNaN(numAmount) || numAmount <= 0) {
+          const err = new Error('Payment amount must be greater than zero');
+          err.statusCode = 400;
+          throw err;
+        }
 
-      const totalLoadCost = allLoads.reduce((sum, l) => sum + (l.totalAmount ?? roundToNearestTen(l.price * l.quantity)), 0);
-      const totalPaidOther = allPayments
-        .filter((p) => p._id.toString() !== payment._id.toString())
-        .reduce((sum, p) => sum + p.amount, 0);
+        payment.amount = numAmount;
 
-      // Overpayments/advances are allowed; excess will carry over as credit.
-      payment.amount = numAmount;
-
-      // Update Expense amount
-      if (payment.expenseId) {
-        const expense = await Expense.findById(payment.expenseId);
-        if (expense) {
-          expense.amount = numAmount;
-          await expense.save();
+        if (payment.expenseId) {
+          const expense = await Expense.findById(payment.expenseId).session(session);
+          if (expense) {
+            expense.amount = numAmount;
+            await expense.save({ session });
+          }
         }
       }
-    }
 
-    if (date !== undefined) {
-      payment.paymentDate = new Date(date);
-      if (payment.expenseId) {
-        const expense = await Expense.findById(payment.expenseId);
-        if (expense) {
-          expense.date = new Date(date);
-          await expense.save();
+      if (date !== undefined) {
+        payment.paymentDate = new Date(date);
+        if (payment.expenseId) {
+          const expense = await Expense.findById(payment.expenseId).session(session);
+          if (expense) {
+            expense.date = new Date(date);
+            await expense.save({ session });
+          }
         }
       }
-    }
 
-    if (notes !== undefined) {
-      payment.notes = notes;
-      if (payment.expenseId) {
-        const expense = await Expense.findById(payment.expenseId);
-        if (expense) {
-          const buyer = await Buyer.findById(buyerId);
-          expense.description = `Payment to Buyer: ${buyer ? buyer.name : 'Unknown'}${notes ? ` - ${notes}` : ''}`;
-          await expense.save();
+      if (notes !== undefined) {
+        payment.notes = notes;
+        if (payment.expenseId) {
+          const expense = await Expense.findById(payment.expenseId).session(session);
+          if (expense) {
+            const buyer = await Buyer.findById(buyerId).session(session);
+            expense.description = `Payment to Buyer: ${buyer ? buyer.name : 'Unknown'}${notes ? ` - ${notes}` : ''}`;
+            await expense.save({ session });
+          }
         }
       }
-    }
 
-    if (paidBy !== undefined) {
-      payment.paidBy = paidBy;
-    }
+      if (paidBy !== undefined) {
+        payment.paidBy = paidBy;
+      }
 
-    await payment.save();
+      await payment.save({ session });
 
-    await recalculateBuyerBalances(buyerId);
+      await recalculateBuyerBalances(buyerId, session);
 
-    const updatedPayment = await BuyerPayment.findById(id);
+      return await BuyerPayment.findById(id).session(session);
+    }, buyerId ? `buyer:${buyerId}` : null);
 
     res.json({
       payment: updatedPayment,
-      auditDetails: `Updated buyer payment ${payment.paymentNumber} for buyer ${buyerId} to amount ${payment.amount}`
+      auditDetails: `Updated buyer payment ${updatedPayment.paymentNumber} for buyer ${buyerId} to amount ${updatedPayment.amount}`
     });
   } catch (err) {
+    if (err.statusCode) res.status(err.statusCode);
     next(err);
   }
 };
@@ -114,31 +116,41 @@ export const deleteBuyerPayment = async (req, res, next) => {
   try {
     const { id } = req.params;
 
-    const payment = await BuyerPayment.findById(id);
-    if (!payment) {
+    const initialPayment = await BuyerPayment.findById(id);
+    if (!initialPayment) {
       return res.status(404).json({ message: 'Buyer payment not found' });
     }
 
-    const buyerId = payment.buyerId;
+    const buyerId = initialPayment.buyerId;
 
-    // Soft delete Expense
-    if (payment.expenseId) {
-      const expense = await Expense.findById(payment.expenseId);
-      if (expense) {
-        expense.isDeleted = true;
-        await expense.save();
+    await runInTransaction(async (session) => {
+      const payment = await BuyerPayment.findById(id).session(session);
+      if (!payment) {
+        const err = new Error('Buyer payment not found');
+        err.statusCode = 404;
+        throw err;
       }
-    }
 
-    await BuyerPayment.deleteOne({ _id: id });
+      // Soft delete Expense
+      if (payment.expenseId) {
+        const expense = await Expense.findById(payment.expenseId).session(session);
+        if (expense) {
+          expense.isDeleted = true;
+          await expense.save({ session });
+        }
+      }
 
-    await recalculateBuyerBalances(buyerId);
+      await BuyerPayment.deleteOne({ _id: id }).session(session);
+
+      await recalculateBuyerBalances(buyerId, session);
+    }, buyerId ? `buyer:${buyerId}` : null);
 
     res.json({
       message: 'Buyer payment deleted successfully',
-      auditDetails: `Deleted buyer payment ${payment.paymentNumber} for buyer ${buyerId} of amount ${payment.amount}`
+      auditDetails: `Deleted buyer payment ${initialPayment.paymentNumber} for buyer ${buyerId} of amount ${initialPayment.amount}`
     });
   } catch (err) {
+    if (err.statusCode) res.status(err.statusCode);
     next(err);
   }
 };
