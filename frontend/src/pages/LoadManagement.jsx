@@ -763,7 +763,13 @@ const LoadManagement = () => {
 
       // Calculate balance values strictly for timeline
       const oldBalance = startDateVal ? previousBalance : 0;
-      const sortedList = [...listToExport].sort((a, b) => new Date(a.date) - new Date(b.date));
+      const sortedList = [...listToExport]
+        .filter((l) => {
+          if (!startDateVal && !endDateVal) return true;
+          const ldate = new Date(l.date);
+          return (!startDateVal || ldate >= startDateVal) && (!endDateVal || ldate <= endDateVal);
+        })
+        .sort((a, b) => new Date(a.date) - new Date(b.date));
       const grandTotal = sortedList.reduce((sum, l) => sum + (l.totalAmount ?? roundToNearestTen(l.price * l.quantity)), 0);
       const amountReceived = fullPayments.reduce((sum, p) => sum + Number(p.amount || 0), 0);
 

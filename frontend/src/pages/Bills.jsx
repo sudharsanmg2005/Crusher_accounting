@@ -498,7 +498,13 @@ const Bills = () => {
 
       // Calculate balance values strictly for timeline
       const oldBalance = startDateVal ? previousBalance : 0;
-      const sortedList = [...listToExport].sort((a, b) => new Date(a.date) - new Date(b.date));
+      const sortedList = [...listToExport]
+        .filter((b) => {
+          if (!startDateVal && !endDateVal) return true;
+          const bdate = new Date(b.date);
+          return (!startDateVal || bdate >= startDateVal) && (!endDateVal || bdate <= endDateVal);
+        })
+        .sort((a, b) => new Date(a.date) - new Date(b.date));
       const grandTotal = sortedList.reduce((sum, b) => sum + (Number(b.totalAmount || 0) + Number(b.passAmount || 0)), 0);
       const amountReceived = fullPayments.reduce((sum, p) => sum + Number(p.amount || 0), 0);
 
