@@ -454,48 +454,28 @@ const Bills = () => {
       doc.setDrawColor(200, 200, 200);
       doc.line(14, 29, pageWidth - 14, 29);
 
-      // Fetch full history to calculate old balance correctly
+      // Fetch history for selected customer with timeline query parameters
       let fullLedger = [];
       let fullPayments = [];
+      let previousBalance = 0;
       try {
-        const { data } = await api.get(`/customers/${filters.customerId}/history`);
+        const params = new URLSearchParams(queryParams);
+        const { data } = await api.get(`/customers/${filters.customerId}/history?${params.toString()}`);
         fullLedger = data.ledger || [];
         fullPayments = data.payments || [];
+        previousBalance = data.summary?.previousOutstanding || 0;
       } catch (err) {
         console.error('Error fetching customer history for PDF', err);
       }
 
-      // Calculate balance values
-      const sortedLedger = fullLedger;
-      let oldBalance = 0;
-      if (startDateVal) {
-        const beforeEntries = sortedLedger.filter(e => new Date(e.date) < startDateVal);
-        if (beforeEntries.length > 0) {
-          oldBalance = beforeEntries[beforeEntries.length - 1].runningBalance;
-        }
-      }
-
-      let grandTotal = 0;
-      let amountReceived = 0;
-
-      sortedLedger.forEach(entry => {
-        const entryDate = new Date(entry.date);
-        const inRange = (!startDateVal || entryDate >= startDateVal) && (!endDateVal || entryDate <= endDateVal);
-        if (inRange) {
-          if (entry.transactionType === 'Bill Created') {
-            grandTotal += entry.debit;
-          } else if (entry.transactionType === 'Payment Received') {
-            amountReceived += entry.credit;
-          }
-        }
-      });
-
-      const totalAmount = grandTotal + oldBalance;
-      const totalBalance = totalAmount - amountReceived;
+      // Calculate balance values strictly for timeline
+      const oldBalance = startDateVal ? previousBalance : 0;
+      const sortedList = [...listToExport].sort((a, b) => new Date(a.date) - new Date(b.date));
+      const grandTotal = sortedList.reduce((sum, b) => sum + (Number(b.totalAmount || 0) + Number(b.passAmount || 0)), 0);
+      const amountReceived = fullPayments.reduce((sum, p) => sum + Number(p.amount || 0), 0);
 
       // Table 1: Individual bills list
       const head = [['S.NO', 'DATE', 'VEHICLE NUMBER', 'MATERIAL', 'QTY', 'UNIT', 'RATE (Rs.)', 'PASS (Rs.)', 'TOTAL (Rs.)']];
-      const sortedList = [...listToExport].sort((a, b) => new Date(a.date) - new Date(b.date));
       const body = sortedList.map((b, idx) => [
         idx + 1,
         formatDateDDMMYYYY(b.date),
@@ -531,7 +511,7 @@ const Bills = () => {
         ['GRAND TOTAL BILLED', `Rs. ${Number(grandTotal).toLocaleString()}`]
       ];
 
-      if (oldBalance > 0) {
+      if (oldBalance !== 0 || startDateVal) {
         totalsBody.push(['PREVIOUS BALANCE', `Rs. ${Number(oldBalance).toLocaleString()}`]);
         totalsBody.push(['GRAND TOTAL', `Rs. ${Number(grandTotalSum).toLocaleString()}`]);
       }
