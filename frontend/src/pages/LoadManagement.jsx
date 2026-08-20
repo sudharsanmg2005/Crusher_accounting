@@ -41,11 +41,17 @@ const LoadManagement = () => {
   const [buyers, setBuyers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [reportType, setReportType] = useState('all'); // all | daily | weekly | monthly | range
-  const [dateRange, setDateRange] = useState({ startDate: '', endDate: '', particularDate: '', month: '', weekStart: '' });
-  const [searchQuery, setSearchQuery] = useState('');
-  const [selectedBuyerId, setSelectedBuyerId] = useState('');
-  const [selectedQuarryName, setSelectedQuarryName] = useState('');
+  const [filters, setFilters] = useState({
+    search: '',
+    buyerId: '',
+    quarryName: '',
+    mode: 'date_newest',
+    particularDate: '',
+    startDate: '',
+    endDate: '',
+    month: '',
+    weekStart: ''
+  });
   const [materials, setMaterials] = useState([]);
 
   // Submission locking states to prevent double submits
@@ -83,43 +89,40 @@ const LoadManagement = () => {
 
   const canWrite = user?.role === 'super_admin' || user?.accessLevel === 'full_access';
 
-  // Sync date ranges when reportType changes
-  useEffect(() => {
-    if (reportType === 'all') {
-      setDateRange({ startDate: '', endDate: '', particularDate: '', month: '', weekStart: '' });
-    } else if (reportType === 'daily') {
-      const formattedToday = toYMD(today);
-      setDateRange({ startDate: formattedToday, endDate: formattedToday, particularDate: formattedToday, month: '', weekStart: '' });
-    } else if (reportType === 'monthly') {
-      const monthStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}`;
-      setDateRange({ startDate: initialMonthlyRange.startDate, endDate: initialMonthlyRange.endDate, particularDate: '', month: monthStr, weekStart: '' });
-    } else if (reportType === 'weekly') {
-      const day = today.getDay();
-      const sunday = new Date(today);
-      sunday.setDate(today.getDate() - day);
-      const saturday = new Date(sunday);
-      saturday.setDate(sunday.getDate() + 6);
-      setDateRange({ startDate: toYMD(sunday), endDate: toYMD(saturday), particularDate: '', month: '', weekStart: toYMD(sunday) });
-    } else if (reportType === 'range') {
-      setDateRange({ startDate: initialMonthlyRange.startDate, endDate: initialMonthlyRange.endDate, particularDate: '', month: '', weekStart: '' });
-    }
-  }, [reportType, initialMonthlyRange, today]);
-
   // Fetch loads
   const fetchLoads = async () => {
     setLoading(true);
     try {
       const params = new URLSearchParams();
-      if (reportType !== 'all') {
-        if (dateRange.startDate) params.append('startDate', dateRange.startDate);
-        if (dateRange.endDate) params.append('endDate', dateRange.endDate);
+      let start = '';
+      let end = '';
+
+      if (filters.mode === 'particular_date' && filters.particularDate) {
+        start = filters.particularDate;
+        end = filters.particularDate;
+      } else if (filters.mode === 'selected_dates' && filters.startDate && filters.endDate) {
+        start = filters.startDate;
+        end = filters.endDate;
+      } else if (filters.mode === 'month' && filters.month) {
+        const [year, month] = filters.month.split('-');
+        start = `${year}-${month}-01`;
+        end = toYMD(new Date(year, month, 0));
+      } else if (filters.mode === 'week' && filters.weekStart) {
+        const d = new Date(filters.weekStart + 'T00:00:00');
+        const day = d.getDay();
+        const sunday = new Date(d);
+        sunday.setDate(d.getDate() - day);
+        const saturday = new Date(sunday);
+        saturday.setDate(sunday.getDate() + 6);
+        start = toYMD(sunday);
+        end = toYMD(saturday);
       }
-      if (searchQuery.trim()) {
-        params.append('search', searchQuery.trim());
-      }
-      if (selectedBuyerId) {
-        params.append('buyerId', selectedBuyerId);
-      }
+
+      if (start) params.append('startDate', start);
+      if (end) params.append('endDate', end);
+      if (filters.search.trim()) params.append('search', filters.search.trim());
+      if (filters.buyerId && filters.buyerId !== '__purchased_only__') params.append('buyerId', filters.buyerId);
+
       const { data } = await api.get(`/loads?${params.toString()}`);
       setLoads(data);
     } catch (error) {
@@ -141,7 +144,7 @@ const LoadManagement = () => {
   useEffect(() => {
     fetchLoads();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [dateRange, reportType, searchQuery, selectedBuyerId]);
+  }, [filters.mode, filters.particularDate, filters.startDate, filters.endDate, filters.month, filters.weekStart, filters.search, filters.buyerId]);
 
   const fetchMaterials = async () => {
     try {
@@ -158,8 +161,8 @@ const LoadManagement = () => {
   }, []);
 
   useEffect(() => {
-    setSelectedQuarryName('');
-  }, [selectedBuyerId]);
+    setFilters(prev => ({ ...prev, quarryName: '' }));
+  }, [filters.buyerId]);
 
   const uniqueQuarryNames = useMemo(() => {
     const quarries = new Set();
@@ -173,22 +176,69 @@ const LoadManagement = () => {
 
   const filteredLoads = useMemo(() => {
     let list = loads;
-    if (selectedBuyerId && selectedBuyerId !== '__purchased_only__') {
-      list = list.filter((l) => (l.buyer?._id || l.buyer || '').toString() === selectedBuyerId);
+    if (filters.buyerId && filters.buyerId !== '__purchased_only__') {
+      list = list.filter((l) => (l.buyer?._id || l.buyer || '').toString() === filters.buyerId);
     }
-    if (selectedQuarryName) {
-      list = list.filter((l) => l.quarryName?.trim() === selectedQuarryName);
+    if (filters.quarryName) {
+      list = list.filter((l) => l.quarryName?.trim() === filters.quarryName);
     }
+
+    if (filters.search.trim()) {
+      const search = filters.search.trim().toLowerCase();
+      list = list.filter((load) => {
+        const buyer = buyers.find(b => b._id === (load.buyer?._id || load.buyer));
+        const buyerName = buyer ? buyer.name : (load.buyerNameSnapshot || '');
+        return buyerName.toLowerCase().includes(search) ||
+               (load.vehicleNumber || '').toLowerCase().includes(search) ||
+               (load.quarryName || '').toLowerCase().includes(search);
+      });
+    }
+
+    if (filters.mode === 'particular_date' && filters.particularDate) {
+      list = list.filter((load) => toYMD(load.date) === filters.particularDate);
+    } else if (filters.mode === 'selected_dates' && filters.startDate && filters.endDate) {
+      const start = new Date(filters.startDate + 'T00:00:00');
+      const end = new Date(filters.endDate + 'T23:59:59');
+      list = list.filter((load) => {
+        const d = new Date(load.date);
+        return d >= start && d <= end;
+      });
+    } else if (filters.mode === 'month' && filters.month) {
+      list = list.filter((load) => toYMD(load.date).startsWith(filters.month));
+    } else if (filters.mode === 'week' && filters.weekStart) {
+      const d = new Date(filters.weekStart + 'T00:00:00');
+      const day = d.getDay();
+      const start = new Date(d);
+      start.setDate(d.getDate() - day);
+      const end = new Date(start);
+      end.setDate(start.getDate() + 6);
+      end.setHours(23, 59, 59, 999);
+      list = list.filter((load) => {
+        const lDate = new Date(load.date);
+        return lDate >= start && lDate <= end;
+      });
+    }
+
+    if (filters.mode === 'alpha_az') {
+      list.sort((a, b) => (a.buyerNameSnapshot || '').localeCompare(b.buyerNameSnapshot || ''));
+    } else if (filters.mode === 'alpha_za') {
+      list.sort((a, b) => (b.buyerNameSnapshot || '').localeCompare(a.buyerNameSnapshot || ''));
+    } else if (filters.mode === 'date_oldest') {
+      list.sort((a, b) => new Date(a.date) - new Date(b.date));
+    } else {
+      list.sort((a, b) => new Date(b.date) - new Date(a.date));
+    }
+
     return list;
-  }, [loads, selectedBuyerId, selectedQuarryName]);
+  }, [loads, filters, buyers]);
 
   useEffect(() => {
-    if (searchQuery && filteredLoads.length > 0) {
+    if (filters.search && filteredLoads.length > 0) {
       setSearchHighlightedIndex(0);
     } else {
       setSearchHighlightedIndex(-1);
     }
-  }, [searchQuery, filteredLoads.length]);
+  }, [filters.search, filteredLoads.length]);
 
   const handleSearchKeyDown = (e) => {
     if (filteredLoads.length === 0) return;
@@ -596,21 +646,40 @@ const LoadManagement = () => {
     let startDateVal = null;
     let endDateVal = null;
 
-    if (reportType !== 'all' && dateRange.startDate && dateRange.endDate) {
-      const formatDateDots = (d) => {
-        if (!d) return '';
-        const [yy, mm, dd] = d.split('-');
-        return `${dd}-${mm}-${yy}`;
-      };
-      rangeLabel = `${formatDateDots(dateRange.startDate)} - ${formatDateDots(dateRange.endDate)}`;
-      queryParams = { startDate: dateRange.startDate, endDate: dateRange.endDate };
-      startDateVal = new Date(dateRange.startDate + 'T00:00:00');
-      endDateVal = new Date(dateRange.endDate + 'T23:59:59');
+    if (filters.mode === 'particular_date' && filters.particularDate) {
+      rangeLabel = `Date: ${formatDateDDMMYYYY(filters.particularDate)}`;
+      queryParams = { startDate: filters.particularDate, endDate: filters.particularDate };
+      startDateVal = new Date(filters.particularDate + 'T00:00:00');
+      endDateVal = new Date(filters.particularDate + 'T23:59:59');
+    } else if (filters.mode === 'selected_dates' && filters.startDate && filters.endDate) {
+      rangeLabel = `${formatDateDDMMYYYY(filters.startDate)} to ${formatDateDDMMYYYY(filters.endDate)}`;
+      queryParams = { startDate: filters.startDate, endDate: filters.endDate };
+      startDateVal = new Date(filters.startDate + 'T00:00:00');
+      endDateVal = new Date(filters.endDate + 'T23:59:59');
+    } else if (filters.mode === 'month' && filters.month) {
+      rangeLabel = `Month: ${filters.month}`;
+      const [year, month] = filters.month.split('-');
+      const startStr = `${year}-${month}-01`;
+      const endStr = toYMD(new Date(year, month, 0));
+      queryParams = { startDate: startStr, endDate: endStr };
+      startDateVal = new Date(startStr + 'T00:00:00');
+      endDateVal = new Date(endStr + 'T23:59:59');
+    } else if (filters.mode === 'week' && filters.weekStart) {
+      const d = new Date(filters.weekStart + 'T00:00:00');
+      const day = d.getDay();
+      const start = new Date(d);
+      start.setDate(d.getDate() - day);
+      const end = new Date(start);
+      end.setDate(start.getDate() + 6);
+      rangeLabel = `Week: ${formatDateDDMMYYYY(start)} to ${formatDateDDMMYYYY(end)}`;
+      queryParams = { startDate: toYMD(start), endDate: toYMD(end) };
+      startDateVal = new Date(start.setHours(0, 0, 0, 0));
+      endDateVal = new Date(end.setHours(23, 59, 59, 999));
     }
 
-    const isPurchasedOnly = selectedBuyerId === '__purchased_only__';
-    const isSingleBuyer = selectedBuyerId && selectedBuyerId !== '__purchased_only__';
-    const selectedBuyer = isSingleBuyer ? buyers.find((b) => b._id === selectedBuyerId) : null;
+    const isPurchasedOnly = filters.buyerId === '__purchased_only__';
+    const isSingleBuyer = filters.buyerId && filters.buyerId !== '__purchased_only__';
+    const selectedBuyer = isSingleBuyer ? buyers.find((b) => b._id === filters.buyerId) : null;
     const buyerName = selectedBuyer ? selectedBuyer.name : '';
 
     if (!isSingleBuyer) {
@@ -892,16 +961,35 @@ const LoadManagement = () => {
     let startDateVal = null;
     let endDateVal = null;
 
-    if (reportType !== 'all' && dateRange.startDate && dateRange.endDate) {
-      const formatDateDots = (d) => {
-        if (!d) return '';
-        const [yy, mm, dd] = d.split('-');
-        return `${dd}-${mm}-${yy}`;
-      };
-      rangeLabel = `${formatDateDots(dateRange.startDate)} - ${formatDateDots(dateRange.endDate)}`;
-      queryParams = { startDate: dateRange.startDate, endDate: dateRange.endDate };
-      startDateVal = new Date(dateRange.startDate + 'T00:00:00');
-      endDateVal = new Date(dateRange.endDate + 'T23:59:59');
+    if (filters.mode === 'particular_date' && filters.particularDate) {
+      rangeLabel = `Date: ${formatDateDDMMYYYY(filters.particularDate)}`;
+      queryParams = { startDate: filters.particularDate, endDate: filters.particularDate };
+      startDateVal = new Date(filters.particularDate + 'T00:00:00');
+      endDateVal = new Date(filters.particularDate + 'T23:59:59');
+    } else if (filters.mode === 'selected_dates' && filters.startDate && filters.endDate) {
+      rangeLabel = `${formatDateDDMMYYYY(filters.startDate)} to ${formatDateDDMMYYYY(filters.endDate)}`;
+      queryParams = { startDate: filters.startDate, endDate: filters.endDate };
+      startDateVal = new Date(filters.startDate + 'T00:00:00');
+      endDateVal = new Date(filters.startDate + 'T23:59:59');
+    } else if (filters.mode === 'month' && filters.month) {
+      rangeLabel = `Month: ${filters.month}`;
+      const [year, month] = filters.month.split('-');
+      const startStr = `${year}-${month}-01`;
+      const endStr = toYMD(new Date(year, month, 0));
+      queryParams = { startDate: startStr, endDate: endStr };
+      startDateVal = new Date(startStr + 'T00:00:00');
+      endDateVal = new Date(endStr + 'T23:59:59');
+    } else if (filters.mode === 'week' && filters.weekStart) {
+      const d = new Date(filters.weekStart + 'T00:00:00');
+      const day = d.getDay();
+      const start = new Date(d);
+      start.setDate(d.getDate() - day);
+      const end = new Date(start);
+      end.setDate(start.getDate() + 6);
+      rangeLabel = `Week: ${formatDateDDMMYYYY(start)} to ${formatDateDDMMYYYY(end)}`;
+      queryParams = { startDate: toYMD(start), endDate: toYMD(end) };
+      startDateVal = new Date(start.setHours(0, 0, 0, 0));
+      endDateVal = new Date(end.setHours(23, 59, 59, 999));
     }
 
     const doc = new jsPDF();
@@ -916,9 +1004,9 @@ const LoadManagement = () => {
       doc.text(str, (pageWidth - w) / 2, xY);
     };
 
-    const isPurchasedOnly = selectedBuyerId === '__purchased_only__';
-    const isSingleBuyer = selectedBuyerId && selectedBuyerId !== '__purchased_only__';
-    const selectedBuyer = isSingleBuyer ? buyers.find((b) => b._id === selectedBuyerId) : null;
+    const isPurchasedOnly = filters.buyerId === '__purchased_only__';
+    const isSingleBuyer = filters.buyerId && filters.buyerId !== '__purchased_only__';
+    const selectedBuyer = isSingleBuyer ? buyers.find((b) => b._id === filters.buyerId) : null;
     const buyerName = selectedBuyer ? selectedBuyer.name : '';
 
     let payments = [];
@@ -1131,8 +1219,8 @@ const LoadManagement = () => {
               <input
                 type="text"
                 placeholder="Search buyer, quarry, vehicle..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
+                value={filters.search}
+                onChange={(e) => setFilters((prev) => ({ ...prev, search: e.target.value }))}
                 onKeyDown={handleSearchKeyDown}
                 className="border border-slate-300 rounded-lg p-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none w-full sm:w-48 bg-white"
               />
@@ -1141,8 +1229,8 @@ const LoadManagement = () => {
             <div className="w-full sm:w-auto">
               <label className="block text-xs font-semibold text-slate-500 mb-1 uppercase tracking-wider">Buyer Name</label>
               <select
-                value={selectedBuyerId}
-                onChange={(e) => setSelectedBuyerId(e.target.value)}
+                value={filters.buyerId}
+                onChange={(e) => setFilters((prev) => ({ ...prev, buyerId: e.target.value }))}
                 className="border border-slate-300 rounded-lg p-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none bg-white w-full sm:w-48"
               >
                 <option value="">All Buyers (With Dues)</option>
@@ -1156,8 +1244,8 @@ const LoadManagement = () => {
             <div className="w-full sm:w-auto">
               <label className="block text-xs font-semibold text-slate-500 mb-1 uppercase tracking-wider">Material</label>
               <select
-                value={selectedQuarryName}
-                onChange={(e) => setSelectedQuarryName(e.target.value)}
+                value={filters.quarryName}
+                onChange={(e) => setFilters((prev) => ({ ...prev, quarryName: e.target.value }))}
                 className="border border-slate-300 rounded-lg p-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none bg-white w-full sm:w-40"
               >
                 <option value="">All Materials</option>
@@ -1168,17 +1256,47 @@ const LoadManagement = () => {
             </div>
 
             <div className="w-full sm:w-auto">
-              <label className="block text-xs font-semibold text-slate-500 mb-1 uppercase tracking-wider">Time Filter</label>
+              <label className="block text-xs font-semibold text-slate-500 mb-1 uppercase tracking-wider">Filter Mode</label>
               <select
-                value={reportType}
-                onChange={(e) => setReportType(e.target.value)}
-                className="border border-slate-300 rounded-lg p-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none bg-white w-full"
+                value={filters.mode}
+                onChange={(e) => {
+                  const newMode = e.target.value;
+                  setFilters((prev) => {
+                    const next = { ...prev, mode: newMode };
+                    const todayStr = toYMD(new Date());
+                    if (newMode === 'particular_date' && !next.particularDate) {
+                      next.particularDate = todayStr;
+                    } else if (newMode === 'month' && !next.month) {
+                      next.month = todayStr.substring(0, 7);
+                    } else if (newMode === 'week' && !next.weekStart) {
+                      const d = new Date();
+                      const day = d.getDay();
+                      const sunday = new Date(d);
+                      sunday.setDate(d.getDate() - day);
+                      next.weekStart = toYMD(sunday);
+                    } else if (newMode === 'selected_dates') {
+                      if (!next.startDate) {
+                        const d = new Date();
+                        const firstDay = new Date(d.getFullYear(), d.getMonth(), 1);
+                        next.startDate = toYMD(firstDay);
+                      }
+                      if (!next.endDate) {
+                        next.endDate = todayStr;
+                      }
+                    }
+                    return next;
+                  });
+                }}
+                className="border border-slate-300 rounded-lg p-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none bg-white w-full sm:w-44"
               >
-                <option value="all">All Time</option>
-                <option value="daily">Particular Date</option>
-                <option value="weekly">Weekly</option>
-                <option value="monthly">Monthly</option>
-                <option value="range">Date Range</option>
+                <option value="date_newest">Date: newest first</option>
+                <option value="date_oldest">Date: oldest first</option>
+                <option value="alpha_az">Buyer A to Z</option>
+                <option value="alpha_za">Buyer Z to A</option>
+                <option value="particular_date">Particular date</option>
+                <option value="selected_dates">Selected dates</option>
+                <option value="month">Month</option>
+                <option value="week">Week</option>
               </select>
             </div>
 
@@ -1232,58 +1350,69 @@ const LoadManagement = () => {
             </div>
           </div>
 
-          {['daily', 'weekly', 'monthly', 'range'].includes(reportType) && (
+          {['particular_date', 'month', 'week', 'selected_dates'].includes(filters.mode) && (
             <div className="flex flex-wrap items-center gap-3 p-3 bg-slate-50 border border-slate-200 rounded-lg animate-in slide-in-from-top-1 duration-200 w-full">
-              {reportType === 'daily' && (
+              {filters.mode === 'particular_date' && (
                 <div className="w-full sm:w-auto flex items-center gap-2">
                   <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider whitespace-nowrap">Date:</span>
                   <input
                     type="date"
-                    value={dateRange.particularDate}
-                    onChange={(e) => handleDateFilterChange('particularDate', e.target.value)}
+                    value={filters.particularDate}
+                    onChange={(e) => setFilters((prev) => ({ ...prev, particularDate: e.target.value }))}
                     className="border border-slate-300 rounded-lg p-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none bg-white w-full sm:w-48"
                   />
                 </div>
               )}
 
-              {reportType === 'weekly' && (
+              {filters.mode === 'week' && (
                 <div className="w-full sm:w-auto flex items-center gap-2">
                   <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider whitespace-nowrap">Week Start:</span>
                   <input
                     type="date"
-                    value={dateRange.weekStart}
-                    onChange={(e) => handleDateFilterChange('weekStart', e.target.value)}
+                    value={filters.weekStart}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      if (val) {
+                        const d = new Date(val + 'T00:00:00');
+                        const day = d.getDay();
+                        const sunday = new Date(d);
+                        sunday.setDate(d.getDate() - day);
+                        setFilters((prev) => ({ ...prev, weekStart: toYMD(sunday) }));
+                      } else {
+                        setFilters((prev) => ({ ...prev, weekStart: '' }));
+                      }
+                    }}
                     className="border border-slate-300 rounded-lg p-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none bg-white w-full sm:w-48"
                   />
                 </div>
               )}
 
-              {reportType === 'monthly' && (
+              {filters.mode === 'month' && (
                 <div className="w-full sm:w-auto flex items-center gap-2">
                   <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider whitespace-nowrap">Month:</span>
                   <input
                     type="month"
-                    value={dateRange.month}
-                    onChange={(e) => handleDateFilterChange('month', e.target.value)}
+                    value={filters.month}
+                    onChange={(e) => setFilters((prev) => ({ ...prev, month: e.target.value }))}
                     className="border border-slate-300 rounded-lg p-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none bg-white w-full sm:w-48"
                   />
                 </div>
               )}
 
-              {reportType === 'range' && (
+              {filters.mode === 'selected_dates' && (
                 <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
                   <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider whitespace-nowrap">Date Range:</span>
                   <input
                     type="date"
-                    value={dateRange.startDate}
-                    onChange={(e) => handleDateFilterChange('startDate', e.target.value)}
+                    value={filters.startDate}
+                    onChange={(e) => setFilters((prev) => ({ ...prev, startDate: e.target.value }))}
                     className="border border-slate-300 rounded-lg p-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none bg-white w-full sm:w-40"
                   />
                   <span className="text-slate-400 text-sm">to</span>
                   <input
                     type="date"
-                    value={dateRange.endDate}
-                    onChange={(e) => handleDateFilterChange('endDate', e.target.value)}
+                    value={filters.endDate}
+                    onChange={(e) => setFilters((prev) => ({ ...prev, endDate: e.target.value }))}
                     className="border border-slate-300 rounded-lg p-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none bg-white w-full sm:w-40"
                   />
                 </div>
