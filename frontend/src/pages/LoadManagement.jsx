@@ -9,11 +9,11 @@ import SearchableSelect from '../components/SearchableSelect';
 import { formatVehicleInput, isValidVehicleNumber } from '../utils/vehicleNumber';
 import { formatDateTime, formatDateDDMMYYYY } from '../utils/dateTime';
 
-const toYMD = (d) => {
-  const year = d.getFullYear();
-  const month = String(d.getMonth() + 1).padStart(2, '0');
-  const day = String(d.getDate()).padStart(2, '0');
-  return `${year}-${month}-${day}`;
+const toYMD = (date) => {
+  if (!date) return '';
+  const d = typeof date === 'string' || typeof date === 'number' ? new Date(date) : date;
+  if (!d || isNaN(d.getTime())) return '';
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 };
 
 const roundToNearestTen = (amount) => {
@@ -175,7 +175,7 @@ const LoadManagement = () => {
   }, [loads]);
 
   const filteredLoads = useMemo(() => {
-    let list = loads;
+    let list = [...loads];
     if (filters.buyerId && filters.buyerId !== '__purchased_only__') {
       list = list.filter((l) => (l.buyer?._id || l.buyer || '').toString() === filters.buyerId);
     }
