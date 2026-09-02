@@ -320,8 +320,8 @@ const LoadManagement = () => {
       const selectedMat = materials.find((m) => m.name === formData.quarryName);
       if (selectedMat) {
         const defaultPrice = formData.unitType === 'tons'
-          ? (selectedMat.pricePerTon ?? selectedMat.currentPrice)
-          : selectedMat.currentPrice;
+          ? (selectedMat.buyerPricePerTon ?? selectedMat.pricePerTon ?? selectedMat.buyerPrice ?? selectedMat.currentPrice)
+          : (selectedMat.buyerPrice ?? selectedMat.customerPrice ?? selectedMat.currentPrice);
         if (!formData._id) {
           setFormData((prev) => ({ ...prev, price: defaultPrice.toString() }));
         }
@@ -385,8 +385,8 @@ const LoadManagement = () => {
           const selectedMat = materials.find((m) => m.name === quarryName);
           if (selectedMat) {
             const defaultPrice = unitType === 'tons'
-              ? (selectedMat.pricePerTon ?? selectedMat.currentPrice)
-              : selectedMat.currentPrice;
+              ? (selectedMat.buyerPricePerTon ?? selectedMat.pricePerTon ?? selectedMat.buyerPrice ?? selectedMat.currentPrice)
+              : (selectedMat.buyerPrice ?? selectedMat.customerPrice ?? selectedMat.currentPrice);
             row.price = defaultPrice.toString();
           }
         }
@@ -553,10 +553,19 @@ const LoadManagement = () => {
     }
     try {
       setIsMaterialSubmitting(true);
+      const custPrice = Number(newMaterialData.currentPrice);
+      const custTonPrice = Number(newMaterialData.pricePerTon || newMaterialData.currentPrice);
+      const buyPrice = Number(newMaterialData.buyerPrice !== undefined && newMaterialData.buyerPrice !== '' ? newMaterialData.buyerPrice : custPrice);
+      const buyTonPrice = Number(newMaterialData.buyerPricePerTon !== undefined && newMaterialData.buyerPricePerTon !== '' ? newMaterialData.buyerPricePerTon : custTonPrice);
+
       const { data: newMat } = await api.post('/materials', {
         name: newMaterialData.name,
-        currentPrice: Number(newMaterialData.currentPrice),
-        pricePerTon: Number(newMaterialData.pricePerTon || newMaterialData.currentPrice)
+        customerPrice: custPrice,
+        customerPricePerTon: custTonPrice,
+        buyerPrice: buyPrice,
+        buyerPricePerTon: buyTonPrice,
+        currentPrice: custPrice,
+        pricePerTon: custTonPrice
       });
       setFormData({ ...formData, quarryName: newMat.name });
       setIsCreateMaterialOpen(false);

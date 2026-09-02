@@ -9,7 +9,13 @@ const Materials = () => {
   const [loading, setLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
   
-  const [formData, setFormData] = useState({ name: '', currentPrice: '', pricePerTon: '' });
+  const [formData, setFormData] = useState({
+    name: '',
+    customerPrice: '',
+    customerPricePerTon: '',
+    buyerPrice: '',
+    buyerPricePerTon: ''
+  });
 
   useEffect(() => {
     fetchMaterials();
@@ -33,22 +39,43 @@ const Materials = () => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     try {
+      const custPrice = Number(formData.customerPrice);
+      const custTonPrice = Number(formData.customerPricePerTon || formData.customerPrice);
+      const buyPrice = Number(formData.buyerPrice !== '' ? formData.buyerPrice : formData.customerPrice);
+      const buyTonPrice = Number(formData.buyerPricePerTon !== '' ? formData.buyerPricePerTon : (formData.customerPricePerTon || formData.customerPrice));
+
+      const payload = {
+        name: formData.name,
+        customerPrice: custPrice,
+        customerPricePerTon: custTonPrice,
+        buyerPrice: buyPrice,
+        buyerPricePerTon: buyTonPrice,
+        currentPrice: custPrice,
+        pricePerTon: custTonPrice
+      };
+
       if (formData._id) {
-        await api.put(`/materials/${formData._id}/price`, { currentPrice: Number(formData.currentPrice), pricePerTon: Number(formData.pricePerTon || formData.currentPrice) });
+        await api.put(`/materials/${formData._id}/price`, payload);
       } else {
-        await api.post('/materials', { name: formData.name, currentPrice: Number(formData.currentPrice), pricePerTon: Number(formData.pricePerTon || formData.currentPrice) });
+        await api.post('/materials', payload);
       }
       setIsModalOpen(false);
-      setFormData({ name: '', currentPrice: '', pricePerTon: '' });
+      setFormData({ name: '', customerPrice: '', customerPricePerTon: '', buyerPrice: '', buyerPricePerTon: '' });
       fetchMaterials();
     } catch (error) {
       console.error('Error saving material', error);
-      alert('Error saving material');
+      alert('Error saving material: ' + (error.response?.data?.message || 'Unknown error'));
     }
   };
 
   const handleEdit = (material) => {
-    setFormData({ ...material, currentPrice: material.currentPrice, pricePerTon: material.pricePerTon ?? material.currentPrice });
+    setFormData({
+      ...material,
+      customerPrice: material.customerPrice ?? material.currentPrice ?? '',
+      customerPricePerTon: material.customerPricePerTon ?? material.pricePerTon ?? material.currentPrice ?? '',
+      buyerPrice: material.buyerPrice ?? material.customerPrice ?? material.currentPrice ?? '',
+      buyerPricePerTon: material.buyerPricePerTon ?? material.customerPricePerTon ?? material.pricePerTon ?? material.currentPrice ?? ''
+    });
     setIsModalOpen(true);
   };
 
@@ -75,10 +102,13 @@ const Materials = () => {
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 shrink-0">
         <div>
           <h1 className="text-2xl font-bold text-slate-800">Materials</h1>
-          <p className="text-slate-500 text-sm mt-1">Manage crusher materials and unit pricing.</p>
+          <p className="text-slate-500 text-sm mt-1">Manage crusher materials and fixed unit/ton rates for Customers and Buyers.</p>
         </div>
         <button 
-          onClick={() => { setFormData({ name: '', currentPrice: '', pricePerTon: '' }); setIsModalOpen(true); }}
+          onClick={() => {
+            setFormData({ name: '', customerPrice: '', customerPricePerTon: '', buyerPrice: '', buyerPricePerTon: '' });
+            setIsModalOpen(true);
+          }}
           className="btn-primary flex items-center shadow-lg hover:shadow-xl w-full sm:w-auto justify-center"
         >
           <span className="mr-2">+</span> Add Material
@@ -94,37 +124,48 @@ const Materials = () => {
           <div className="overflow-auto flex-1 min-h-0 min-w-0">
             <table className="data-table">
               <thead className="sticky top-0 bg-slate-50 dark:bg-slate-900 shadow-sm z-10 w-full min-w-max">
-                <tr className="border-b border-slate-200 dark:border-slate-800 text-sm text-slate-600 dark:text-slate-400 uppercase tracking-wider">
-                  <th className="p-4 font-semibold w-1/2">Material Name</th>
-                  <th className="p-4 font-semibold whitespace-nowrap">Price / Unit (₹)</th>
-                  <th className="p-4 font-semibold whitespace-nowrap">Price / Ton (₹)</th>
-                  <th className="p-4 font-semibold text-right w-1/4">Actions</th>
+                <tr className="border-b border-slate-200 dark:border-slate-800 text-xs text-slate-600 dark:text-slate-400 uppercase tracking-wider">
+                  <th className="p-4 font-semibold text-left">Material Name</th>
+                  <th className="p-4 font-semibold text-right bg-blue-50/50 dark:bg-blue-900/20 text-blue-800 dark:text-blue-300">Cust Price / Unit (₹)</th>
+                  <th className="p-4 font-semibold text-right bg-blue-50/50 dark:bg-blue-900/20 text-blue-800 dark:text-blue-300">Cust Price / Ton (₹)</th>
+                  <th className="p-4 font-semibold text-right bg-emerald-50/50 dark:bg-emerald-900/20 text-emerald-800 dark:text-emerald-300">Buyer Price / Unit (₹)</th>
+                  <th className="p-4 font-semibold text-right bg-emerald-50/50 dark:bg-emerald-900/20 text-emerald-800 dark:text-emerald-300">Buyer Price / Ton (₹)</th>
+                  <th className="p-4 font-semibold text-right">Actions</th>
                 </tr>
               </thead>
               <tbody className="whitespace-nowrap">
-                {materials.map((m) => (
-                  <tr key={m._id}>
-                    <td className="p-4 font-medium text-slate-800">{m.name}</td>
-                    <td className="p-4 text-slate-600 font-semibold">₹{m.currentPrice}</td>
-                    <td className="p-4 text-slate-600 font-semibold">₹{m.pricePerTon ?? m.currentPrice}</td>
-                    <td className="p-4 text-right space-x-2 whitespace-nowrap">
-                      <button 
-                        onClick={() => handleEdit(m)} 
-                        className="text-blue-600 hover:text-blue-800 hover:bg-blue-50 p-2 rounded-lg transition-colors inline-flex items-center" 
-                        title="Edit Price"
-                      >
-                        <EditIcon className="h-5 w-5" />
-                      </button>
-                      <button 
-                        onClick={() => handleDelete(m._id)} 
-                        className="text-red-600 hover:text-red-800 hover:bg-red-50 p-2 rounded-lg transition-colors inline-flex items-center" 
-                        title="Delete Material"
-                      >
-                        <TrashIcon className="h-5 w-5" />
-                      </button>
-                    </td>
-                  </tr>
-                ))}
+                {materials.map((m) => {
+                  const custUnit = m.customerPrice ?? m.currentPrice ?? 0;
+                  const custTon = m.customerPricePerTon ?? m.pricePerTon ?? custUnit;
+                  const buyUnit = m.buyerPrice ?? custUnit;
+                  const buyTon = m.buyerPricePerTon ?? custTon;
+
+                  return (
+                    <tr key={m._id} className="hover:bg-slate-50/80 transition-colors">
+                      <td className="p-4 font-medium text-slate-800">{m.name}</td>
+                      <td className="p-4 text-right text-blue-700 font-bold bg-blue-50/20">₹{custUnit.toLocaleString()}</td>
+                      <td className="p-4 text-right text-blue-700 font-bold bg-blue-50/20">₹{custTon.toLocaleString()}</td>
+                      <td className="p-4 text-right text-emerald-700 font-bold bg-emerald-50/20">₹{buyUnit.toLocaleString()}</td>
+                      <td className="p-4 text-right text-emerald-700 font-bold bg-emerald-50/20">₹{buyTon.toLocaleString()}</td>
+                      <td className="p-4 text-right space-x-2 whitespace-nowrap">
+                        <button 
+                          onClick={() => handleEdit(m)} 
+                          className="text-blue-600 hover:text-blue-800 hover:bg-blue-50 p-2 rounded-lg transition-colors inline-flex items-center" 
+                          title="Edit Material Prices"
+                        >
+                          <EditIcon className="h-5 w-5" />
+                        </button>
+                        <button 
+                          onClick={() => handleDelete(m._id)} 
+                          className="text-red-600 hover:text-red-800 hover:bg-red-50 p-2 rounded-lg transition-colors inline-flex items-center" 
+                          title="Delete Material"
+                        >
+                          <TrashIcon className="h-5 w-5" />
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
@@ -134,43 +175,86 @@ const Materials = () => {
       {/* Modal */}
       {isModalOpen && (
         <div className="fixed inset-0 bg-slate-900/50 flex items-center justify-center p-4 z-50 animate-in fade-in duration-200">
-          <div className="bg-white rounded-xl shadow-2xl w-full max-w-sm overflow-hidden flex flex-col max-h-[90vh]">
+          <div className="bg-white rounded-xl shadow-2xl w-full max-w-md overflow-hidden flex flex-col max-h-[90vh]">
             <div className="p-5 border-b border-slate-100 flex justify-between items-center shrink-0">
-              <h2 className="text-xl font-bold text-slate-800">{formData._id ? 'Update Material Price' : 'Add New Material'}</h2>
+              <h2 className="text-xl font-bold text-slate-800">{formData._id ? 'Update Material Prices' : 'Add New Material'}</h2>
               <button onClick={() => setIsModalOpen(false)} className="text-slate-400 hover:text-slate-600 text-2xl leading-none">&times;</button>
             </div>
             
-            <form onSubmit={handleSubmit} className="p-6 space-y-4 overflow-y-auto">
+            <form onSubmit={handleSubmit} className="p-6 space-y-5 overflow-y-auto">
               <div>
                 <label className="block text-sm font-medium text-slate-700 mb-1">Material Name *</label>
                 <input 
                   type="text" name="name" required value={formData.name} onChange={handleChange}
-                  disabled={formData._id} // Name cannot be changed once created (based on backend unique constraint usually)
+                  disabled={formData._id}
                   className={`w-full border rounded-lg p-2.5 outline-none transition ${formData._id ? 'bg-slate-100 border-slate-200 text-slate-500 cursor-not-allowed' : 'border-slate-300 focus:ring-2 focus:ring-blue-500 focus:border-blue-500'}`}
                   placeholder="e.g. 20mm Aggregate"
                 />
                 {formData._id && <p className="text-xs text-slate-500 mt-1">Material name cannot be changed.</p>}
               </div>
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">Current Price (per unit) *</label>
-                <div className="relative">
-                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500">₹</span>
-                  <input 
-                    type="number" name="currentPrice" required value={formData.currentPrice} onChange={handleChange} min="0" step="0.01"
-                    className="w-full border border-slate-300 rounded-lg p-2.5 pl-8 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition"
-                    placeholder="e.g. 500"
-                  />
+
+              {/* Customer Pricing Section */}
+              <div className="p-4 bg-blue-50/50 rounded-xl border border-blue-100 space-y-3">
+                <div className="flex items-center justify-between">
+                  <span className="text-sm font-bold text-blue-900 uppercase tracking-wide">Customer Selling Rates</span>
+                  <span className="text-xs text-blue-600 font-medium">Used for Customer Bills</span>
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-700 mb-1">Price / Unit (₹) *</label>
+                    <div className="relative">
+                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm">₹</span>
+                      <input 
+                        type="number" name="customerPrice" required value={formData.customerPrice} onChange={handleChange} min="0" step="0.01"
+                        className="w-full border border-slate-300 rounded-lg p-2 pl-7 text-sm focus:ring-2 focus:ring-blue-500 outline-none bg-white font-semibold"
+                        placeholder="e.g. 500"
+                      />
+                    </div>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-700 mb-1">Price / Ton (₹) *</label>
+                    <div className="relative">
+                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm">₹</span>
+                      <input
+                        type="number" name="customerPricePerTon" required value={formData.customerPricePerTon} onChange={handleChange} min="0" step="0.01"
+                        className="w-full border border-slate-300 rounded-lg p-2 pl-7 text-sm focus:ring-2 focus:ring-blue-500 outline-none bg-white font-semibold"
+                        placeholder="e.g. 1200"
+                      />
+                    </div>
+                  </div>
                 </div>
               </div>
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">Price per Ton (₹) *</label>
-                <div className="relative">
-                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500">₹</span>
-                  <input
-                    type="number" name="pricePerTon" required value={formData.pricePerTon} onChange={handleChange} min="0" step="0.01"
-                    className="w-full border border-slate-300 rounded-lg p-2.5 pl-8 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition"
-                    placeholder="e.g. 1200"
-                  />
+
+              {/* Buyer Pricing Section */}
+              <div className="p-4 bg-emerald-50/50 rounded-xl border border-emerald-100 space-y-3">
+                <div className="flex items-center justify-between">
+                  <span className="text-sm font-bold text-emerald-900 uppercase tracking-wide">Buyer Purchase Rates</span>
+                  <span className="text-xs text-emerald-600 font-medium">Used for Buyer Loads</span>
+                </div>
+                <p className="text-xs text-slate-500 italic">Buyer rates can be fixed separately (typically lower than Customer rates).</p>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-700 mb-1">Price / Unit (₹)</label>
+                    <div className="relative">
+                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm">₹</span>
+                      <input 
+                        type="number" name="buyerPrice" value={formData.buyerPrice} onChange={handleChange} min="0" step="0.01"
+                        className="w-full border border-slate-300 rounded-lg p-2 pl-7 text-sm focus:ring-2 focus:ring-emerald-500 outline-none bg-white font-semibold"
+                        placeholder={formData.customerPrice ? `e.g. ${formData.customerPrice}` : 'e.g. 450'}
+                      />
+                    </div>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-700 mb-1">Price / Ton (₹)</label>
+                    <div className="relative">
+                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm">₹</span>
+                      <input
+                        type="number" name="buyerPricePerTon" value={formData.buyerPricePerTon} onChange={handleChange} min="0" step="0.01"
+                        className="w-full border border-slate-300 rounded-lg p-2 pl-7 text-sm focus:ring-2 focus:ring-emerald-500 outline-none bg-white font-semibold"
+                        placeholder={formData.customerPricePerTon ? `e.g. ${formData.customerPricePerTon}` : 'e.g. 1000'}
+                      />
+                    </div>
+                  </div>
                 </div>
               </div>
               
@@ -179,7 +263,7 @@ const Materials = () => {
                   Cancel
                 </button>
                 <button type="submit" className="px-4 py-2 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 transition shadow-md cursor-pointer">
-                  {formData._id ? 'Update' : 'Save'}
+                  {formData._id ? 'Update Material' : 'Save Material'}
                 </button>
               </div>
             </form>

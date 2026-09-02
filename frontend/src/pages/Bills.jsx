@@ -981,8 +981,8 @@ const Bills = () => {
       const selectedMat = materials.find(m => m._id === row.material);
       const unit = row.quantityUnit === 'ton' ? 'ton' : 'unit';
       const defaultPrice = unit === 'ton'
-        ? (selectedMat?.pricePerTon ?? selectedMat?.currentPrice)
-        : selectedMat?.currentPrice;
+        ? (selectedMat?.customerPricePerTon ?? selectedMat?.pricePerTon ?? selectedMat?.customerPrice ?? selectedMat?.currentPrice)
+        : (selectedMat?.customerPrice ?? selectedMat?.currentPrice);
       const effectivePrice = row.useManualPrice && row.manualPrice !== '' ? Number(row.manualPrice) : defaultPrice;
 
       validRows.push({

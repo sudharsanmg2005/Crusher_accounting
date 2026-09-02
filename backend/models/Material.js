@@ -13,6 +13,10 @@ const materialSchema = new mongoose.Schema(
     name: { type: String, required: true, unique: true, trim: true },
     currentPrice: { type: Number, required: true },
     pricePerTon: { type: Number },
+    customerPrice: { type: Number },
+    customerPricePerTon: { type: Number },
+    buyerPrice: { type: Number },
+    buyerPricePerTon: { type: Number },
     priceHistory: [priceHistorySchema],
     isDeleted: { type: Boolean, default: false }
   },

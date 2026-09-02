@@ -148,8 +148,8 @@ export const createBill = async (req, res, next) => {
 
       const unit = quantityUnit === 'ton' ? 'ton' : 'unit';
       const defaultPrice = unit === 'ton'
-        ? (material.pricePerTon ?? material.currentPrice)
-        : material.currentPrice;
+        ? (material.customerPricePerTon ?? material.pricePerTon ?? material.customerPrice ?? material.currentPrice)
+        : (material.customerPrice ?? material.currentPrice);
       const effectivePrice = pricePerUnit ?? defaultPrice;
       const totalAmount = roundToNearestTen(quantity * effectivePrice);
       const passFee = passAmount != null ? Number(passAmount) : 0;
@@ -505,8 +505,8 @@ export const createBillsBulk = async (req, res, next) => {
 
       const unit = quantityUnit === 'ton' ? 'ton' : 'unit';
       const defaultPrice = unit === 'ton'
-        ? (material.pricePerTon ?? material.currentPrice)
-        : material.currentPrice;
+        ? (material.customerPricePerTon ?? material.pricePerTon ?? material.customerPrice ?? material.currentPrice)
+        : (material.customerPrice ?? material.currentPrice);
       const effectivePrice = pricePerUnit != null && pricePerUnit !== '' ? Number(pricePerUnit) : defaultPrice;
       const totalAmount = roundToNearestTen(Number(quantity) * effectivePrice);
       const passFee = passAmount != null && passAmount !== '' ? Number(passAmount) : 0;
