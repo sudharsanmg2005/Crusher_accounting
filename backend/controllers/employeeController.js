@@ -758,7 +758,7 @@ export const deleteTransaction = async (req, res, next) => {
 
 export const updateBaseSalary = async (req, res, next) => {
   try {
-    const { employeeId, month, year, baseSalary } = req.body;
+    const { employeeId, month, year, baseSalary, bonus, batta } = req.body;
     if (!employeeId || !month || !year || baseSalary == null) {
       return res.status(400).json({ message: 'employeeId, month, year, and baseSalary are required' });
     }
@@ -766,6 +766,8 @@ export const updateBaseSalary = async (req, res, next) => {
     const m = parseInt(month);
     const y = parseInt(year);
     const newBase = Number(baseSalary);
+    const newBonus = bonus != null && bonus !== '' ? Number(bonus) : undefined;
+    const newBatta = batta != null && batta !== '' ? Number(batta) : undefined;
 
     const employee = await Employee.findById(employeeId);
     if (!employee) {
@@ -791,6 +793,9 @@ export const updateBaseSalary = async (req, res, next) => {
 
     let salaryPayment = await SalaryPayment.findOne({ employee: employeeId, month: m, year: y });
     if (!salaryPayment) {
+      const bBonus = newBonus != null ? newBonus : 0;
+      const bBatta = newBatta != null ? newBatta : 0;
+      const total = newBase + bBonus + bBatta;
       salaryPayment = new SalaryPayment({
         employee: employeeId,
         month: m,
@@ -799,17 +804,19 @@ export const updateBaseSalary = async (req, res, next) => {
         dailyWagesSnapshot: employee.dailyWages,
         baseSalary: newBase,
         isBaseSalaryOverridden: true,
-        bonus: 0,
-        batta: 0,
-        totalSalary: newBase,
+        bonus: bBonus,
+        batta: bBatta,
+        totalSalary: total,
         paidAmount: 0,
-        pendingAmount: newBase,
-        paymentStatus: newBase === 0 ? 'Paid' : 'Unpaid',
+        pendingAmount: total,
+        paymentStatus: total === 0 ? 'Paid' : 'Unpaid',
         history: []
       });
     } else {
       salaryPayment.baseSalary = newBase;
       salaryPayment.isBaseSalaryOverridden = true;
+      if (newBonus != null) salaryPayment.bonus = newBonus;
+      if (newBatta != null) salaryPayment.batta = newBatta;
       salaryPayment.totalSalary = newBase + (salaryPayment.bonus || 0) + (salaryPayment.batta || 0);
       salaryPayment.pendingAmount = salaryPayment.totalSalary - salaryPayment.paidAmount;
 
@@ -826,9 +833,9 @@ export const updateBaseSalary = async (req, res, next) => {
     await salaryPayment.save();
 
     res.json({
-      message: 'Base salary updated successfully',
+      message: 'Salary components updated successfully',
       salaryPayment,
-      auditDetails: `Updated base salary of ${employee.name} for ${String(m).padStart(2, '0')}/${y} to ₹${newBase}`
+      auditDetails: `Updated payroll components for ${employee.name} (${String(m).padStart(2, '0')}/${y}): Base ₹${newBase}, Bonus ₹${salaryPayment.bonus}, Batta ₹${salaryPayment.batta}`
     });
   } catch (err) {
     next(err);
