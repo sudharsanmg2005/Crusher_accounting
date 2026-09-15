@@ -452,7 +452,8 @@ const Employees = () => {
       type: 'Salary',
       pendingAmount: record.pendingAmount,
       baseSalary: record.baseSalary,
-      bonus: record.bonus,
+      bonus: record.bonus || 0,
+      batta: record.batta || 0,
       paidAmount: record.paidAmount,
       totalSalary: record.totalSalary
     });
@@ -975,6 +976,7 @@ const Employees = () => {
                         <th className="p-4 font-semibold whitespace-nowrap">New Days</th>
                         <th className="p-4 font-semibold whitespace-nowrap">Base Wage</th>
                         <th className="p-4 font-semibold whitespace-nowrap">Bonus</th>
+                        <th className="p-4 font-semibold whitespace-nowrap text-amber-600">Batta (OT)</th>
                         <th className="p-4 font-semibold whitespace-nowrap">Total Wage</th>
                         <th className="p-4 font-semibold whitespace-nowrap">Paid Amt</th>
                         <th className="p-4 font-semibold whitespace-nowrap">Pending</th>
@@ -1024,6 +1026,7 @@ const Employees = () => {
                                 </div>
                               </td>
                               <td className="p-4 text-green-600 font-bold">₹{(record.bonus || 0).toLocaleString()}</td>
+                              <td className="p-4 text-amber-600 font-bold">₹{(record.batta || 0).toLocaleString()}</td>
                               <td className="p-4 text-slate-800 font-extrabold">₹{record.totalSalary.toLocaleString()}</td>
                               <td className="p-4 text-blue-600 font-bold">₹{record.paidAmount.toLocaleString()}</td>
                               <td className="p-4 text-red-600 font-bold">₹{record.pendingAmount.toLocaleString()}</td>
@@ -1065,7 +1068,11 @@ const Employees = () => {
                                       {record.history.map((tx, idx) => (
                                         <div key={tx._id || idx} className="flex justify-between items-center text-xs border-b border-slate-100 pb-1.5 last:border-0 last:pb-0">
                                           <div>
-                                            <span className={`px-1.5 py-0.5 rounded text-[10px] font-extrabold mr-2 ${tx.type === 'Bonus' ? 'bg-emerald-100 text-emerald-800' : 'bg-blue-100 text-blue-800'}`}>
+                                            <span className={`px-1.5 py-0.5 rounded text-[10px] font-extrabold mr-2 ${
+                                              tx.type === 'Bonus' ? 'bg-emerald-100 text-emerald-800' :
+                                              tx.type === 'Batta' ? 'bg-amber-100 text-amber-800 border border-amber-200' :
+                                              'bg-blue-100 text-blue-800'
+                                            }`}>
                                               {tx.type.toUpperCase()}
                                             </span>
                                             <span className="text-slate-500">{new Date(tx.date).toLocaleString()}</span>
@@ -1212,20 +1219,24 @@ const Employees = () => {
                 <div className="font-bold text-slate-800 text-base">{paymentData.employeeName}</div>
               </div>
 
-              <div className="grid grid-cols-2 gap-2 text-xs bg-slate-50 p-2.5 rounded border border-slate-200">
+              <div className="grid grid-cols-3 gap-2 text-xs bg-slate-50 p-2.5 rounded border border-slate-200">
                 <div>
                   <span className="text-slate-500">Base Salary:</span>
                   <div className="font-bold text-slate-700">₹{paymentData.baseSalary.toLocaleString()}</div>
                 </div>
                 <div>
                   <span className="text-slate-500">Bonus Paid:</span>
-                  <div className="font-bold text-slate-700">₹{paymentData.bonus.toLocaleString()}</div>
+                  <div className="font-bold text-slate-700">₹{(paymentData.bonus || 0).toLocaleString()}</div>
                 </div>
-                <div className="col-span-2 border-t border-slate-200 mt-1 pt-1 flex justify-between">
+                <div>
+                  <span className="text-slate-500">Batta Paid:</span>
+                  <div className="font-bold text-amber-700">₹{(paymentData.batta || 0).toLocaleString()}</div>
+                </div>
+                <div className="col-span-3 border-t border-slate-200 mt-1 pt-1 flex justify-between">
                   <span className="text-slate-500 font-medium">Total paid so far:</span>
                   <span className="font-bold text-blue-600">₹{paymentData.paidAmount.toLocaleString()}</span>
                 </div>
-                <div className="col-span-2 flex justify-between">
+                <div className="col-span-3 flex justify-between">
                   <span className="text-slate-500 font-medium">Remaining Pending:</span>
                   <span className="font-bold text-red-600">₹{paymentData.pendingAmount.toLocaleString()}</span>
                 </div>
@@ -1240,6 +1251,7 @@ const Employees = () => {
                 >
                   <option value="Salary">Salary Payout (Partial/Full)</option>
                   <option value="Bonus">Add Bonus Payment</option>
+                  <option value="Batta">Add Batta (Overtime / Extra Allowance)</option>
                 </select>
               </div>
 

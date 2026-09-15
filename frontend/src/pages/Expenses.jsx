@@ -33,6 +33,7 @@ const Expenses = () => {
   const [selectedType, setSelectedType] = useState('All');
   const [loading, setLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isBulkSubmitting, setIsBulkSubmitting] = useState(false);
 
   const filteredExpenses = useMemo(() => {
     if (selectedType === 'All') return expenses;
@@ -48,9 +49,112 @@ const Expenses = () => {
   }, [expenses]);
 
   const [isModalOpen, setIsModalOpen] = useState(false);
-  
   const [formData, setFormData] = useState({ date: new Date().toISOString().split('T')[0], type: '', description: '', amount: '' });
   const [customType, setCustomType] = useState('');
+
+  // Bulk Entry Modal States
+  const [isBulkModalOpen, setIsBulkModalOpen] = useState(false);
+  const [bulkDate, setBulkDate] = useState(new Date().toISOString().split('T')[0]);
+  const [bulkRows, setBulkRows] = useState([]);
+
+  const emptyBulkRow = () => ({
+    id: Date.now() + Math.random().toString(36).substr(2, 9),
+    type: 'Fuel',
+    customType: '',
+    description: '',
+    amount: ''
+  });
+
+  const openBulkModal = () => {
+    setBulkDate(new Date().toISOString().split('T')[0]);
+    setBulkRows([emptyBulkRow()]);
+    setIsBulkModalOpen(true);
+  };
+
+  const addBulkRow = () => {
+    setBulkRows((prev) => [...prev, emptyBulkRow()]);
+  };
+
+  const removeBulkRow = (index) => {
+    setBulkRows((prev) => {
+      const updated = prev.filter((_, i) => i !== index);
+      return updated.length === 0 ? [emptyBulkRow()] : updated;
+    });
+  };
+
+  const duplicateBulkRow = (index) => {
+    const target = bulkRows[index];
+    const newRow = {
+      ...target,
+      id: Date.now() + Math.random().toString(36).substr(2, 9)
+    };
+    setBulkRows((prev) => {
+      const updated = [...prev];
+      updated.splice(index + 1, 0, newRow);
+      return updated;
+    });
+  };
+
+  const handleBulkRowChange = (index, field, value) => {
+    setBulkRows((prev) => {
+      const updated = [...prev];
+      updated[index] = { ...updated[index], [field]: value };
+      return updated;
+    });
+  };
+
+  const handleBulkSubmit = async (e) => {
+    e.preventDefault();
+    if (isBulkSubmitting) return;
+
+    const validRows = [];
+    for (let i = 0; i < bulkRows.length; i++) {
+      const row = bulkRows[i];
+      const rowNum = i + 1;
+
+      const finalType = row.type === 'Other' ? row.customType.trim() : row.type;
+      if (!finalType) {
+        alert(`Row #${rowNum}: Please select or specify an expense type/category.`);
+        return;
+      }
+
+      if (finalType === 'Load') {
+        alert(`Row #${rowNum}: Expense type "Load" is reserved for buyer payments.`);
+        return;
+      }
+
+      if (!row.amount || Number(row.amount) <= 0) {
+        alert(`Row #${rowNum}: Please enter a valid positive amount.`);
+        return;
+      }
+
+      validRows.push({
+        type: finalType,
+        description: row.description ? row.description.trim() : '',
+        amount: Number(row.amount)
+      });
+    }
+
+    if (validRows.length === 0) {
+      alert('Please fill out at least one row with expense details.');
+      return;
+    }
+
+    try {
+      setIsBulkSubmitting(true);
+      await api.post('/expenses/bulk', {
+        date: new Date(`${bulkDate}T12:00`).toISOString(),
+        expenses: validRows
+      });
+      setIsBulkModalOpen(false);
+      fetchExpenses();
+    } catch (error) {
+      console.error('Error saving bulk expenses', error);
+      alert('Error saving expenses: ' + (error.response?.data?.message || 'Unknown error'));
+    } finally {
+      setIsBulkSubmitting(false);
+    }
+  };
 
   // Sync dateRange when reportType changes
   useEffect(() => {
@@ -145,79 +249,48 @@ const Expenses = () => {
     doc.line(14, 29, pageWidth - 14, 29);
 
     // Table start
-    const yStartTable = 36;
-
     const head = [['S.NO', 'DATE', 'EXPENSE TYPE', 'DESCRIPTION', 'AMOUNT']];
     const body = filteredExpenses.map((e, idx) => [
       idx + 1,
       formatDateDDMMYYYY(e.date),
-      e.type,
-      e.description || '-',
-      e.amount.toFixed(2)
+      e.type === 'Labour' ? 'Labour / Salary' : (e.type || '—'),
+      e.description || '—',
+      `Rs. ${Number(e.amount || 0).toLocaleString()}`
     ]);
 
     autoTable(doc, {
       head,
       body,
-      startY: yStartTable,
+      startY: 36,
       theme: 'grid',
-      styles: { fontSize: 8, cellPadding: 3 },
+      styles: { fontSize: 8.5, cellPadding: 2.5 },
       headStyles: { fillColor: [245, 246, 250], textColor: [15, 23, 42], fontStyle: 'bold' }
     });
 
-    // Totals/Summary Table (after the main table)
-    let y = (doc.lastAutoTable?.finalY || yStartTable) + 12;
-    if (y > pageHeight - 65) {
+    let y = (doc.lastAutoTable?.finalY || 36) + 12;
+    if (y > pageHeight - 45) {
       doc.addPage();
       y = 18;
     }
 
-    // Group expenses by type to show a nice summary
-    const byType = {};
-    filteredExpenses.forEach((e) => {
-      byType[e.type] = (byType[e.type] || 0) + e.amount;
-    });
+    const grandTotal = filteredExpenses.reduce((sum, e) => sum + Number(e.amount || 0), 0);
 
-    const totalAmount = filteredExpenses.reduce((sum, e) => sum + e.amount, 0);
-
-    const totalsHead = [['EXPENSE SUMMARY', 'AMOUNT']];
-    const totalsBody = Object.entries(byType).map(([type, amount]) => [
-      type.toUpperCase(),
-      amount.toFixed(2)
-    ]);
-    totalsBody.push(['TOTAL EXPENSES', totalAmount.toFixed(2)]);
-
-    const leftRightMargin = 14;
-    const detailsColWidth = 75; // enough for labels
-    const amountColWidth = pageWidth - leftRightMargin * 2 - detailsColWidth;
-    const tableWidth = detailsColWidth + amountColWidth;
+    const summaryHead = [['SUMMARY', 'AMOUNT (Rs.)']];
+    const summaryBody = [
+      ['TOTAL EXPENSE', `Rs. ${grandTotal.toLocaleString()}`]
+    ];
 
     autoTable(doc, {
-      head: totalsHead,
-      body: totalsBody,
+      head: summaryHead,
+      body: summaryBody,
       startY: y,
       theme: 'grid',
-      tableWidth,
-      styles: { fontSize: 9, cellPadding: 2.5, overflow: 'linebreak' },
-      headStyles: { fillColor: [37, 99, 235], textColor: [255, 255, 255], fontStyle: 'bold' },
-      columnStyles: {
-        0: { halign: 'left', cellWidth: detailsColWidth },
-        1: { halign: 'right', cellWidth: amountColWidth }
-      },
-      margin: { left: leftRightMargin, right: leftRightMargin },
-      didParseCell: function (data) {
-        // Bold the last row (TOTAL EXPENSES)
-        if (data.row.index === totalsBody.length - 1) {
-          data.cell.styles.fontStyle = 'bold';
-        }
-      }
+      styles: { fontSize: 9, cellPadding: 2.5 },
+      headStyles: { fillColor: [220, 38, 38], textColor: [255, 255, 255], fontStyle: 'bold' }
     });
 
-    const rangeSlug = rangeLabel
-      .replaceAll(' ', '_')
-      .replaceAll('/', '-')
-      .replaceAll('.', '-');
-    doc.save(`Expense_Report_${rangeSlug}.pdf`);
+    const timelineSlug = rangeLabel.replaceAll('/', '-').replaceAll(' ', '_').replaceAll(':', '').replaceAll(',', '');
+    doc.save(`expense_report_${selectedType.toLowerCase()}_${timelineSlug}.pdf`);
   };
 
   const handleChange = (e) => {
@@ -227,20 +300,19 @@ const Expenses = () => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (isSubmitting) return;
+
+    const finalType = formData.type === 'Other' ? customType.trim() : formData.type;
+    if (!finalType) {
+      alert('Please select or specify an expense type');
+      return;
+    }
+
     try {
       setIsSubmitting(true);
-      const expenseType = formData.type === 'Other' ? customType.trim() : formData.type;
-      if (!expenseType) {
-        alert('Please specify an expense type');
-        return;
-      }
-      if (expenseType.toLowerCase() === 'load' && !formData._id) {
-        alert('Expense type "Load" is reserved for buyer payments. Please record buyer payments in Load Management/Buyers.');
-        return;
-      }
       const payload = {
-        ...formData,
-        type: expenseType,
+        date: formData.date ? new Date(`${formData.date}T12:00`).toISOString() : undefined,
+        type: finalType,
+        description: formData.description,
         amount: Number(formData.amount)
       };
 
@@ -255,21 +327,26 @@ const Expenses = () => {
       fetchExpenses();
     } catch (error) {
       console.error('Error saving expense', error);
-      alert('Error saving expense');
+      alert(error.response?.data?.message || 'Error saving expense');
     } finally {
       setIsSubmitting(false);
     }
   };
 
   const handleEdit = (expense) => {
-    const isPredefined = ['Fuel', 'Maintenance', 'Labour', 'Electricity', 'Rent'].includes(expense.type);
-    setFormData({ 
-      ...expense, 
-      date: expense.date ? new Date(expense.date).toISOString().split('T')[0] : '',
-      type: isPredefined ? expense.type : 'Other',
-      amount: expense.amount 
+    const isStandardType = dynamicTypes.includes(expense.type) && expense.type !== 'Other';
+    setFormData({
+      ...expense,
+      date: expense.date ? new Date(expense.date).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
+      type: isStandardType ? expense.type : 'Other',
+      description: expense.description || '',
+      amount: expense.amount
     });
-    setCustomType(isPredefined ? '' : expense.type);
+    if (!isStandardType) {
+      setCustomType(expense.type);
+    } else {
+      setCustomType('');
+    }
     setIsModalOpen(true);
   };
 
@@ -291,12 +368,16 @@ const Expenses = () => {
     }
   };
 
+  const totalExpense = useMemo(() => {
+    return filteredExpenses.reduce((sum, e) => sum + Number(e.amount || 0), 0);
+  }, [filteredExpenses]);
+
   return (
     <div className="space-y-6 flex flex-col h-full">
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center shrink-0 gap-4">
         <div>
           <h1 className="text-2xl font-bold text-slate-800">Expenses</h1>
-          <p className="text-slate-500 text-sm mt-1">Track operational costs and overheads.</p>
+          <p className="text-slate-500 text-sm mt-1">Track operational expenses, fuel, maintenance, and labour costs.</p>
         </div>
 
         <div className="flex flex-wrap items-end gap-3 bg-white p-3 rounded-xl shadow-sm border border-slate-200 w-full md:w-auto">
@@ -366,17 +447,26 @@ const Expenses = () => {
           </button>
 
           {canWrite && (
-            <button 
-              type="button"
-              onClick={() => { 
-                setFormData({ date: new Date().toISOString().split('T')[0], type: '', description: '', amount: '' }); 
-                setCustomType('');
-                setIsModalOpen(true); 
-              }}
-              className="bg-green-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-green-700 transition shadow-md whitespace-nowrap cursor-pointer w-full sm:w-auto justify-center inline-flex items-center"
-            >
-              + Add Expense
-            </button>
+            <div className="flex flex-wrap gap-2 w-full sm:w-auto">
+              <button 
+                type="button"
+                onClick={() => { 
+                  setFormData({ date: new Date().toISOString().split('T')[0], type: '', description: '', amount: '' }); 
+                  setCustomType('');
+                  setIsModalOpen(true); 
+                }}
+                className="bg-green-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-green-700 transition shadow-md whitespace-nowrap cursor-pointer flex-1 sm:flex-initial justify-center inline-flex items-center"
+              >
+                + Add Expense
+              </button>
+              <button 
+                type="button"
+                onClick={openBulkModal}
+                className="bg-teal-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-teal-700 transition shadow-md whitespace-nowrap cursor-pointer flex-1 sm:flex-initial justify-center inline-flex items-center"
+              >
+                + Bulk Entry
+              </button>
+            </div>
           )}
         </div>
       </div>
@@ -394,30 +484,39 @@ const Expenses = () => {
                   <th className="p-4 font-semibold w-1/5 whitespace-nowrap">Date</th>
                   <th className="p-4 font-semibold w-1/5 whitespace-nowrap">Type</th>
                   <th className="p-4 font-semibold w-2/5">Description</th>
-                  <th className="p-4 font-semibold w-1/5 whitespace-nowrap">Amount (₹)</th>
+                  <th className="p-4 font-semibold w-1/5 whitespace-nowrap text-right">Amount (₹)</th>
                   {canWrite && <th className="p-4 font-semibold text-right w-1/5">Actions</th>}
                 </tr>
               </thead>
-              <tbody className="whitespace-nowrap md:whitespace-normal">
+              <tbody className="whitespace-nowrap">
                 {filteredExpenses.map((exp) => (
-                  <tr key={exp._id}>
-                    <td className="p-4 text-slate-600 whitespace-nowrap">{formatDateDDMMYYYY(exp.date)}</td>
-                    <td className="p-4 font-medium text-slate-800 whitespace-nowrap"><span className="bg-slate-100 px-2 py-1 rounded text-sm border border-slate-200">{exp.type}</span></td>
-                    <td className="p-4 text-slate-600 min-w-[200px] break-words">{exp.description || '-'}</td>
-                    <td className="p-4 text-slate-800 font-bold whitespace-nowrap">₹{exp.amount.toLocaleString()}</td>
+                  <tr key={exp._id} className="hover:bg-slate-50/80 transition-colors">
+                    <td className="p-4 text-slate-600">{formatDateDDMMYYYY(exp.date)}</td>
+                    <td className="p-4">
+                      <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold bg-slate-100 text-slate-700 border border-slate-200">
+                        {exp.type === 'Labour' ? 'Labour / Salary' : exp.type}
+                      </span>
+                      {exp.isSynced && (
+                        <span className="ml-2 text-[10px] font-semibold text-blue-600 bg-blue-50 border border-blue-200 px-1.5 py-0.5 rounded">
+                          Synced ({exp.syncSource})
+                        </span>
+                      )}
+                    </td>
+                    <td className="p-4 text-slate-800 font-medium">{exp.description || '—'}</td>
+                    <td className="p-4 text-right font-bold text-red-600">₹{Number(exp.amount || 0).toLocaleString()}</td>
                     {canWrite && (
                       <td className="p-4 text-right space-x-2 whitespace-nowrap">
                         <button 
                           onClick={() => handleEdit(exp)} 
-                          className="text-blue-600 hover:text-blue-800 hover:bg-blue-50 p-2 rounded-lg transition-colors inline-flex items-center" 
-                          title={exp.isSynced ? `Edit Expense (Synced from ${exp.syncSource})` : "Edit Expense"}
+                          className="text-blue-600 hover:text-blue-800 hover:bg-blue-50 p-2 rounded-lg transition-colors inline-flex items-center cursor-pointer" 
+                          title="Edit Expense"
                         >
                           <EditIcon className="h-5 w-5" />
                         </button>
                         <button 
                           onClick={() => handleDelete(exp._id)} 
-                          className="text-red-600 hover:text-red-800 hover:bg-red-50 p-2 rounded-lg transition-colors inline-flex items-center" 
-                          title={exp.isSynced ? `Delete Expense (Synced from ${exp.syncSource})` : "Delete Expense"}
+                          className="text-red-600 hover:text-red-800 hover:bg-red-50 p-2 rounded-lg transition-colors inline-flex items-center cursor-pointer" 
+                          title="Delete Expense"
                         >
                           <TrashIcon className="h-5 w-5" />
                         </button>
@@ -429,14 +528,18 @@ const Expenses = () => {
             </table>
           </div>
         )}
+        <div className="bg-slate-50 border-t border-slate-200 p-4 flex justify-between items-center shrink-0">
+          <span className="text-sm font-bold text-slate-600 uppercase tracking-wider">Total Expenses ({selectedType})</span>
+          <span className="text-xl font-extrabold text-red-600">₹{totalExpense.toLocaleString()}</span>
+        </div>
       </div>
 
-      {/* Modal */}
+      {/* --- ADD / EDIT SINGLE EXPENSE MODAL --- */}
       {isModalOpen && (
         <div className="fixed inset-0 bg-slate-900/50 flex items-center justify-center p-4 z-50 animate-in fade-in duration-200">
-          <div className="bg-white rounded-xl shadow-2xl w-full max-w-md overflow-hidden flex flex-col max-h-[90vh]">
+          <div className="bg-white rounded-xl shadow-2xl w-full max-w-sm overflow-hidden flex flex-col max-h-[90vh]">
             <div className="p-5 border-b border-slate-100 flex justify-between items-center shrink-0">
-              <h2 className="text-xl font-bold text-slate-800">{formData._id ? 'Edit Expense' : 'Add New Expense'}</h2>
+              <h2 className="text-xl font-bold text-slate-800">{formData._id ? 'Update Expense' : 'Add New Expense'}</h2>
               <button onClick={() => setIsModalOpen(false)} className="text-slate-400 hover:text-slate-600 text-2xl leading-none">&times;</button>
             </div>
             
@@ -501,6 +604,177 @@ const Expenses = () => {
                 <button type="submit" disabled={isSubmitting} className="px-4 py-2 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 transition shadow-md cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed disabled:pointer-events-none">
                   {isSubmitting ? 'Saving...' : (formData._id ? 'Update Expense' : 'Save Expense')}
                 </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* --- BULK EXPENSE ENTRY MODAL --- */}
+      {isBulkModalOpen && (
+        <div className="fixed inset-0 bg-slate-900/50 flex items-center justify-center p-4 z-50 animate-in fade-in duration-200">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-[92vw] xl:max-w-[85vw] overflow-hidden flex flex-col max-h-[94vh]">
+            <div className="p-6 border-b border-slate-100 flex justify-between items-center shrink-0 bg-slate-50/50">
+              <div>
+                <h2 className="text-2xl font-bold text-slate-800">Daily Expense Log Sheet (Bulk Entry)</h2>
+                <p className="text-sm text-slate-500 mt-1">Quickly enter all daily operational expenses in a single spreadsheet view</p>
+              </div>
+              <button onClick={() => setIsBulkModalOpen(false)} className="text-slate-400 hover:text-slate-600 text-3xl leading-none">&times;</button>
+            </div>
+            
+            <form onSubmit={handleBulkSubmit} className="flex flex-col flex-1 overflow-hidden">
+              {/* Batch Settings */}
+              <div className="p-5 bg-slate-50 border-b border-slate-100 flex flex-wrap gap-4 items-center shrink-0">
+                <div className="flex items-center gap-3">
+                  <label className="text-sm font-bold text-slate-700 uppercase tracking-wider">Log Date:</label>
+                  <input
+                    type="date"
+                    required
+                    value={bulkDate}
+                    onChange={(e) => setBulkDate(e.target.value)}
+                    className="border border-slate-300 rounded-xl p-2.5 text-base focus:ring-2 focus:ring-blue-500 outline-none bg-white w-48 font-semibold text-slate-800"
+                  />
+                </div>
+              </div>
+
+              {/* Grid Table Container */}
+              <div className="flex-1 overflow-auto p-6">
+                <table className="w-full border-collapse text-left text-base mb-32">
+                  <thead>
+                    <tr className="border-b border-slate-200 text-slate-600 uppercase text-xs font-extrabold tracking-wider bg-slate-100/80">
+                      <th className="py-4 px-3 w-12 text-center">#</th>
+                      <th className="py-4 px-3 min-w-[220px]">Expense Category / Type *</th>
+                      <th className="py-4 px-3 min-w-[300px]">Description</th>
+                      <th className="py-4 px-3 w-[180px]">Amount (₹) *</th>
+                      <th className="py-4 px-3 w-24 text-center">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {bulkRows.map((row, index) => {
+                      return (
+                        <tr key={row.id} className="hover:bg-slate-50/50 transition duration-150">
+                          <td className="py-3.5 px-3 text-center text-slate-400 font-bold text-base">{index + 1}</td>
+                          
+                          {/* Type Select */}
+                          <td className="py-3.5 px-3">
+                            <div className="space-y-1.5">
+                              <select
+                                required
+                                value={row.type}
+                                onChange={(e) => handleBulkRowChange(index, 'type', e.target.value)}
+                                className="w-full border border-slate-300 rounded-xl p-2.5 text-[15px] bg-white focus:ring-2 focus:ring-blue-500 outline-none font-semibold text-slate-800"
+                              >
+                                {dynamicTypes.filter(t => t !== 'Other' && t !== 'Load').map((t) => (
+                                  <option key={t} value={t}>
+                                    {t === 'Labour' ? 'Labour / Salary' : t}
+                                  </option>
+                                ))}
+                                <option value="Other">Other / Custom</option>
+                              </select>
+                              {row.type === 'Other' && (
+                                <input
+                                  type="text"
+                                  required
+                                  value={row.customType}
+                                  onChange={(e) => handleBulkRowChange(index, 'customType', e.target.value)}
+                                  placeholder="Specify custom type"
+                                  className="w-full border border-slate-300 rounded-xl p-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none bg-white font-medium text-slate-800"
+                                />
+                              )}
+                            </div>
+                          </td>
+
+                          {/* Description */}
+                          <td className="py-3.5 px-3">
+                            <input
+                              type="text"
+                              value={row.description}
+                              onChange={(e) => handleBulkRowChange(index, 'description', e.target.value)}
+                              placeholder="Expense details (optional)"
+                              className="w-full border border-slate-300 rounded-xl p-2.5 text-[15px] focus:ring-2 focus:ring-blue-500 outline-none bg-white font-medium text-slate-800"
+                            />
+                          </td>
+
+                          {/* Amount */}
+                          <td className="py-3.5 px-3">
+                            <div className="relative">
+                              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm font-semibold">₹</span>
+                              <input
+                                type="number"
+                                required
+                                min="1"
+                                step="any"
+                                value={row.amount}
+                                onChange={(e) => handleBulkRowChange(index, 'amount', e.target.value)}
+                                onKeyDown={(e) => {
+                                  if (e.key === 'Enter') {
+                                    e.preventDefault();
+                                    if (index === bulkRows.length - 1) {
+                                      addBulkRow();
+                                    }
+                                  }
+                                }}
+                                className="w-full border border-slate-300 rounded-xl p-2.5 pl-7 text-[15px] focus:ring-2 focus:ring-blue-500 outline-none bg-white font-bold text-slate-800"
+                                placeholder="0.00"
+                              />
+                            </div>
+                          </td>
+
+                          {/* Actions */}
+                          <td className="py-3.5 px-3 text-center">
+                            <div className="flex items-center justify-center gap-1">
+                              <button
+                                type="button"
+                                onClick={() => duplicateBulkRow(index)}
+                                className="p-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition title='Duplicate row'"
+                              >
+                                📋
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => removeBulkRow(index)}
+                                className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition title='Remove row'"
+                              >
+                                🗑️
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+
+                <button
+                  type="button"
+                  onClick={addBulkRow}
+                  className="mt-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold px-4 py-2.5 rounded-xl text-sm transition inline-flex items-center gap-2 cursor-pointer border border-slate-200"
+                >
+                  <span>+ Add Another Row</span>
+                </button>
+              </div>
+
+              {/* Modal Footer */}
+              <div className="p-5 bg-slate-50 border-t border-slate-100 flex flex-wrap justify-between items-center shrink-0">
+                <div className="text-base font-bold text-slate-700">
+                  Total Logged Expense: <span className="text-red-600 font-extrabold text-xl ml-2">₹{bulkRows.reduce((sum, r) => sum + (Number(r.amount) || 0), 0).toLocaleString()}</span>
+                </div>
+                <div className="flex items-center gap-3">
+                  <button
+                    type="button"
+                    onClick={() => setIsBulkModalOpen(false)}
+                    className="px-5 py-2.5 text-slate-600 bg-white hover:bg-slate-100 border border-slate-300 rounded-xl font-bold transition text-sm cursor-pointer"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={isBulkSubmitting}
+                    className="px-6 py-2.5 bg-teal-600 text-white rounded-xl font-bold hover:bg-teal-700 transition shadow-lg text-sm cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {isBulkSubmitting ? 'Saving All...' : `Save All Expenses (${bulkRows.length})`}
+                  </button>
+                </div>
               </div>
             </form>
           </div>

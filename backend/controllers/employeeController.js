@@ -210,7 +210,7 @@ const syncSalaryPayment = async (employeeId, month, year) => {
       salaryPayment.attendedDays = attendedDays;
       salaryPayment.dailyWagesSnapshot = employee.dailyWages;
       salaryPayment.baseSalary = baseSalary;
-      salaryPayment.totalSalary = baseSalary + salaryPayment.bonus;
+      salaryPayment.totalSalary = baseSalary + (salaryPayment.bonus || 0) + (salaryPayment.batta || 0);
       salaryPayment.pendingAmount = salaryPayment.totalSalary - salaryPayment.paidAmount;
 
       if (Math.abs(salaryPayment.pendingAmount) < 1e-4) {
@@ -395,7 +395,7 @@ export const getSalaries = async (req, res, next) => {
         // Dynamically sync and update the salary record in database from attendance logs
         existingPayment.attendedDays = attendedDays;
         existingPayment.dailyWagesSnapshot = dailyWages;
-        existingPayment.totalSalary = baseSalary + existingPayment.bonus;
+        existingPayment.totalSalary = baseSalary + (existingPayment.bonus || 0) + (existingPayment.batta || 0);
         existingPayment.pendingAmount = existingPayment.totalSalary - existingPayment.paidAmount;
 
         if (Math.abs(existingPayment.pendingAmount) < 1e-4) {
@@ -424,7 +424,8 @@ export const getSalaries = async (req, res, next) => {
           attendedDays: existingPayment.attendedDays,
           dailyWagesSnapshot: existingPayment.dailyWagesSnapshot,
           baseSalary: existingPayment.baseSalary,
-          bonus: existingPayment.bonus,
+          bonus: existingPayment.bonus || 0,
+          batta: existingPayment.batta || 0,
           totalSalary: existingPayment.totalSalary,
           paidAmount: existingPayment.paidAmount,
           pendingAmount: existingPayment.pendingAmount,
@@ -447,6 +448,7 @@ export const getSalaries = async (req, res, next) => {
           dailyWagesSnapshot: dailyWages,
           baseSalary,
           bonus: 0,
+          batta: 0,
           totalSalary: baseSalary,
           paidAmount: 0,
           pendingAmount: baseSalary,
@@ -522,8 +524,11 @@ export const getSalarySummary = async (req, res, next) => {
       const bonus = history
         .filter((tx) => tx.type === 'Bonus')
         .reduce((sum, tx) => sum + tx.amount, 0);
+      const batta = history
+        .filter((tx) => tx.type === 'Batta')
+        .reduce((sum, tx) => sum + tx.amount, 0);
       const paidAmount = history.reduce((sum, tx) => sum + tx.amount, 0);
-      const totalSalary = baseSalary + bonus;
+      const totalSalary = baseSalary + bonus + batta;
       const pendingAmount = Math.max(0, totalSalary - paidAmount);
 
       return {
@@ -541,6 +546,7 @@ export const getSalarySummary = async (req, res, next) => {
         dailyWagesSnapshot: emp.dailyWages,
         baseSalary,
         bonus,
+        batta,
         totalSalary,
         paidAmount,
         pendingAmount,
@@ -609,6 +615,7 @@ export const paySalary = async (req, res, next) => {
         dailyWagesSnapshot: employee.dailyWages,
         baseSalary,
         bonus: 0,
+        batta: 0,
         totalSalary: baseSalary,
         paidAmount: 0,
         pendingAmount: baseSalary,
@@ -619,17 +626,23 @@ export const paySalary = async (req, res, next) => {
       salaryPayment.attendedDays = attendedDays;
       salaryPayment.dailyWagesSnapshot = employee.dailyWages;
       salaryPayment.baseSalary = baseSalary;
-      salaryPayment.totalSalary = baseSalary + salaryPayment.bonus;
+      salaryPayment.totalSalary = baseSalary + (salaryPayment.bonus || 0) + (salaryPayment.batta || 0);
       salaryPayment.pendingAmount = salaryPayment.totalSalary - salaryPayment.paidAmount;
     }
 
     let description = '';
     if (type === 'Bonus') {
-      salaryPayment.bonus += payAmt;
-      salaryPayment.totalSalary = salaryPayment.baseSalary + salaryPayment.bonus;
+      salaryPayment.bonus = (salaryPayment.bonus || 0) + payAmt;
+      salaryPayment.totalSalary = salaryPayment.baseSalary + salaryPayment.bonus + (salaryPayment.batta || 0);
       salaryPayment.paidAmount += payAmt;
       salaryPayment.pendingAmount = salaryPayment.totalSalary - salaryPayment.paidAmount;
       description = `Bonus payment to ${employee.name} for ${String(m).padStart(2, '0')}/${y}`;
+    } else if (type === 'Batta') {
+      salaryPayment.batta = (salaryPayment.batta || 0) + payAmt;
+      salaryPayment.totalSalary = salaryPayment.baseSalary + (salaryPayment.bonus || 0) + salaryPayment.batta;
+      salaryPayment.paidAmount += payAmt;
+      salaryPayment.pendingAmount = salaryPayment.totalSalary - salaryPayment.paidAmount;
+      description = `Batta/OT payment to ${employee.name} for ${String(m).padStart(2, '0')}/${y}`;
     } else if (type === 'Salary') {
       if (payAmt > salaryPayment.pendingAmount + 1e-4) {
         return res.status(400).json({ 
@@ -640,7 +653,7 @@ export const paySalary = async (req, res, next) => {
       salaryPayment.pendingAmount = salaryPayment.totalSalary - salaryPayment.paidAmount;
       description = `Salary payment to ${employee.name} for ${String(m).padStart(2, '0')}/${y}`;
     } else {
-      return res.status(400).json({ message: 'Invalid payment type. Must be Salary or Bonus' });
+      return res.status(400).json({ message: 'Invalid payment type. Must be Salary, Bonus, or Batta' });
     }
 
     // Update paymentStatus
@@ -706,8 +719,12 @@ export const deleteTransaction = async (req, res, next) => {
 
     // Subtract from totals based on type
     if (tx.type === 'Bonus') {
-      salaryPayment.bonus -= tx.amount;
-      salaryPayment.totalSalary = salaryPayment.baseSalary + salaryPayment.bonus;
+      salaryPayment.bonus = Math.max(0, (salaryPayment.bonus || 0) - tx.amount);
+      salaryPayment.totalSalary = salaryPayment.baseSalary + salaryPayment.bonus + (salaryPayment.batta || 0);
+      salaryPayment.paidAmount -= tx.amount;
+    } else if (tx.type === 'Batta') {
+      salaryPayment.batta = Math.max(0, (salaryPayment.batta || 0) - tx.amount);
+      salaryPayment.totalSalary = salaryPayment.baseSalary + (salaryPayment.bonus || 0) + salaryPayment.batta;
       salaryPayment.paidAmount -= tx.amount;
     } else if (tx.type === 'Salary') {
       salaryPayment.paidAmount -= tx.amount;
@@ -783,6 +800,7 @@ export const updateBaseSalary = async (req, res, next) => {
         baseSalary: newBase,
         isBaseSalaryOverridden: true,
         bonus: 0,
+        batta: 0,
         totalSalary: newBase,
         paidAmount: 0,
         pendingAmount: newBase,
@@ -792,7 +810,7 @@ export const updateBaseSalary = async (req, res, next) => {
     } else {
       salaryPayment.baseSalary = newBase;
       salaryPayment.isBaseSalaryOverridden = true;
-      salaryPayment.totalSalary = newBase + salaryPayment.bonus;
+      salaryPayment.totalSalary = newBase + (salaryPayment.bonus || 0) + (salaryPayment.batta || 0);
       salaryPayment.pendingAmount = salaryPayment.totalSalary - salaryPayment.paidAmount;
 
       if (Math.abs(salaryPayment.pendingAmount) < 1e-4) {

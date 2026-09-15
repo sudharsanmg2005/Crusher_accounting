@@ -67,6 +67,57 @@ export const createExpense = async (req, res, next) => {
   }
 };
 
+export const createExpensesBulk = async (req, res, next) => {
+  try {
+    const { date, expenses } = req.body;
+
+    if (!expenses || !Array.isArray(expenses) || expenses.length === 0) {
+      res.status(400);
+      throw new Error('No expenses provided for bulk creation');
+    }
+
+    const expensesToCreate = [];
+    const expDate = date ? new Date(date) : new Date();
+
+    for (let i = 0; i < expenses.length; i++) {
+      const item = expenses[i];
+      const { type, description, amount } = item;
+
+      if (!type || type.trim() === '') {
+        res.status(400);
+        throw new Error(`Expense category/type is required for item at row ${i + 1}`);
+      }
+
+      if (type.trim() === 'Load') {
+        res.status(400);
+        throw new Error(`Expense type "Load" at row ${i + 1} is reserved for buyer payments.`);
+      }
+
+      const numAmount = Number(amount);
+      if (isNaN(numAmount) || numAmount <= 0) {
+        res.status(400);
+        throw new Error(`Valid positive amount is required for expense at row ${i + 1}`);
+      }
+
+      expensesToCreate.push({
+        date: expDate,
+        type: type.trim(),
+        description: description ? description.trim() : '',
+        amount: numAmount
+      });
+    }
+
+    const createdExpenses = await Expense.insertMany(expensesToCreate);
+
+    res.status(201).json({
+      expenses: createdExpenses,
+      auditDetails: `Bulk created ${createdExpenses.length} expenses`
+    });
+  } catch (err) {
+    next(err);
+  }
+};
+
 export const updateExpense = async (req, res, next) => {
   try {
     const expense = await Expense.findById(req.params.id);

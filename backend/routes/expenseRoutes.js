@@ -2,6 +2,7 @@ import express from 'express';
 import {
   getExpenses,
   createExpense,
+  createExpensesBulk,
   updateExpense,
   deleteExpense,
   getArchivedExpenses,
@@ -13,6 +14,7 @@ import { requireSuperAdmin, requireWriteAccess } from '../middleware/permissionM
 const router = express.Router();
 
 router.route('/').get(getExpenses).post(requireWriteAccess, createExpense);
+router.route('/bulk').post(requireWriteAccess, createExpensesBulk);
 router.route('/archived').get(requireSuperAdmin, getArchivedExpenses);
 router.route('/:id').put(requireWriteAccess, updateExpense).delete(requireWriteAccess, deleteExpense);
 router.route('/:id/restore').patch(requireSuperAdmin, restoreExpense);

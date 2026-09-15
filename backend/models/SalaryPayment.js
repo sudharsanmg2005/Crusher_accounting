@@ -3,7 +3,7 @@ import mongoose from 'mongoose';
 const paymentHistorySchema = new mongoose.Schema({
   amount: { type: Number, required: true },
   date: { type: Date, default: Date.now, required: true },
-  type: { type: String, enum: ['Salary', 'Bonus'], required: true },
+  type: { type: String, enum: ['Salary', 'Bonus', 'Batta'], required: true },
   expenseRef: { type: mongoose.Schema.Types.ObjectId, ref: 'Expense' }
 });
 
@@ -17,6 +17,7 @@ const salaryPaymentSchema = new mongoose.Schema(
     baseSalary: { type: Number, required: true },
     isBaseSalaryOverridden: { type: Boolean, default: false },
     bonus: { type: Number, default: 0 },
+    batta: { type: Number, default: 0 },
     totalSalary: { type: Number, required: true },
     paidAmount: { type: Number, default: 0 },
     pendingAmount: { type: Number, required: true },
