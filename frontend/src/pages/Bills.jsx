@@ -47,7 +47,7 @@ const Bills = () => {
   const [editModalOpen, setEditModalOpen] = useState(false);
   const [editingBill, setEditingBill] = useState(null);
   const [formData, setFormData] = useState(emptyForm());
-  const [editFormData, setEditFormData] = useState({ vehicleNumber: '', quantity: '', quantityUnit: 'ton', pricePerUnit: '', date: '' });
+  const [editFormData, setEditFormData] = useState({ customer: '', material: '', vehicleNumber: '', quantity: '', quantityUnit: 'ton', pricePerUnit: '', passAmount: '', date: '' });
   
   // State for payment editing/deleting
   const [editPaymentModalOpen, setEditPaymentModalOpen] = useState(false);
@@ -447,15 +447,18 @@ const Bills = () => {
 
       let grandBilled = 0;
       let grandPending = 0;
+      let grandLoadsCount = 0;
       activeCustomers.forEach(c => {
         grandBilled += c.totalBillsAmount || 0;
         grandPending += Math.max(0, c.outstandingBalance || 0);
+        grandLoadsCount += billCountMap[c.customerId || c._id] || 0;
       });
 
-      const grandHead = [['GRAND SUMMARY', 'AMOUNT (Rs.)']];
+      const grandHead = [['GRAND SUMMARY', 'DETAILS / AMOUNT']];
       const grandBody = [
-        ['GRAND TOTAL BILLED', grandBilled.toLocaleString()],
-        ['GRAND TOTAL PENDING', grandPending.toLocaleString()]
+        ['TOTAL NO. OF LOADS / BILLS', grandLoadsCount.toString()],
+        ['GRAND TOTAL BILLED', `Rs. ${grandBilled.toLocaleString()}`],
+        ['GRAND TOTAL PENDING', `Rs. ${grandPending.toLocaleString()}`]
       ];
 
       doc.setFontSize(10);
@@ -542,6 +545,7 @@ const Bills = () => {
       const grandTotalSum = grandTotal + oldBalance;
       const totalBalanceCalculated = grandTotalSum - amountReceived;
       const totalsBody = [
+        ['TOTAL NO. OF LOADS / BILLS', sortedList.length.toString()],
         ['GRAND TOTAL BILLED', `Rs. ${Number(grandTotal).toLocaleString()}`]
       ];
 
@@ -1061,10 +1065,13 @@ const Bills = () => {
   const openEditModal = (bill) => {
     setEditingBill(bill);
     setEditFormData({
+      customer: bill.customer?._id || bill.customer || '',
+      material: bill.material?._id || bill.material || '',
       vehicleNumber: bill.vehicleNumber || '',
       quantity: bill.quantity,
       quantityUnit: bill.quantityUnit || 'ton',
       pricePerUnit: bill.pricePerUnit,
+      passAmount: bill.passAmount != null ? bill.passAmount : '',
       date: bill.date ? new Date(bill.date).toISOString().split('T')[0] : ''
     });
     setEditModalOpen(true);
@@ -1073,6 +1080,14 @@ const Bills = () => {
   const handleEditSubmit = async (e) => {
     e.preventDefault();
     if (isEditSubmitting) return;
+    if (!editFormData.customer) {
+      alert('Please select a customer');
+      return;
+    }
+    if (!editFormData.material) {
+      alert('Please select a material');
+      return;
+    }
     if (editFormData.vehicleNumber && !isValidVehicleNumber(editFormData.vehicleNumber)) {
       alert('Vehicle number must be TN 74 2003, TN 74 AE 2003, or TMR 7177 format');
       return;
@@ -1080,11 +1095,14 @@ const Bills = () => {
     try {
       setIsEditSubmitting(true);
       await api.put(`/bills/${editingBill._id}`, {
+        customerId: editFormData.customer,
+        materialId: editFormData.material,
         date: editFormData.date,
         vehicleNumber: editFormData.vehicleNumber || '',
         quantity: Number(editFormData.quantity),
         quantityUnit: editFormData.quantityUnit,
-        pricePerUnit: Number(editFormData.pricePerUnit)
+        pricePerUnit: Number(editFormData.pricePerUnit),
+        passAmount: editFormData.passAmount !== '' ? Number(editFormData.passAmount) : 0
       });
       setEditModalOpen(false);
       setEditingBill(null);
@@ -2240,52 +2258,84 @@ const Bills = () => {
 
       {editModalOpen && editingBill && (
         <div className="fixed inset-0 bg-slate-900/50 flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-xl shadow-2xl w-full max-w-md overflow-hidden">
-            <div className="p-5 border-b border-slate-100 flex justify-between items-center">
+          <div className="bg-white rounded-xl shadow-2xl w-full max-w-md overflow-hidden flex flex-col max-h-[90vh]">
+            <div className="p-5 border-b border-slate-100 flex justify-between items-center bg-slate-50 shrink-0">
               <h2 className="text-xl font-bold text-slate-800">Edit Bill</h2>
               <button onClick={() => setEditModalOpen(false)} className="text-slate-400 hover:text-slate-600 text-2xl leading-none">&times;</button>
             </div>
-            <form onSubmit={handleEditSubmit} className="p-6 space-y-4">
+            <form onSubmit={handleEditSubmit} className="p-6 space-y-4 overflow-y-auto">
               <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">Date *</label>
-                <input
-                  type="date"
+                <label className="block text-sm font-medium text-slate-700 mb-1">Customer *</label>
+                <SearchableSelect
+                  options={customers.map(c => ({ value: c._id, label: c.name }))}
+                  value={editFormData.customer}
+                  onChange={(val) => setEditFormData({ ...editFormData, customer: val })}
+                  placeholder="Select Customer"
                   required
-                  value={editFormData.date}
-                  onChange={(e) => setEditFormData({ ...editFormData, date: e.target.value })}
-                  className="w-full border border-slate-300 rounded-lg p-2.5 focus:ring-2 focus:ring-blue-500 outline-none text-sm bg-white text-slate-800"
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">Vehicle Number</label>
-                <input
-                  type="text"
-                  value={editFormData.vehicleNumber}
-                  onChange={(e) => setEditFormData({ ...editFormData, vehicleNumber: formatVehicleInput(e.target.value) })}
-                  className="w-full border border-slate-300 rounded-lg p-2.5 uppercase focus:ring-2 focus:ring-blue-500 outline-none"
-                  placeholder="TN 74 AE 2003 or TMR 7177"
-                />
+                <label className="block text-sm font-medium text-slate-700 mb-1">Material *</label>
+                <select
+                  required
+                  value={editFormData.material}
+                  onChange={(e) => setEditFormData({ ...editFormData, material: e.target.value })}
+                  className="w-full border border-slate-300 rounded-lg p-2.5 bg-white text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+                >
+                  <option value="" disabled>Select Material</option>
+                  {materials.map(m => (
+                    <option key={m._id} value={m._id}>{m.name}</option>
+                  ))}
+                </select>
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1">Quantity</label>
-                  <input type="number" min="0.1" step="0.01" required value={editFormData.quantity} onChange={(e) => setEditFormData({ ...editFormData, quantity: e.target.value })} className="w-full border border-slate-300 rounded-lg p-2.5" />
+                  <label className="block text-sm font-medium text-slate-700 mb-1">Date *</label>
+                  <input
+                    type="date"
+                    required
+                    value={editFormData.date}
+                    onChange={(e) => setEditFormData({ ...editFormData, date: e.target.value })}
+                    className="w-full border border-slate-300 rounded-lg p-2.5 focus:ring-2 focus:ring-blue-500 outline-none text-sm bg-white text-slate-800"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">Vehicle Number</label>
+                  <input
+                    type="text"
+                    value={editFormData.vehicleNumber}
+                    onChange={(e) => setEditFormData({ ...editFormData, vehicleNumber: formatVehicleInput(e.target.value) })}
+                    className="w-full border border-slate-300 rounded-lg p-2.5 uppercase focus:ring-2 focus:ring-blue-500 outline-none text-sm"
+                    placeholder="TN 74 AE 2003"
+                  />
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">Quantity *</label>
+                  <input type="number" min="0.1" step="0.01" required value={editFormData.quantity} onChange={(e) => setEditFormData({ ...editFormData, quantity: e.target.value })} className="w-full border border-slate-300 rounded-lg p-2.5 text-sm" />
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-slate-700 mb-1">Unit</label>
-                  <select value={editFormData.quantityUnit} onChange={(e) => setEditFormData({ ...editFormData, quantityUnit: e.target.value })} className="w-full border border-slate-300 rounded-lg p-2.5 bg-white">
+                  <select value={editFormData.quantityUnit} onChange={(e) => setEditFormData({ ...editFormData, quantityUnit: e.target.value })} className="w-full border border-slate-300 rounded-lg p-2.5 bg-white text-sm">
                     <option value="unit">Unit</option>
                     <option value="ton">Ton</option>
                   </select>
                 </div>
               </div>
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">Price per {editFormData.quantityUnit}</label>
-                <input type="number" min="0" step="0.01" required value={editFormData.pricePerUnit} onChange={(e) => setEditFormData({ ...editFormData, pricePerUnit: e.target.value })} className="w-full border border-slate-300 rounded-lg p-2.5" />
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">Price per {editFormData.quantityUnit} *</label>
+                  <input type="number" min="0" step="0.01" required value={editFormData.pricePerUnit} onChange={(e) => setEditFormData({ ...editFormData, pricePerUnit: e.target.value })} className="w-full border border-slate-300 rounded-lg p-2.5 text-sm" />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">Pass Fee (Rs.)</label>
+                  <input type="number" min="0" step="0.01" value={editFormData.passAmount} onChange={(e) => setEditFormData({ ...editFormData, passAmount: e.target.value })} className="w-full border border-slate-300 rounded-lg p-2.5 text-sm" placeholder="0" />
+                </div>
               </div>
-              <div className="flex justify-end gap-3 pt-2">
-                <button type="button" onClick={() => setEditModalOpen(false)} className="px-4 py-2 bg-slate-100 rounded-lg">Cancel</button>
-                <button type="submit" disabled={isEditSubmitting} className="px-4 py-2 bg-blue-600 text-white rounded-lg font-medium disabled:opacity-50 disabled:cursor-not-allowed disabled:pointer-events-none">
+              <div className="flex justify-end gap-3 pt-3 border-t border-slate-100">
+                <button type="button" onClick={() => setEditModalOpen(false)} className="px-4 py-2 bg-slate-100 text-slate-700 rounded-lg font-medium text-sm hover:bg-slate-200">Cancel</button>
+                <button type="submit" disabled={isEditSubmitting} className="px-4 py-2 bg-blue-600 text-white rounded-lg font-medium text-sm hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed">
                   {isEditSubmitting ? 'Saving...' : 'Save Changes'}
                 </button>
               </div>

@@ -415,6 +415,7 @@ const Customers = () => {
     const grandTotalSum = selectedBilled + previousOutstanding;
     const balanceValue = grandTotalSum - selectedPaid;
     const totalsBody = [
+      ['TOTAL NO. OF LOADS / BILLS', sortedBills.length.toString()],
       ['GRAND TOTAL BILLED', `Rs. ${Number(selectedBilled).toLocaleString()}`]
     ];
 

@@ -209,7 +209,7 @@ export const createBill = async (req, res, next) => {
 export const updateBill = async (req, res, next) => {
   try {
     const { id } = req.params;
-    const { date, vehicleNumber, quantity, quantityUnit, pricePerUnit, passAmount } = req.body;
+    const { date, vehicleNumber, quantity, quantityUnit, pricePerUnit, passAmount, customerId, materialId } = req.body;
 
     const initialBill = await Bill.findById(id);
     if (!initialBill || initialBill.isDeleted) {
@@ -217,7 +217,8 @@ export const updateBill = async (req, res, next) => {
       throw new Error('Bill not found');
     }
 
-    const customerId = initialBill.customer;
+    const oldCustomerId = initialBill.customer ? initialBill.customer.toString() : null;
+    const lockKey = customerId ? `customer:${customerId}` : (oldCustomerId ? `customer:${oldCustomerId}` : null);
 
     const updated = await runInTransaction(async (session) => {
       const bill = await Bill.findById(id).session(session);
@@ -227,7 +228,30 @@ export const updateBill = async (req, res, next) => {
         throw err;
       }
 
+      if (customerId) {
+        const customerRecord = await Customer.findOne({ _id: customerId, isDeleted: false }).session(session);
+        if (!customerRecord) {
+          const err = new Error('Customer not found');
+          err.statusCode = 400;
+          throw err;
+        }
+        bill.customer = customerRecord._id;
+        bill.customerNameSnapshot = customerRecord.name;
+      }
+
+      if (materialId) {
+        const materialRecord = await Material.findById(materialId).session(session);
+        if (!materialRecord) {
+          const err = new Error('Material not found');
+          err.statusCode = 400;
+          throw err;
+        }
+        bill.material = materialRecord._id;
+        bill.materialNameSnapshot = materialRecord.name;
+      }
+
       if (date) bill.date = new Date(date);
+
       if (vehicleNumber !== undefined) {
         const normalizedVehicle = normalizeVehicle(vehicleNumber);
         if (normalizedVehicle) {
@@ -250,20 +274,25 @@ export const updateBill = async (req, res, next) => {
           }
         }
       }
-      if (quantity != null) bill.quantity = quantity;
+
+      if (quantity != null) bill.quantity = Number(quantity);
       if (quantityUnit) bill.quantityUnit = quantityUnit === 'ton' ? 'ton' : 'unit';
-      if (pricePerUnit != null) bill.pricePerUnit = pricePerUnit;
+      if (pricePerUnit != null) bill.pricePerUnit = Number(pricePerUnit);
       if (passAmount != null) bill.passAmount = Number(passAmount) || 0;
 
       bill.totalAmount = roundToNearestTen(bill.quantity * bill.pricePerUnit);
       await bill.save({ session });
       
-      if (bill.customer) {
-        await recalculateCustomerBalances(bill.customer, session);
+      const newCustIdStr = bill.customer ? bill.customer.toString() : null;
+      if (oldCustomerId && oldCustomerId !== newCustIdStr) {
+        await recalculateCustomerBalances(oldCustomerId, session);
+      }
+      if (newCustIdStr) {
+        await recalculateCustomerBalances(newCustIdStr, session);
       }
 
       return await Bill.findById(bill._id).session(session);
-    }, customerId ? `customer:${customerId}` : null);
+    }, lockKey);
 
     res.json({
       ...updated.toObject(),

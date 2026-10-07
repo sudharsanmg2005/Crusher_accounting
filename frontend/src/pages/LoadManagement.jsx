@@ -786,13 +786,16 @@ const LoadManagement = () => {
 
       let grandBilled = 0;
       let grandPending = 0;
+      let grandLoadsCount = 0;
       activeBuyers.forEach(b => {
         grandBilled += b.totalLoadsAmount || 0;
         grandPending += Math.max(0, b.outstandingBalance || 0);
+        grandLoadsCount += loadCountMap[b.buyerId || b._id] || 0;
       });
 
-      const grandHead = [['GRAND SUMMARY', 'AMOUNT (Rs.)']];
+      const grandHead = [['GRAND SUMMARY', 'DETAILS / AMOUNT']];
       const grandBody = [
+        ['TOTAL NUMBER OF LOADS', grandLoadsCount.toString()],
         ['GRAND TOTAL LOAD COST', grandBilled.toLocaleString()],
         ['GRAND TOTAL PENDING', grandPending.toLocaleString()]
       ];
@@ -883,6 +886,7 @@ const LoadManagement = () => {
       const grandTotalSum = grandTotal + oldBalance;
       const totalBalanceCalculated = grandTotalSum - amountReceived;
       const totalsBody = [
+        ['TOTAL NUMBER OF LOADS', sortedList.length.toString()],
         ['GRAND TOTAL LOAD COST', `Rs. ${Number(grandTotal).toLocaleString()}`]
       ];
 
